@@ -157,7 +157,7 @@ public class CekOzetTests
     {
         await using var f = Fabrika();
         using var c = await Editor(f);
-        Assert.Equal(new CekOzetDto(Today, new(0, 0m), new(0, 0m), new(0, 0m), new(0, 0m), new(0, 0m)),
+        Assert.Equal(new CekOzetDto(Today, new(0, 0m), new(0, 0m), new(0, 0m), new(0, 0m), new(0, 0m), new(0, 0m)),
             await c.GetFromJsonAsync<CekOzetDto>(Yol + "/ozet", TestContext.Current.CancellationToken));
         (await c.PutAsJsonAsync("/api/ayarlar/izleyici-sifre", new { yeniSifre = "izleyici-ozet-sifresi" }, TestContext.Current.CancellationToken)).EnsureSuccessStatusCode();
         using var izleyici = f.CreateClient();

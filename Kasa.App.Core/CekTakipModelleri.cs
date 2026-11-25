@@ -10,25 +10,28 @@ namespace Kasa.App.Core;
 public partial class KodCipi(string kod, string ad) : ObservableObject
 {
     public string Kod { get; } = kod;
-    public string Ad { get; } = ad;
+    /// <summary>Görünen ad; yöne göre değişebilir (Çekler: "Portföyde" / "Ödenecek").</summary>
+    [ObservableProperty] private string _ad = ad;
     [ObservableProperty] private bool _secili;
 }
 
 /// <summary>Çekler ekranının üst şeridindeki ve panel kutusundaki hazır süzgeçler (tasarım "Masaüstü ekranı", "Panel"). Panel
-/// kutusu sayfayı //cekler?Suzgec={ad} ile açar. VadesiGecmis alınan, VerilenVadesiGecmis verilen (ödenmemiş) çektir.</summary>
-public enum CekHazirSuzgec { Portfoy, Alinan30, Verilen30, VadesiGecmis, VerilenVadesiGecmis }
+/// kutusu sayfayı //cekler?Suzgec={ad} ile açar. VadesiGecmis alınan, VerilenVadesiGecmis verilen (ödenmemiş) çektir; VerilenPortfoy
+/// ödenecek verilen çeklerin tamamıdır.</summary>
+public enum CekHazirSuzgec { Portfoy, Alinan30, Verilen30, VadesiGecmis, VerilenVadesiGecmis, VerilenPortfoy }
 
 /// <summary>Çek metinleri: durum, konum, vade rozeti ve tutar biçimi (görünen ad kuralları Kasa.Core.CekKurallari'ndadır).</summary>
 public static class CekMetni
 {
     public static string Tur(string tur) => tur switch { CekTurleri.Senet => "Senet", _ => "Çek" };
     public static string Yon(string yon) => yon switch { CekYonleri.Verilen => "Verilen", _ => "Alınan" };
-    public static string Durum(string durum) => CekKurallari.DurumAdi(durum);
+    /// <summary>Durumun görünen adı; verilen çek portföyde değil ödenecektir (2026-11-25).</summary>
+    public static string Durum(string durum, string yon) => durum == CekDurumlari.Portfoyde && yon == CekYonleri.Verilen ? "ödenecek" : CekKurallari.DurumAdi(durum);
 
     /// <summary>Durum süzgeci çipinin adı.</summary>
-    public static string Suzgec(string suzgec) => suzgec switch
+    public static string Suzgec(string suzgec, string yon) => suzgec switch
     {
-        CekSuzgecleri.Portfoyde => "Portföyde",
+        CekSuzgecleri.Portfoyde => yon == CekYonleri.Verilen ? "Ödenecek" : "Portföyde",
         CekSuzgecleri.Karsiliksiz => "Karşılıksız",
         CekSuzgecleri.Kapanan => "Kapananlar",
         _ => "Hepsi",
@@ -47,11 +50,13 @@ public static class CekMetni
     /// <summary>Özet satırı (üst şerit ve panel kutusu): "Ad: 10.000,00 ₺ (2 çek)".</summary>
     public static string OzetSatiri(string ad, CekOzetKalemi kalem) => $"{ad}: {Bicim.Tl(kalem.Toplam)} ₺ ({kalem.Adet} çek)";
 
-    // Panel kutusu (CekOzetViewModel) ve Çekler ekranının üst şeridi (CekTakipViewModel) aynı dört/beş satırı gösterir; metin
+    // Panel kutusu (CekOzetViewModel) ve Çekler ekranının üst şeridi (CekTakipViewModel) aynı beş/altı satırı gösterir; metin
     // tek yerden üretilir ki ikisi arasında söz dizimi kaymasın.
     public static string PortfoyMetni(CekOzetDto? ozet) => ozet is { } o ? OzetSatiri("Portföydeki alınan", o.PortfoydekiAlinan) : "";
     public static string Alinan30Metni(CekOzetDto? ozet) => ozet is { } o ? OzetSatiri("30 gün içinde tahsil edilecek", o.Alinan30) : "";
     public static string Verilen30Metni(CekOzetDto? ozet) => ozet is { } o ? OzetSatiri("30 gün içinde ödenecek", o.Verilen30) : "";
+    /// <summary>Eski sunucu bu toplamı göndermez: satır boş kalır.</summary>
+    public static string VerilenPortfoyMetni(CekOzetDto? ozet) => ozet?.PortfoydekiVerilen is { } k ? OzetSatiri("Ödenecek toplam", k) : "";
     public static string GecmisMetni(CekOzetDto? ozet) => ozet is { } o ? OzetSatiri("Vadesi geçmiş, tahsil edilmemiş", o.VadesiGecmis) : "";
     public static string VerilenGecmisMetni(CekOzetDto? ozet) => ozet is { } o ? OzetSatiri("Vadesi geçmiş, ödenmemiş", o.VerilenVadesiGecmis) : "";
 
@@ -78,7 +83,7 @@ public sealed class CekSatiri(CekDto veri, DateOnly bugun)
             var parcalar = new List<string> { $"{CekMetni.Tur(Veri.Tur)} {Veri.Banka ?? "—"} · {Veri.No}", $"{Bicim.Tl(Veri.Tutar)} ₺" };
             if (Veri.Kalan > 0 && Veri.Kalan != Veri.Tutar)
                 parcalar.Add($"Kalan: {Bicim.Tl(Veri.Kalan)} ₺");
-            parcalar.Add(CekMetni.Durum(Veri.Durum));
+            parcalar.Add(CekMetni.Durum(Veri.Durum, Veri.Yon));
             if (CekMetni.Konum(Veri.Konum) is { Length: > 0 } konum && Veri.Durum is CekDurumlari.Portfoyde or CekDurumlari.KismenTahsilEdildi or CekDurumlari.Karsiliksiz)
                 parcalar.Add(konum);
             if (Veri.Teminat)

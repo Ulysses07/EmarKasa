@@ -90,7 +90,7 @@ public class SonVeriOnbellegiTests
     {
         var auth = TestOturumu.Ac();
         var finans = Finans();
-        var api = new CekTakipViewModelTests.Sahte { Liste = [CekTakipViewModelTests.Cek(1)] };
+        var api = new CekTakipViewModelTests.Sahte { Liste = [CekTakipViewModelTests.Cek(1, Kasa.Core.Kodlar.CekYonleri.Verilen)] };
         var zaman = new IslemEditorTests.SabitZaman(new DateOnly(2026, 9, 25));
         await new CekTakipViewModel(api, finans, auth, zaman).YukleAsync();
         finans.YuklemeHatasi = new HttpRequestException();

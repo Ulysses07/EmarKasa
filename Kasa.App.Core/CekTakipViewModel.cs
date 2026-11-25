@@ -8,7 +8,7 @@ using CekKurallari = Kasa.Core.CekKurallari;
 namespace Kasa.App.Core;
 
 /// <summary>
-/// Çekler ekranı (docs/specs/2026-10-01-cekler.md "Masaüstü ekranı"). Süzgeçler (yön, durum, arama, vade aralığı) sunucuda uygulanır:
+/// Çekler ekranı (docs/specs/2026-10-01-cekler.md "Masaüstü ekranı"; verilen öncelikli: 2026-11-25-cekler-verilen-ve-toplu.md). Süzgeçler (yön, durum, arama, vade aralığı) sunucuda uygulanır:
 /// her değişiklik listeyi yeniden yükler. Liste ve özet okuması son istek kazanır hattıdır (<see cref="SonIstekHatti"/>): süzgeç
 /// istek anında yakalanır, süren yükleme yeni süzgeci engellemez, eski süzgecin geç yanıtı yeni seçimi ezmez. Yazmadan sonra özet
 /// yenilenir; kaydedilen çek seçili süzgece artık uymuyorsa listeden düşer ve bu söylenir. Açılan çekin ayrıntısı satırının hemen altında görünür (<see cref="OncekiSatirlar"/>, açık
@@ -37,7 +37,7 @@ public partial class CekTakipViewModel(ICekApi api, IKasaApi finans, AuthViewMod
     public AlanHatalari Hatalar { get; } = new();
     /// <summary>Açık çekin hareket formunun hataları.</summary>
     public AlanHatalari HareketHatalari { get; } = new();
-    protected override IEnumerable<AlanHatalari> Formlar => [Hatalar, HareketHatalari];
+    protected override IEnumerable<AlanHatalari> Formlar => [Hatalar, HareketHatalari, TopluHatalari];
 
     /// <summary>Çek formunun açıldığı andaki değerleri: kaydedilmemiş değişiklik ölçütü (form kapalıyken değişiklik sayılmaz).</summary>
     private KaydedilmemisDegisiklik? _formIzi;
@@ -65,7 +65,7 @@ public partial class CekTakipViewModel(ICekApi api, IKasaApi finans, AuthViewMod
         HareketKasasi,
         Karsi,
     });
-    public bool KaydedilmemisDegisiklikVar => FormIzi.Var || HareketIzi.Var;
+    public bool KaydedilmemisDegisiklikVar => FormIzi.Var || HareketIzi.Var || TopluIzi.Var;
     /// <summary>Yenileme açık formu korur (Ö-4): kabuk sormadan yeniler.</summary>
     public bool YenilemeFormuKorur => true;
 
@@ -74,6 +74,7 @@ public partial class CekTakipViewModel(ICekApi api, IKasaApi finans, AuthViewMod
     {
         FormuKapatOnaysiz();
         HareketFormunuKapat();
+        TopluKapatOnaysiz();
     }
 
     /// <summary>Düzeltme formu açıkken düzenlenen çekin kimliği (listede satırın vurgusu); yoksa null.</summary>
@@ -89,22 +90,22 @@ public partial class CekTakipViewModel(ICekApi api, IKasaApi finans, AuthViewMod
     public ObservableCollection<CekSatiri> OncekiSatirlar { get; } = new();
     public ObservableCollection<CekSatiri> SonrakiSatirlar { get; } = new();
     public ObservableCollection<CekHareketSatiri> Hareketler { get; } = new();
-    public ObservableCollection<KodCipi> YonCipleri { get; } = Cipler([CekYonleri.Alinan, CekYonleri.Verilen], CekMetni.Yon);
+    public ObservableCollection<KodCipi> YonCipleri { get; } = Cipler([CekYonleri.Verilen, CekYonleri.Alinan], CekMetni.Yon);
     public ObservableCollection<KodCipi> DurumCipleri { get; } =
-        Cipler([CekSuzgecleri.Portfoyde, CekSuzgecleri.Karsiliksiz, CekSuzgecleri.Kapanan, CekSuzgecleri.Hepsi], CekMetni.Suzgec);
+        Cipler([CekSuzgecleri.Portfoyde, CekSuzgecleri.Karsiliksiz, CekSuzgecleri.Kapanan, CekSuzgecleri.Hepsi], s => CekMetni.Suzgec(s, CekYonleri.Verilen));
     public ObservableCollection<KodCipi> HareketCipleri { get; } = new();
     public ObservableCollection<string> KasaSecenekleri { get; } = new();
     public ObservableCollection<string> CekKasaSecenekleri { get; } = new();
     public IReadOnlyList<KodCipi> KonumSecenekleri { get; } =
         Cipler([CekKonumlari.Elde, CekKonumlari.BankadaTahsilde, CekKonumlari.Teminatta, CekKonumlari.Icrada], k => CekMetni.Konum(k));
     public IReadOnlyList<KodCipi> TurSecenekleri { get; } = Cipler([CekTurleri.Cek, CekTurleri.Senet], CekMetni.Tur);
-    public IReadOnlyList<KodCipi> YonSecenekleri { get; } = Cipler([CekYonleri.Alinan, CekYonleri.Verilen], CekMetni.Yon);
+    public IReadOnlyList<KodCipi> YonSecenekleri { get; } = Cipler([CekYonleri.Verilen, CekYonleri.Alinan], CekMetni.Yon);
 
     /// <summary>Kodlardan çipler; ilki seçili.</summary>
     private static ObservableCollection<KodCipi> Cipler(string[] kodlar, Func<string, string> ad) =>
         new(kodlar.Select((k, i) => new KodCipi(k, ad(k)) { Secili = i == 0 }));
 
-    [ObservableProperty] private string _yon = CekYonleri.Alinan;
+    [ObservableProperty] private string _yon = CekYonleri.Verilen;
     [ObservableProperty] private string _durum = CekSuzgecleri.Portfoyde;
     [ObservableProperty] private string _ara = "";
     [ObservableProperty][NotifyPropertyChangedFor(nameof(VadeSuzgeci), nameof(VadeSuzgeciVar))] private DateOnly? _vadeBas;
@@ -165,7 +166,7 @@ public partial class CekTakipViewModel(ICekApi api, IKasaApi finans, AuthViewMod
     public string AcikOzet => Acik is not { } c ? "" : string.Join("\n", new[]
     {
         $"{CekMetni.Yon(c.Yon)} {CekMetni.Tur(c.Tur).ToLowerInvariant()} · {c.Kisi} · {c.Banka ?? "—"} · {c.No}",
-        $"Tutar {Bicim.Tl(c.Tutar)} ₺ · kalan {Bicim.Tl(c.Kalan)} ₺ · vade {c.VadeTarihi:dd.MM.yyyy} · {CekMetni.Durum(c.Durum)}",
+        $"Tutar {Bicim.Tl(c.Tutar)} ₺ · kalan {Bicim.Tl(c.Kalan)} ₺ · vade {c.VadeTarihi:dd.MM.yyyy} · {CekMetni.Durum(c.Durum, c.Yon)}",
         c.Kanal is { } kasa ? $"Kasa: {kasa}" : null,
         c.Konum is not null ? $"Konum: {CekMetni.Konum(c.Konum)}" : null,
         c.Teminat ? "Teminat çeki: bildirim ve panel toplamlarına girmez." : null,
@@ -177,10 +178,11 @@ public partial class CekTakipViewModel(ICekApi api, IKasaApi finans, AuthViewMod
     public string Verilen30Metni => CekMetni.Verilen30Metni(Ozet);
     public string GecmisMetni => CekMetni.GecmisMetni(Ozet);
     public string VerilenGecmisMetni => CekMetni.VerilenGecmisMetni(Ozet);
+    public string VerilenPortfoyMetni => CekMetni.VerilenPortfoyMetni(Ozet);
 
     partial void OnOzetChanged(CekOzetDto? value)
     {
-        foreach (var p in new[] { nameof(PortfoyMetni), nameof(Alinan30Metni), nameof(Verilen30Metni), nameof(GecmisMetni), nameof(VerilenGecmisMetni) })
+        foreach (var p in new[] { nameof(PortfoyMetni), nameof(Alinan30Metni), nameof(Verilen30Metni), nameof(GecmisMetni), nameof(VerilenGecmisMetni), nameof(VerilenPortfoyMetni) })
             OnPropertyChanged(p);
     }
 
@@ -310,7 +312,10 @@ public partial class CekTakipViewModel(ICekApi api, IKasaApi finans, AuthViewMod
         TakipMetni.Doldur(KasaSecenekleri, kanallar.Where(k => k.Aktif).Select(k => k.Ad));
         _aktifCekKasalari = [.. kanallar.Where(k => k.Aktif).Select(k => k.Ad).Prepend(KanalEtiketleri.Ortak)];
         // Düzenleme formu açıkken liste yeniden yüklenirse (ör. yazmadan sonra) düzenlenen çekin pasif kasası seçeneklerden düşmesin.
+        // Seçenekler boşalıp dolarken bağlı seçim (toplu giriş formunun kasası) düşmesin.
+        var topluKasa = TopluKasa;
         CekKasaSecenekleriniDoldur(Duzenlenen is { } dn ? cekler.FirstOrDefault(c => c.Id == dn)?.Kanal : null);
+        TopluKasa = topluKasa is not null && CekKasaSecenekleri.Contains(topluKasa) ? topluKasa : null;
         TakipMetni.Doldur(Cekler, cekler.Select(c => new CekSatiri(c, Bugun)));
         Ozet = ozet;
         var acik = Acik is { } eski ? cekler.FirstOrDefault(c => c.Id == eski.Id) : null;
@@ -357,7 +362,10 @@ public partial class CekTakipViewModel(ICekApi api, IKasaApi finans, AuthViewMod
         foreach (var c in YonCipleri)
             c.Secili = c.Kod == yon;
         foreach (var c in DurumCipleri)
+        {
             c.Secili = c.Kod == durum;
+            c.Ad = CekMetni.Suzgec(c.Kod, yon);
+        }
     }
 
     /// <summary>Kimliği verilen çeki açar (bildirim tıklaması); listede yoksa sayfa hatası yazılır. Alıcı rolü çeke geçemez.</summary>
@@ -390,6 +398,9 @@ public partial class CekTakipViewModel(ICekApi api, IKasaApi finans, AuthViewMod
                 break;
             case CekHazirSuzgec.Verilen30:
                 SuzgecleriYaz(CekYonleri.Verilen, CekSuzgecleri.Portfoyde, bugun, bugun.AddDays(30));
+                break;
+            case CekHazirSuzgec.VerilenPortfoy:
+                SuzgecleriYaz(CekYonleri.Verilen, CekSuzgecleri.Portfoyde, null, null);
                 break;
             case CekHazirSuzgec.VerilenVadesiGecmis:
                 SuzgecleriYaz(CekYonleri.Verilen, CekSuzgecleri.Portfoyde, null, bugun.AddDays(-1));
@@ -555,7 +566,7 @@ public partial class CekTakipViewModel(ICekApi api, IKasaApi finans, AuthViewMod
     /// <summary>Başarı iletisinin sonu: görünüyorsa nokta, değilse neden listede olmadığı (İşlemler ekranıyla aynı üslup).</summary>
     private string GorunurlukEki(bool gorunur) => gorunur ? "." : $"; seçili süzgeç ({SuzgecMetni()}) dışında kaldığı için listede görünmüyor.";
 
-    private string SuzgecMetni() => string.Join(" · ", new[] { CekMetni.Yon(Yon), CekMetni.Suzgec(Durum), VadeSuzgeci }.Where(p => p.Length > 0));
+    private string SuzgecMetni() => string.Join(" · ", new[] { CekMetni.Yon(Yon), CekMetni.Suzgec(Durum, Yon), VadeSuzgeci }.Where(p => p.Length > 0));
 
     /// <summary>Yazmadan sonra üst şeridin özeti yenilenir. Kayıt alınmıştır: özet okunamazsa başarı iletisi kalır, okuma hatası
     /// ayrıca yazılır.</summary>
@@ -729,11 +740,13 @@ public partial class CekTakipViewModel(ICekApi api, IKasaApi finans, AuthViewMod
         Acik = null;
         Ozet = null;
         FormuKapatOnaysiz();
+        TopluKapatOnaysiz();
         _sonKanal = null;
-        SuzgecleriYaz(CekYonleri.Alinan, CekSuzgecleri.Portfoyde, null, null);
+        SuzgecleriYaz(CekYonleri.Verilen, CekSuzgecleri.Portfoyde, null, null);
         Ara = "";
         _listeHatti?.Birak();
         _kayit.Temizle();
+        _topluKayit.Temizle();
         foreach (var anahtar in new[] { _hareket, _geriAl, _sil })
             anahtar.Temizle();
     }

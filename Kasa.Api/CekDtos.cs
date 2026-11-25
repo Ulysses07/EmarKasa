@@ -6,6 +6,17 @@ namespace Kasa.Api;
 public record CekYaz(Guid IstekId, int Surum, string Tur, string Yon, string No, string? Banka, string Kisi, decimal Tutar, DateOnly VadeTarihi,
     string? Kanal, bool Teminat, string? Konum, string? Not);
 
+/// <summary>Toplu çek girişinin satırı; alanların anlamı ve kuralları <see cref="CekYaz"/> ile aynıdır.</summary>
+public record CekTopluSatirYaz(string Tur, string Yon, string No, string? Banka, string Kisi, decimal Tutar, DateOnly VadeTarihi,
+    string? Kanal, bool Teminat, string? Konum, string? Not);
+
+/// <summary>Toplu çek girişi (POST /api/takip/cekler/toplu; docs/specs/2026-11-25-cekler-verilen-ve-toplu.md): ya bütün satırlar
+/// kaydedilir ya hiçbiri.</summary>
+public record CekTopluYaz(Guid IstekId, IReadOnlyList<CekTopluSatirYaz> Satirlar);
+
+/// <summary>Toplu girişin kaydettiği çekler, giriş sırasıyla.</summary>
+public record CekTopluSonuc(IReadOnlyList<CekDto> Cekler);
+
 /// <summary>Çek hareketi (POST /api/takip/cekler/{id}/hareketler). <paramref name="Kanal"/>: alınan çekin tahsilat, ciro ve kırdırmasında
 /// kasanın adı; dönüşte ve verilen çekte boş (sunucu ters çevrilen hareketin ya da çekin kasasını kullanır). <paramref name="NetTutar"/>
 /// yalnız kırdırmada; <paramref name="Karsi"/> ciroda ve kırdırmada zorunlu.</summary>
@@ -28,7 +39,7 @@ public record CekOzetKalemi(int Adet, decimal Toplam);
 
 /// <summary>Çek panel özeti (GET /api/takip/cekler/ozet). Teminat çekleri ve kapanmış çekler dışarıdadır; tutarlar kalandır. Otuz gün
 /// bugünden bugün+30'a kadardır (ikisi dahil). Vadesi geçmiş: vadesi bugünden önce, portföyde ya da kısmen tahsil edilmiş alınan çek.
-/// Verilen vadesi geçmiş: vadesi bugünden önce, portföyde ya da kısmen ödenmiş verilen çek (2026-10-02 ürün sahibi kararı; sözleşmeyi
-/// bozmamak için kaydın sonunda).</summary>
+/// Verilen vadesi geçmiş: vadesi bugünden önce, portföyde ya da kısmen ödenmiş verilen çek (2026-10-02 ürün sahibi kararı).
+/// Portföydeki verilen: ödenecek verilen çeklerin tamamı (2026-11-25). Son iki alan sözleşmeyi bozmamak için kaydın sonundadır.</summary>
 public record CekOzetDto(DateOnly Tarih, CekOzetKalemi PortfoydekiAlinan, CekOzetKalemi Alinan30, CekOzetKalemi Verilen30, CekOzetKalemi VadesiGecmis,
-    CekOzetKalemi VerilenVadesiGecmis);
+    CekOzetKalemi VerilenVadesiGecmis, CekOzetKalemi? PortfoydekiVerilen = null);

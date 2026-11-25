@@ -67,6 +67,13 @@ internal static class CekServisi
     /// <summary>Tek çek; yoksa null.</summary>
     internal static CekDto? Tek(TakipHesapBaglami b, int id) => Oku(b.Db, id) is [var k] ? Dto(b, k, BenzerGruplari(b.Db)) : null;
 
+    /// <summary>Verilen kimliklerin çekleri, kimlik sırasıyla (toplu girişin yanıtı); silinmiş olan atlanır.</summary>
+    internal static List<CekDto> Coklu(TakipHesapBaglami b, IReadOnlyCollection<int> idler)
+    {
+        var gruplar = BenzerGruplari(b.Db);
+        return Oku(b.Db, adaylar: idler).Select(k => Dto(b, k, gruplar)).ToList();
+    }
+
     internal static CekOzetDto Ozet(TakipHesapBaglami b)
     {
         var bugun = b.Bugun;
@@ -76,7 +83,7 @@ internal static class CekServisi
         var verilen = acik.Where(k => k.Cek.Yon == CekYonleri.Verilen).ToList();
         return new(bugun, Kalem(alinan), Kalem(alinan.Where(k => k.Cek.VadeTarihi >= bugun && k.Cek.VadeTarihi <= sinir)),
             Kalem(verilen.Where(k => k.Cek.VadeTarihi >= bugun && k.Cek.VadeTarihi <= sinir)),
-            Kalem(alinan.Where(k => k.Cek.VadeTarihi < bugun)), Kalem(verilen.Where(k => k.Cek.VadeTarihi < bugun)));
+            Kalem(alinan.Where(k => k.Cek.VadeTarihi < bugun)), Kalem(verilen.Where(k => k.Cek.VadeTarihi < bugun)), Kalem(verilen));
     }
 
     private static CekOzetKalemi Kalem(IEnumerable<Kayit> kayitlar)

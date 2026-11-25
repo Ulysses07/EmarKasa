@@ -52,6 +52,19 @@ public class CekTakipViewModelTests
             }
             return Task.FromResult(Cek(id ?? 99, g.Yon, g.Tutar, no: g.No, vade: g.VadeTarihi) with { Surum = g.Surum + 1 });
         }
+        public List<CekTopluYaz> Toplular = [];
+        /// <summary>Verilirse CekTopluEkleAsync istek kaydedildikten sonra bu hatayla düşer; bir kez.</summary>
+        public Exception? TopluHatasi;
+        public Task<CekTopluSonuc> CekTopluEkleAsync(CekTopluYaz g)
+        {
+            Toplular.Add(g);
+            if (TopluHatasi is { } hata)
+            {
+                TopluHatasi = null;
+                return Task.FromException<CekTopluSonuc>(hata);
+            }
+            return Task.FromResult(new CekTopluSonuc(g.Satirlar.Select((s, i) => Cek(200 + i, s.Yon, s.Tutar, no: s.No, vade: s.VadeTarihi) with { Kisi = s.Kisi, Banka = s.Banka }).ToList()));
+        }
         public Task CekSilAsync(int id, CekSilYaz g)
         {
             Silmeler.Add((id, g));
@@ -92,12 +105,12 @@ public class CekTakipViewModelTests
         var api = new Sahte { Liste = [.. cekler] };
         var finans = new SahteApi { KanallarListe = [new KanalDto(1, "MEZAT", true, 0, 0), new KanalDto(2, "PERAKENDE", true, 1, 0), new KanalDto(3, "ESKI", false, 2, 0)] };
         var vm = new CekTakipViewModel(api, finans, Auth(rol), new IslemEditorTests.SabitZaman(Bugun));
-        await vm.YukleAsync();
+        await vm.SecYonCommand.ExecuteAsync(vm.YonCipleri.Single(c => c.Kod == CekYonleri.Alinan));
         return (vm, api);
     }
 
     [Fact]
-    public async Task Varsayilan_alinan_portfoyde_yuklenir_satir_vade_rozeti_ve_kalan_gosterir()
+    public async Task Alinan_portfoyde_yuklenir_satir_vade_rozeti_ve_kalan_gosterir()
     {
         var (vm, api) = await Vm(Rol.Editor, Cek(1, kalan: 30_000m), Cek(2, vade: Bugun.AddDays(-3)), Cek(3, CekYonleri.Verilen));
         Assert.Equal((CekYonleri.Alinan, CekSuzgecleri.Portfoyde, (string?)null, (DateOnly?)null, (DateOnly?)null), api.Sorgular.Single());
@@ -110,7 +123,7 @@ public class CekTakipViewModelTests
         Assert.Equal("Portföydeki alınan: 60.000,00 ₺ (2 çek)", vm.PortfoyMetni);
         Assert.Equal("30 gün içinde ödenecek: 7.000,00 ₺ (1 çek)", vm.Verilen30Metni);
         Assert.Equal("Vadesi geçmiş, ödenmemiş: 12.500,50 ₺ (2 çek)", vm.VerilenGecmisMetni);
-        Assert.True(vm.YonCipleri[0].Secili);
+        Assert.True(vm.YonCipleri[1].Secili);
         Assert.True(vm.DurumCipleri[0].Secili);
     }
 
@@ -126,10 +139,10 @@ public class CekTakipViewModelTests
     public async Task Yon_durum_arama_ve_hazir_suzgecler_sunucuya_gider()
     {
         var (vm, api) = await Vm();
-        await vm.SecYonCommand.ExecuteAsync(vm.YonCipleri[1]);
+        await vm.SecYonCommand.ExecuteAsync(vm.YonCipleri[0]);
         Assert.Equal((CekYonleri.Verilen, CekSuzgecleri.Portfoyde), (api.Sorgular[^1].Yon, api.Sorgular[^1].Durum));
-        Assert.True(vm.YonCipleri[1].Secili);
-        Assert.False(vm.YonCipleri[0].Secili);
+        Assert.True(vm.YonCipleri[0].Secili);
+        Assert.False(vm.YonCipleri[1].Secili);
         await vm.SecDurumCommand.ExecuteAsync(vm.DurumCipleri[2]);
         Assert.Equal((CekYonleri.Verilen, CekSuzgecleri.Kapanan), (api.Sorgular[^1].Yon, api.Sorgular[^1].Durum));
         vm.Ara = " ahmet ";
@@ -148,7 +161,7 @@ public class CekTakipViewModelTests
         await vm.HazirSuzgecAsync(CekHazirSuzgec.VerilenVadesiGecmis);
         Assert.Equal((CekYonleri.Verilen, CekSuzgecleri.Portfoyde, (string?)null, (DateOnly?)null, (DateOnly?)Bugun.AddDays(-1)), api.Sorgular[^1]);
         Assert.Equal("Vade 24.09.2026 ve öncesi", vm.VadeSuzgeci);
-        Assert.True(vm.YonCipleri[1].Secili);
+        Assert.True(vm.YonCipleri[0].Secili);
         await vm.VadeSuzgeciniKaldirCommand.ExecuteAsync(null);
         Assert.False(vm.VadeSuzgeciVar);
         Assert.Null(api.Sorgular[^1].Son);
@@ -198,14 +211,14 @@ public class CekTakipViewModelTests
     {
         var ciro = new CekHareketDto(7, 1, CekHareketTurleri.Ciro, Bugun.AddDays(-2), 50_000m, null, 1, "MEZAT", "Veli");
         var (vm, api) = await Vm(Rol.Editor, Cek(1, CekYonleri.Verilen, 30_000m), Cek(2, kalan: 0m, hareketler: [ciro], izinli: [CekHareketTurleri.Donus]));
-        await vm.SecYonCommand.ExecuteAsync(vm.YonCipleri[1]);
+        await vm.SecYonCommand.ExecuteAsync(vm.YonCipleri[0]);
         vm.SecCommand.Execute(vm.Cekler.Single(s => s.Veri.Id == 1));
         vm.SecHareketCommand.Execute(vm.HareketCipleri[0]);
         Assert.False(vm.KasaGerekli);
         await vm.HareketKaydetCommand.ExecuteAsync(null);
         Assert.Null(api.Hareketler.Single().Govde.Kanal);
 
-        await vm.SecYonCommand.ExecuteAsync(vm.YonCipleri[0]);
+        await vm.SecYonCommand.ExecuteAsync(vm.YonCipleri[1]);
         vm.SecCommand.Execute(vm.Cekler.Single(s => s.Veri.Id == 2));
         vm.SecHareketCommand.Execute(vm.HareketCipleri.Single());
         Assert.Equal((CekHareketTurleri.Donus, 50_000m, false), (vm.HareketTuru, vm.HareketTutari, vm.KasaGerekli));
@@ -282,16 +295,16 @@ public class CekTakipViewModelTests
         var vm = new CekTakipViewModel(api, finans, Auth(), new IslemEditorTests.SabitZaman(Bugun));
         var kapi = new TaskCompletionSource();
         api.BeklemeKapisi = kapi;
-        var ilkYukleme = vm.YukleAsync(); // Alinan/Portfoyde; CeklerAsync yanıtı bekliyor, henüz bitmedi.
-        await vm.SecYonCommand.ExecuteAsync(vm.YonCipleri[1]); // Verilen'e geçiş sırada atlanmaz, hemen sonuçlanır.
-        Assert.Equal(CekYonleri.Verilen, vm.Yon);
-        Assert.Equal((CekYonleri.Verilen, CekSuzgecleri.Portfoyde), (api.Sorgular[^1].Yon, api.Sorgular[^1].Durum));
-        Assert.Equal(new[] { 2 }, vm.Cekler.Select(s => s.Veri.Id));
+        var ilkYukleme = vm.YukleAsync(); // Verilen/Portfoyde; CeklerAsync yanıtı bekliyor, henüz bitmedi.
+        await vm.SecYonCommand.ExecuteAsync(vm.YonCipleri[1]); // Alınan'a geçiş sırada atlanmaz, hemen sonuçlanır.
+        Assert.Equal(CekYonleri.Alinan, vm.Yon);
+        Assert.Equal((CekYonleri.Alinan, CekSuzgecleri.Portfoyde), (api.Sorgular[^1].Yon, api.Sorgular[^1].Durum));
+        Assert.Equal(new[] { 1 }, vm.Cekler.Select(s => s.Veri.Id));
         kapi.SetResult();
         await ilkYukleme;
-        // Eski (Alinan) isteğin geç yanıtı yeni seçimi (Verilen) ezmez.
-        Assert.Equal(CekYonleri.Verilen, vm.Yon);
-        Assert.Equal(new[] { 2 }, vm.Cekler.Select(s => s.Veri.Id));
+        // Eski (Verilen) isteğin geç yanıtı yeni seçimi (Alınan) ezmez.
+        Assert.Equal(CekYonleri.Alinan, vm.Yon);
+        Assert.Equal(new[] { 1 }, vm.Cekler.Select(s => s.Veri.Id));
         Assert.True(vm.YonCipleri[1].Secili);
         Assert.True(vm.VeriHazir);
         Assert.False(vm.Mesgul);
@@ -306,7 +319,7 @@ public class CekTakipViewModelTests
         var vm = new CekTakipViewModel(api, finans, Auth(), new IslemEditorTests.SabitZaman(Bugun));
         var kapi = new TaskCompletionSource();
         api.BeklemeKapisi = kapi;
-        var ilkYukleme = vm.YukleAsync(); // Sayfa açılışı (Alinan/Portfoyde); CeklerAsync yanıtı bekliyor.
+        var ilkYukleme = vm.YukleAsync(); // Sayfa açılışı (Verilen/Portfoyde); CeklerAsync yanıtı bekliyor.
         await vm.CekIcinYukleAsync(5); // Aynı anda bildirimden gelen açılış; sürerken atlanmaz, hemen sonuçlanır.
         Assert.Equal((CekYonleri.Verilen, CekSuzgecleri.Hepsi), (vm.Yon, vm.Durum));
         Assert.Equal((CekYonleri.Verilen, CekSuzgecleri.Hepsi), (api.Sorgular[^1].Yon, api.Sorgular[^1].Durum));
@@ -383,7 +396,7 @@ public class CekTakipViewModelTests
     {
         var cek = Cek(1, CekYonleri.Verilen) with { Kanal = "ESKI" };
         var (vm, _) = await Vm(Rol.Editor, cek);
-        await vm.SecYonCommand.ExecuteAsync(vm.YonCipleri[1]);
+        await vm.SecYonCommand.ExecuteAsync(vm.YonCipleri[0]);
         vm.SecCommand.Execute(vm.Cekler[0]);
         vm.DuzeltCommand.Execute(null);
         Assert.Contains("ESKI", vm.CekKasaSecenekleri);
@@ -519,7 +532,7 @@ public class CekTakipViewModelTests
     {
         var (vm, api) = await Vm(Rol.Editor, Cek(1));
         vm.YeniCekCommand.Execute(null);
-        vm.FormYon = vm.YonSecenekleri[1];
+        vm.FormYon = vm.YonSecenekleri[0];
         vm.FormTur = vm.TurSecenekleri[1];   // senette banka boş olabilir (sunucu çekte bankayı ister)
         vm.No = "999";
         vm.Kisi = "Mehmet";

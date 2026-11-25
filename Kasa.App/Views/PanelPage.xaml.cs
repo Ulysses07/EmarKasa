@@ -42,18 +42,21 @@ public partial class PanelPage : ContentPage, Controls.IYenilenebilir
         PanelAlani.Add(KasaKontrolAlanlari.Kontrol(kontrol));
     }
 
-    /// <summary>Çekler kutusu (docs/specs/2026-10-01-cekler.md "Panel"): dört satır; satıra tıklayınca Çekler sayfası o süzgeçle açılır.</summary>
+    /// <summary>Çekler kutusu (docs/specs/2026-10-01-cekler.md "Panel"): önce verilen, sonra alınan satırları; satıra tıklayınca Çekler
+    /// sayfası o süzgeçle açılır. Metni boş satır (eski sunucu) görünmez.</summary>
     private static View CekKutusu(CekOzetViewModel cekler)
     {
         var satirlar = new VerticalStackLayout { Spacing = 8 };
         foreach (var (yol, suzgec) in new[]
         {
-            (nameof(cekler.Alinan30Metni), CekHazirSuzgec.Alinan30), (nameof(cekler.Verilen30Metni), CekHazirSuzgec.Verilen30),
-            (nameof(cekler.GecmisMetni), CekHazirSuzgec.VadesiGecmis), (nameof(cekler.VerilenGecmisMetni), CekHazirSuzgec.VerilenVadesiGecmis),
+            (nameof(cekler.Verilen30Metni), CekHazirSuzgec.Verilen30), (nameof(cekler.VerilenGecmisMetni), CekHazirSuzgec.VerilenVadesiGecmis),
+            (nameof(cekler.VerilenPortfoyMetni), CekHazirSuzgec.VerilenPortfoy),
+            (nameof(cekler.Alinan30Metni), CekHazirSuzgec.Alinan30), (nameof(cekler.GecmisMetni), CekHazirSuzgec.VadesiGecmis),
         })
         {
             var satir = new Button { HorizontalOptions = LayoutOptions.Start, Style = (Style)Application.Current!.Resources["BtnSecondary"] };
             satir.SetBinding(Button.TextProperty, yol);
+            satir.SetBinding(IsVisibleProperty, yol, converter: new Converters.DoluIseConverter());
             satir.Clicked += async (_, _) => await Shell.Current.GoToAsync($"//cekler?Suzgec={suzgec}");
             satirlar.Add(satir);
         }

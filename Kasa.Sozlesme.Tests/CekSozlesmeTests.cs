@@ -9,7 +9,7 @@ public class CekSozlesmeTests : SozlesmeTemeli
 {
     [Fact]
     [SozlesmeKapsami(nameof(ICekApi.CekKaydetAsync), nameof(ICekApi.CeklerAsync), nameof(ICekApi.CekAsync), nameof(ICekApi.CekHareketEkleAsync),
-        nameof(ICekApi.CekHareketGeriAlAsync), nameof(ICekApi.CekSilAsync), nameof(ICekApi.CekOzetAsync))]
+        nameof(ICekApi.CekHareketGeriAlAsync), nameof(ICekApi.CekSilAsync), nameof(ICekApi.CekOzetAsync), nameof(ICekApi.CekTopluEkleAsync))]
     public async Task Cek_yasam_dongusu_istemci_turlerine_birebir_uyar()
     {
         var o = await Editor();
@@ -39,6 +39,13 @@ public class CekSozlesmeTests : SozlesmeTemeli
         Assert.Equal((KanalEtiketleri.Ortak, (int?)null), (verilen.Kanal, verilen.KanalId));
         await o.Cek.CekSilAsync(verilen.Id, new CekSilYaz(Guid.NewGuid(), verilen.Surum));
         Assert.Equal(cek.Id, Assert.Single(await o.Cek.CeklerAsync()).Id);
+
+        var satir = new CekTopluSatirYaz(CekTurleri.Senet, CekYonleri.Verilen, "S-1", null, "Mehmet Ticaret", 7_000m, Bugun.AddDays(5), KanalEtiketleri.Ortak, false, null, "Seri");
+        var toplu = await o.Cek.CekTopluEkleAsync(new CekTopluYaz(Guid.NewGuid(), [satir, satir with { No = "S-2", VadeTarihi = Bugun.AddMonths(1) }]));
+        Assert.Equal([("S-1", Bugun.AddDays(5)), ("S-2", Bugun.AddMonths(1))], toplu.Cekler.Select(c => (c.No, c.VadeTarihi)));
+        Assert.Equal(new CekOzetKalemi(2, 14_000m), (await o.Cek.CekOzetAsync()).PortfoydekiVerilen);
+        var topluHata = await Assert.ThrowsAsync<KasaApiException>(() => o.Cek.CekTopluEkleAsync(new CekTopluYaz(Guid.NewGuid(), [satir with { Kisi = "" }, satir with { Tutar = 0 }])));
+        Assert.Equal("Satır 1: Kişi boş olamaz.\nSatır 2: Tutar sıfırdan büyük olmalı.", topluHata.Message);
     }
 
     [Fact]

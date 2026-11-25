@@ -24,6 +24,7 @@ public sealed partial class KasaApiClient : ICekApi
     public Task<CekOzetDto> CekOzetAsync() => GetAsync<CekOzetDto>("api/takip/cekler/ozet");
     public Task<CekDto> CekKaydetAsync(int? id, CekYaz g) =>
         GonderJsonAsync<CekDto>(id is null ? HttpMethod.Post : HttpMethod.Put, id is null ? "api/takip/cekler" : $"api/takip/cekler/{id}", g);
+    public Task<CekTopluSonuc> CekTopluEkleAsync(CekTopluYaz g) => GonderJsonAsync<CekTopluSonuc>(HttpMethod.Post, "api/takip/cekler/toplu", g);
     public Task CekSilAsync(int id, CekSilYaz g) => GonderJsonAsync(HttpMethod.Delete, $"api/takip/cekler/{id}", g);
     public Task<CekDto> CekHareketEkleAsync(int id, CekHareketYaz g) => GonderJsonAsync<CekDto>(HttpMethod.Post, $"api/takip/cekler/{id}/hareketler", g);
     public Task<CekDto> CekHareketGeriAlAsync(int id, CekSilYaz g) => GonderJsonAsync<CekDto>(HttpMethod.Delete, $"api/takip/cekler/{id}/hareketler/son", g);

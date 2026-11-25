@@ -4,6 +4,12 @@ namespace Kasa.ApiClient;
 /// Kasa.Core.Kodlar sabitleridir (CekTurleri, CekYonleri, CekKonumlari).</summary>
 public record CekYaz(Guid IstekId, int Surum, string Tur, string Yon, string No, string? Banka, string Kisi, decimal Tutar, DateOnly VadeTarihi,
     string? Kanal, bool Teminat, string? Konum, string? Not);
+/// <summary>Toplu çek girişinin satırı; alanların anlamı <see cref="CekYaz"/> ile aynıdır.</summary>
+public record CekTopluSatirYaz(string Tur, string Yon, string No, string? Banka, string Kisi, decimal Tutar, DateOnly VadeTarihi,
+    string? Kanal, bool Teminat, string? Konum, string? Not);
+/// <summary>Toplu çek girişi: ya bütün satırlar kaydedilir ya hiçbiri; hatalar "Satır N: …" satırlarıyla döner.</summary>
+public record CekTopluYaz(Guid IstekId, IReadOnlyList<CekTopluSatirYaz> Satirlar);
+public record CekTopluSonuc(IReadOnlyList<CekDto> Cekler);
 /// <summary>Çek hareketi (CekHareketTurleri). Kanal yalnız alınan çekin tahsilat, ciro ve kırdırmasında; NetTutar yalnız kırdırmada.</summary>
 public record CekHareketYaz(Guid IstekId, int Surum, string Tur, DateOnly Tarih, decimal Tutar, decimal? NetTutar, string? Kanal, string? Karsi);
 /// <summary>Çeki silme ya da son hareketi geri alma gövdesi.</summary>
@@ -15,9 +21,9 @@ public record CekDto(int Id, int Surum, string Tur, string Yon, string No, strin
     IReadOnlyList<CekHareketDto> Hareketler, string? Uyari);
 public record CekOzetKalemi(int Adet, decimal Toplam);
 /// <summary>Çek panel özeti: teminatsız ve açık çeklerin kalan tutarları. VadesiGecmis alınan, VerilenVadesiGecmis verilen (ödenmemiş)
-/// çeklerdir.</summary>
+/// çeklerdir. PortfoydekiVerilen ödenecek verilen çeklerin tamamıdır; eski sunucuda boştur.</summary>
 public record CekOzetDto(DateOnly Tarih, CekOzetKalemi PortfoydekiAlinan, CekOzetKalemi Alinan30, CekOzetKalemi Verilen30, CekOzetKalemi VadesiGecmis,
-    CekOzetKalemi VerilenVadesiGecmis);
+    CekOzetKalemi VerilenVadesiGecmis, CekOzetKalemi? PortfoydekiVerilen = null);
 
 /// <summary>Çek ve senet uçları (/api/takip/cekler).</summary>
 public interface ICekApi
@@ -28,6 +34,8 @@ public interface ICekApi
     Task<CekOzetDto> CekOzetAsync();
     /// <summary>id null ise ekler, değilse düzeltir.</summary>
     Task<CekDto> CekKaydetAsync(int? id, CekYaz g);
+    /// <summary>Çekleri topluca ekler (ya hepsi ya hiçbiri).</summary>
+    Task<CekTopluSonuc> CekTopluEkleAsync(CekTopluYaz g);
     Task CekSilAsync(int id, CekSilYaz g);
     Task<CekDto> CekHareketEkleAsync(int id, CekHareketYaz g);
     /// <summary>Son hareketi geri alır.</summary>

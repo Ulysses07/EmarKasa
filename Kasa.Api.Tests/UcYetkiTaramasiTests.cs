@@ -149,6 +149,7 @@ public class UcYetkiTaramasiTests : IClassFixture<SabitSaatliKasaWebFactory>
     [InlineData("POST", "/api/takip/krediler/1/erken-kapat")]
     [InlineData("POST", "/api/takip/krediler/1/gecis")]
     [InlineData("POST", "/api/takip/cekler")]
+    [InlineData("POST", "/api/takip/cekler/toplu")]
     [InlineData("PUT", "/api/takip/cekler/1")]
     [InlineData("DELETE", "/api/takip/cekler/1")]
     [InlineData("POST", "/api/takip/cekler/1/hareketler")]
