@@ -15,11 +15,12 @@ if [ "$(xcodebuild -version | head -n 1)" != "Xcode 27.0" ]; then
   echo "::error::Beklenen Xcode 27.0 seçilemedi." >&2
   exit 1
 fi
+# Runner imajında daha yeni bir SDK varsa sabitleme olmadan o seçilir: önce sabitlenir, sonra denetlenir.
+dotnet new globaljson --sdk-version 10.0.401 --roll-forward disable --force
 if [ "$(dotnet --version)" != "10.0.401" ]; then
   echo "::error::.NET SDK 10.0.401 gereklidir." >&2
   exit 1
 fi
-dotnet new globaljson --sdk-version 10.0.401 --roll-forward disable --force
 dotnet workload install maui-ios --version 10.0.401.1
 xcodebuild -version
 dotnet workload --info
