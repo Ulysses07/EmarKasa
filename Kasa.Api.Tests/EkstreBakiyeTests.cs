@@ -466,6 +466,31 @@ public class EkstreBakiyeTests
         Assert.Equal("Atla", row.OnerilenIslem);
     }
 
+    [Theory]
+    [InlineData("−100,00")]
+    [InlineData("-₺100,00")]
+    [InlineData("- ₺ 100,00")]
+    [InlineData("(100,00)")]
+    [InlineData("100,00 TL-")]
+    [InlineData("100,00 (B)")]
+    public void Okunamayan_isaretli_tutarda_aciklama_yon_vermez(string tutar)
+    {
+        var row = Assert.Single(Banka($"01.09.2026 NAKİT YATIRMA {tutar}").Satirlar);
+        Assert.Equal((100m, "Belirsiz", null), Ozet(row));
+        Assert.Equal("Atla", row.OnerilenIslem);
+        Assert.Contains(row.Uyarilar, w => w.Contains("işaret okunamadı"));
+        // Bakiyeli belgenin yönü bakiyeden bilinmeyen ilk satırında da aynı.
+        var ilk = Banka($"01.09.2026 NAKİT YATIRMA {tutar} 10.000,00", "02.09.2026 Hareket 300,00 9.700,00", "03.09.2026 Hareket 50,00 9.750,00").Satirlar[0];
+        Assert.NotEqual("Giris", ilk.Yon);
+    }
+
+    [Fact]
+    public void Sonraki_tutarin_eksisi_onceki_tutara_ait_sayilmaz()
+    {
+        var row = Banka("01.09.2026 NAKİT YATIRMA 100,00 -500,00", "02.09.2026 Hareket 300,00 -800,00", "03.09.2026 Hareket 50,00 -750,00").Satirlar[0];
+        Assert.Equal((100m, "Giris", YonKaynaklari.Sozcuk), Ozet(row));
+    }
+
     [Fact]
     public void Alt_satira_bolunen_kredili_mevduat_faizi_giris_sayilmaz()
     {

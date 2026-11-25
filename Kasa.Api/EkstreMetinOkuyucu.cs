@@ -55,7 +55,8 @@ public static class EkstreMetinOkuyucu
     private static readonly Regex DirectionalTransferRx = Rx(@"\b(?<way>GELEN|GIDEN) (?:EFT|HAVALE|FAST)\b");
     // Bakiyenin yanında okunmayan eksi: tire türleri, parantez, borç yazısı (arada boşluk, para simgesi ya da TL/TRY olabilir).
     private static readonly Regex UnreadSignBeforeRx = Rx(@"(?:[\p{Pd}−­(])[  ]{0,2}(?:(?:[₺$€£]|TL|TRY)[  ]{0,2})?$");
-    private static readonly Regex UnreadSignAfterRx = Rx(@"^[  ]{0,2}(?:(?:[₺$€£]|TL|TRY)[  ]{0,2})?(?:[\p{Pd}−­()]|(?:BORC|BORÇ|Borç|borç|B)(?![\p{L}\d]))");
+    // Sonraki tutarın kendi işareti ("100,00 -500,00") bu tutara ait değildir.
+    private static readonly Regex UnreadSignAfterRx = Rx(@"^[  ]{0,2}(?:(?:[₺$€£]|TL|TRY)[  ]{0,2})?(?:[\p{Pd}−­(](?!(?:[₺$€£]|TL|TRY)?\d)|\)|(?:BORC|BORÇ|Borç|borç|B)(?![\p{L}\d]))");
     private static readonly Regex TransferWordRx = Rx(@"\b(?:EFT|HAVALE|FAST)\b");
     private static readonly Regex IncomingWordRx = Rx(@"\bGELEN\b");
     private static readonly Regex OutgoingWordRx = Rx(@"\bGIDEN\b");
@@ -66,7 +67,8 @@ public static class EkstreMetinOkuyucu
     // InstallmentColumn: tablo başlığındaki "Taksit" kolonunun başlangıcı (yoksa null).
     private sealed record Segment(string Raw, List<Column> Columns, int Page, int? InstallmentColumn, string? SectionCurrency);
     // Direction yalnız Borç/Alacak kolonu veya B/A sonekiyle kesinleşir; işaretten okunan yön Sign'da (+1/-1) kalır.
-    private sealed record Amount(decimal? Value, string Direction, int Sign, int TokenCount);
+    // UnreadSign: tutarın yanında okunamayan bir işaret var; açıklamadaki sözcük tek başına yön vermez.
+    private sealed record Amount(decimal? Value, string Direction, int Sign, int TokenCount, bool UnreadSign = false);
 
     public static EkstreOkumaSonucu Oku(string text, string kaynak, string banka)
     {
@@ -291,7 +293,7 @@ public static class EkstreMetinOkuyucu
         if (balance is { UnreadSign: true })
             balance = null;
         var amounts = tokens.Where(t => balance is not null && !ReferenceEquals(t, balance) && t.Value != 0)
-            .Select(t => new BakiyeTutari(Math.Abs(t.Value), t.Direction == "B" ? -1 : t.Direction == "A" ? 1 : t.ExplicitSign ? Math.Sign(t.Value) : 0, t.Direction is "B" or "A")).ToList();
+            .Select(t => new BakiyeTutari(Math.Abs(t.Value), t.Direction == "B" ? -1 : t.Direction == "A" ? 1 : t.ExplicitSign ? Math.Sign(t.Value) : 0, t.Direction is "B" or "A", t.UnreadSign)).ToList();
         var day = DateRx.Match(segment.Raw) is { Success: true } date ? date.Value : ShortDateRx.Match(segment.Raw) is { Success: true } shortDate ? shortDate.Value.Trim() : null;
         return new(index, balance?.Value, balance is null ? 0 : BalanceSuffix(balance), amounts, hasColumn, day);
     }
@@ -308,11 +310,12 @@ public static class EkstreMetinOkuyucu
         if (dates.Count > 1)
             warnings.Add("Birden fazla tarih var; işlem tarihinin doğru olduğunu kontrol edin.");
         var normalized = Normalize(raw);
-        var (amount, direction, sign, tokenCount) = ReadAmount(raw, columns);
+        var (amount, direction, sign, tokenCount, unreadSign) = ReadAmount(raw, columns);
         // Tutarı okunamayan (tutar + bakiye) satırda bakiyenin doğruladığı tutar, yazıdaki işareti ya da B/A ekiyle alınır.
         if (amount is null && (link?.Yazilan ?? onlyAmount) is { } written)
         {
             amount = written.Tutar;
+            unreadSign = written.OkunmayanIsaret;
             if (written.Ek)
                 direction = written.Yon < 0 ? "Cikis" : "Giris";
             else
@@ -383,6 +386,13 @@ public static class EkstreMetinOkuyucu
             var described = DescribedDirection(normalized);
             if (rejected is not null && described != (rejected.Giris ? "Giris" : "Cikis"))
                 described = null;
+            // "NAKİT YATIRMA −100,00": yazılı eksi okunamadıysa açıklama onun yerine geçmez.
+            if (unreadSign)
+            {
+                described = null;
+                if (link is null && direction == "Belirsiz")
+                    warnings.Add("Tutarın yanındaki işaret okunamadı; giriş/çıkış yönünü PDF'den kontrol edin.");
+            }
             if (link is not null)
             {
                 var balanceDirection = link.Giris ? "Giris" : "Cikis";
@@ -482,10 +492,10 @@ public static class EkstreMetinOkuyucu
         }
         if (tokens.Count == 1 && !typed.Any(p => p.Kind == "Balance"))
             return FromToken(tokens[0], 1);
-        return new(null, "Belirsiz", 0, tokens.Count);
+        return new(null, "Belirsiz", 0, tokens.Count, tokens.Any(t => t.UnreadSign));
     }
     private static Amount FromToken(Token t, int tokenCount) => new(Math.Abs(t.Value), t.Direction == "B" ? "Cikis" : t.Direction == "A" ? "Giris" : "Belirsiz",
-        t.Direction is "B" or "A" || !t.ExplicitSign ? 0 : t.Value < 0 ? -1 : 1, tokenCount);
+        t.Direction is "B" or "A" || !t.ExplicitSign ? 0 : t.Value < 0 ? -1 : 1, tokenCount, t.UnreadSign);
     private static Token? ToToken(Match m, string line)
     {
         if (m.Index + m.Length < line.Length && line[m.Index + m.Length] == '%')

@@ -1,8 +1,8 @@
 namespace Kasa.Api;
 
 /// <summary>Satırda yazan, bakiye olmayan bir tutar. <paramref name="Yon"/>: yazıdan okunan yön (+1 giriş, -1 çıkış, 0 yok);
-/// <paramref name="Ek"/>: yön B/A ekinden (işaretten değil).</summary>
-internal readonly record struct BakiyeTutari(decimal Tutar, int Yon, bool Ek);
+/// <paramref name="Ek"/>: yön B/A ekinden (işaretten değil). <paramref name="OkunmayanIsaret"/>: yanında okunamayan bir eksi/parantez var.</summary>
+internal readonly record struct BakiyeTutari(decimal Tutar, int Yon, bool Ek, bool OkunmayanIsaret = false);
 
 /// <summary>Belge sırasındaki bir bakiye: hareket satırı, devir satırı (<paramref name="Satir"/> null) ya da kopma.</summary>
 /// <param name="Bakiye">Satırın bakiye adayı (yazılı işaretiyle); yoksa ya da işareti okunamadıysa null (zincir orada kopar).</param>
