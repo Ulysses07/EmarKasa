@@ -136,6 +136,8 @@ public static class EslesmeTurleri
     public const string EkstreGelir = "EkstreGelir";
     /// <summary>Çek ya da senet kaydı (Cek); yalnız ERP12 satırının hedefidir.</summary>
     public const string CekKaydi = "CekKaydi";
+    /// <summary>Alınan çekin cirosu (CekHareket): çekin kendisinden ayrı bir ödemedir.</summary>
+    public const string CekCirosu = "CekCirosu";
 }
 
 /// <summary>Ekstre satırının eşleşmesinin bugünkü durumu (EkstreKayitDto.EslesmeDurumu; saklanmaz, okurken hesaplanır).</summary>

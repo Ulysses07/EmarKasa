@@ -134,5 +134,6 @@ public partial class EkstreAktarmaTests
         Assert.StartsWith("ERP12 cari hareketleri · 5 satır", new EkstreGecmisSatiri(new(1, 1, EkstreKaynaklari.Erp, "ERP12", "", null, "erp.xlsx", DateTimeOffset.UtcNow, 5, 0)).Ozet);
         Assert.StartsWith("Banka girişi #5", new EslesmeAdayiSatiri(ErpAday(5, EslesmeTurleri.EkstreGelir)).Baslik);
         Assert.StartsWith("Çek #5", new EslesmeAdayiSatiri(ErpAday(5, EslesmeTurleri.CekKaydi)).Baslik);
+        Assert.StartsWith("Çek cirosu #5", new EslesmeAdayiSatiri(ErpAday(5, EslesmeTurleri.CekCirosu)).Baslik);
     }
 }

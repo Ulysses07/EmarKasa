@@ -58,20 +58,28 @@ public static class ErpEslestirme
                 .Select(k => new { k.Id, k.BelgeId, k.IslemId, k.KartHarcamaId, k.IslemTuru, k.Tarih, k.Tutar, k.Aciklama }).ToList();
             var erpGiderleri = kayitlar.Where(k => k.IslemId != null && erp.Contains(k.BelgeId)).Select(k => k.IslemId!.Value).ToHashSet();
             var ekstre = kayitlar.Where(k => k.IslemId != null).GroupBy(k => k.IslemId!.Value).ToDictionary(g => g.Key, g => g.First().Id);
+            // Elle girilip ekstre satırıyla eşleştirilmiş gider de bankadandır (Codex incelemesi, EmarKasa#64).
+            var ekstreyleEslesen = db.EkstreKayitlar.AsNoTracking().Where(k => !k.Iptal && k.EslesmeTuru == EslesmeTurleri.Gider && k.EslesmeId != null)
+                .Select(k => new { k.BelgeId, Id = k.EslesmeId!.Value }).ToList().Where(k => !erp.Contains(k.BelgeId)).Select(k => k.Id).ToHashSet();
             var harcamaKaydi = kayitlar.Where(k => k.KartHarcamaId != null).GroupBy(k => k.KartHarcamaId!.Value).ToDictionary(g => g.Key, g => g.First().Id);
             var adaylar = new List<(string Yon, Aday Aday)>();
             foreach (var i in db.Islemler.AsNoTracking().Where(i => i.Tarih >= bas && i.Tarih <= bit && i.TutarTl > 0).Select(i => new { i.Id, i.Tarih, i.TutarTl, i.Cari, i.KrediKartiId }).ToList())
                 if (!erpGiderleri.Contains(i.Id))
-                    adaylar.Add(("Cikis", new(EslesmeTurleri.Gider, i.Id, i.Tarih, i.TutarTl, i.Cari, ekstre.ContainsKey(i.Id) || i.KrediKartiId is not null, ekstre.TryGetValue(i.Id, out var kayit) ? kayit : null, i.KrediKartiId)));
+                    adaylar.Add(("Cikis", new(EslesmeTurleri.Gider, i.Id, i.Tarih, i.TutarTl, i.Cari, ekstre.ContainsKey(i.Id) || ekstreyleEslesen.Contains(i.Id) || i.KrediKartiId is not null, ekstre.TryGetValue(i.Id, out var kayit) ? kayit : null, i.KrediKartiId)));
             foreach (var h in db.TakipHarcamalar.AsNoTracking().Where(h => !h.Iptal && h.IslemId == null && h.Tarih >= bas && h.Tarih <= bit).Select(h => new { h.Id, h.Tarih, h.Tutar, h.Aciklama, h.KrediKartiId }).ToList())
                 if (h.Tutar > 0)
                     adaylar.Add(("Cikis", new(EslesmeTurleri.KartHarcama, h.Id, h.Tarih, h.Tutar, h.Aciklama, true, harcamaKaydi.TryGetValue(h.Id, out var kayit) ? kayit : null, h.KrediKartiId)));
             foreach (var k in kayitlar.Where(k => k.IslemTuru == EkstreIslemTurleri.Gelir && !erp.Contains(k.BelgeId)))
                 adaylar.Add(("Giris", new(EslesmeTurleri.EkstreGelir, k.Id, k.Tarih, k.Tutar, k.Aciklama, true, k.Id)));
             _hareketler = adaylar.Where(a => !bagli.Contains((a.Aday.Tur, a.Aday.Id))).ToLookup(a => (a.Yon, a.Aday.Tutar), a => a.Aday);
-            _cekler = db.Cekler.AsNoTracking().ToList().Where(c => !bagli.Contains((EslesmeTurleri.CekKaydi, c.Id)))
+            var cekler = db.Cekler.AsNoTracking().ToList();
+            var cekNo = cekler.ToDictionary(c => c.Id);
+            // Alınan çekin cirosu ayrı bir ödemedir: çek cariden girişle, cirosu başka cariye çıkışla eşleşir (Codex incelemesi, EmarKasa#64).
+            var cirolar = db.CekHareketler.AsNoTracking().Where(h => h.Tur == CekHareketTurleri.Ciro).ToList().Where(h => !bagli.Contains((EslesmeTurleri.CekCirosu, h.Id)))
+                .Select(h => (Yon: "Cikis", Aday: new Aday(EslesmeTurleri.CekCirosu, h.Id, h.Tarih, h.Tutar, $"{h.Karsi} · {cekNo[h.CekId].Banka ?? "—"} · {cekNo[h.CekId].No} · ciro {h.Tarih:dd.MM.yyyy}", false)));
+            _cekler = cekler.Where(c => !bagli.Contains((EslesmeTurleri.CekKaydi, c.Id)))
                 .Select(c => (Yon: c.Yon == CekYonleri.Alinan ? "Giris" : "Cikis", Aday: new Aday(EslesmeTurleri.CekKaydi, c.Id, c.VadeTarihi, c.Tutar, $"{c.Kisi} · {c.Banka ?? "—"} · {c.No} · vade {c.VadeTarihi:dd.MM.yyyy}", false)))
-                .ToLookup(a => (a.Yon, a.Aday.Tutar), a => a.Aday);
+                .Concat(cirolar).ToLookup(a => (a.Yon, a.Aday.Tutar), a => a.Aday);
         }
 
         /// <summary>Satırın adayları: aynı yön ve tutar. Çek satırı yalnız çek kaydıyla (tarihe bakılmaz: ERP12 günü verildiği gündür), diğerleri en çok
@@ -139,6 +147,7 @@ public static class ErpEslestirme
         EslesmeTurleri.KartHarcama => "Kart harcaması",
         EslesmeTurleri.EkstreGelir => "Banka girişi",
         EslesmeTurleri.CekKaydi => "Çek",
+        EslesmeTurleri.CekCirosu => "Çek cirosu",
         _ => tur
     };
 

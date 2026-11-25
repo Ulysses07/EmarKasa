@@ -153,6 +153,13 @@ public static partial class EkstreExcelOkuyucu
             return p is { Deger: not 0 } para ? para.Deger : null;
         }
 
+        /// <summary>Satırın TL olmayan para birimi: kendi hücresi, yoksa tutar başlığı ya da üst bilgi ("Borç (USD)"). TL ise ya da yazmıyorsa null.</summary>
+        private string? Doviz(Satir satir)
+        {
+            var yazan = duzen[Alan.ParaBirimi] is { } s ? EkstreKuralServisi.Normalize(satir[s].Metin) : "";
+            return (yazan.Length == 0 ? duzen.Para : yazan is "TURK LIRASI" or "YTL" ? "TRY" : ParaKodu(yazan)) is { } kod && kod != "TRY" ? kod : null;
+        }
+
         private void Oku(Satir satir)
         {
             if (satir.Hucreler.Select(h => BaslikAlani(h, erp: true)).Count(b => b is not null) >= 3)
@@ -170,6 +177,9 @@ public static partial class EkstreExcelOkuyucu
                     Hata(satir, tarihHucresi.Bos ? "tarih boş" : $"\"{Kisalt(tarihHucresi.Metin, 40)}\" tarih olarak okunamadı (31.01.2027 gibi yazın)", Alan.Tarih);
                 return;
             }
+            // Cariler ve eşleşme TL'dir: dövizli hareket TL sayılmaz (Codex incelemesi, EmarKasa#64).
+            if (Doviz(satir) is { } doviz)
+                Hata(satir, $"para birimi {doviz}; yalnız TL hareketler yüklenir", Alan.ParaBirimi);
             var cari = Metin(satir, Alan.Cari, 200);
             var kod = Metin(satir, Alan.CariKodu, 100);
             var tur = Metin(satir, Alan.Islem, 200);

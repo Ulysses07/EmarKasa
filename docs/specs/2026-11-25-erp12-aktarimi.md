@@ -16,6 +16,7 @@ Ekstre ekranında belge türü **"ERP12 cari hareketleri (Excel)"**. Banka ve he
 
 Aranan sütunlar: **Tarih**, **Cari** (Cari adı, Ünvan, Firma, Müşteri, Tedarikçi, Hesap adı…) ve **Borç + Alacak** (ya da Tutar). Varsa Cari kodu,
 İşlem türü / Evrak tipi / Ödeme şekli, Belge / Evrak / Fiş no ve Açıklama da okunur. Başlık tanınmazsa görülen başlıklar iletide yazar.
+Yalnız TL: para birimi hücresi, tutar başlığı ("Borç (USD)") ya da üst bilgi döviz yazıyorsa satır hatalıdır.
 ERP12'nin gerçek dışa aktarım dosyası henüz elimizde değil; sütun adları geldiğinde eşleme genişletilir.
 
 ### Kasa hareketi mi
@@ -41,10 +42,11 @@ Bekleyen her satır için kasadaki karşılığı aranır: aynı tutar ve yön, 
 
 | Yön | Adaylar |
 |---|---|
-| Çıkış | gider (banka ekstresi, elle, alış ödemesi, aylık gider), kart harcaması, çek ödemesi / cirosu |
-| Giriş | banka ekstresi geliri, çek tahsilatı / kırdırma / cirosu |
+| Çıkış | gider (banka ekstresi, elle, alış ödemesi, aylık gider), kart harcaması, verilen çek, alınan çekin cirosu |
+| Giriş | banka ekstresi geliri, alınan çek |
 
-Nakit satır banka ekstresi kaydıyla eşleştirilmez.
+Nakit satır banka ekstresi kaydıyla (ekstreden yazılmış ya da ekstreyle eşleştirilmiş giderle) eşleştirilmez. Alınan çek müşterinin girişiyle, aynı çekin cirosu
+tedarikçinin çıkışıyla ayrı ayrı eşleşir.
 
 | Durum | Satır |
 |---|---|

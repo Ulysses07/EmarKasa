@@ -233,6 +233,7 @@ public record EslesmeAdayiSatiri(EkstreEslesmeAdayiDto Veri)
         EslesmeTurleri.KartOdeme => "Kart ödemesi",
         EslesmeTurleri.EkstreGelir => "Banka girişi",
         EslesmeTurleri.CekKaydi => "Çek",
+        EslesmeTurleri.CekCirosu => "Çek cirosu",
         _ => "Kayıt"
     };
 }

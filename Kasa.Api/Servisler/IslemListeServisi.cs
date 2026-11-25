@@ -8,7 +8,7 @@ namespace Kasa.Api.Servisler;
 public record IslemOkuDto(
     int Id, DateOnly Tarih, string Cari, decimal TutarTl, string Kanal, int? KanalId,
     GiderTipi Tip, string? Not, int? KrediKartiId, int? AlisId = null, bool DagilimBekliyor = false, int? AylikGiderOdemeId = null, int? EkstreKayitId = null,
-    int Surum = 0, string? ErpCari = null);
+    int Surum = 0, [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)] string? ErpCari = null);
 
 public record IslemSayfasi(IReadOnlyList<IslemOkuDto> Kayitlar, string? SonrakiImlec, bool DevamVar);
 

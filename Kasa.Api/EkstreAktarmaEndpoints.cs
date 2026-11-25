@@ -784,11 +784,14 @@ public static partial class EkstreAktarmaEndpoints
         var payments = Ids(EslesmeTurleri.KartOdeme);
         var incomes = Ids(EslesmeTurleri.EkstreGelir);
         var cheques = Ids(EslesmeTurleri.CekKaydi);
+        var endorsements = Ids(EslesmeTurleri.CekCirosu);
         var live = new HashSet<(string, int)>();
         if (incomes.Length > 0)
             live.UnionWith(db.EkstreKayitlar.AsNoTracking().Where(k => incomes.Contains(k.Id) && !k.Iptal).Select(k => k.Id).ToList().Select(id => (EslesmeTurleri.EkstreGelir, id)));
         if (cheques.Length > 0)
             live.UnionWith(db.Cekler.AsNoTracking().Where(c => cheques.Contains(c.Id)).Select(c => c.Id).ToList().Select(id => (EslesmeTurleri.CekKaydi, id)));
+        if (endorsements.Length > 0)
+            live.UnionWith(db.CekHareketler.AsNoTracking().Where(h => endorsements.Contains(h.Id) && h.Tur == CekHareketTurleri.Ciro).Select(h => h.Id).ToList().Select(id => (EslesmeTurleri.CekCirosu, id)));
         if (expenses.Length > 0)
             live.UnionWith(db.Islemler.AsNoTracking().Where(i => expenses.Contains(i.Id)).Select(i => i.Id).ToList().Select(id => (EslesmeTurleri.Gider, id)));
         if (charges.Length > 0)

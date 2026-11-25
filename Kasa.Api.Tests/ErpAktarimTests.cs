@@ -112,6 +112,20 @@ public class ErpAktarimTests
         Assert.Equal(["Belirsiz", "Giris", "Cikis"], tek.Satirlar.Select(r => r.Yon));
     }
 
+    /// <summary>Dövizli hareket TL sayılmaz (Codex incelemesi, EmarKasa#64): para birimi hücresi, tutar başlığı ya da üst bilgi.</summary>
+    [Fact]
+    public void Dovizli_hareket_reddedilir_TL_yazan_kabul_edilir()
+    {
+        static object?[][] Tablo(string borc, string? birim) => [S("Tarih", "Cari", "Para Birimi", "İşlem Türü", borc, "Alacak"), S(G(1), "A LTD", birim, "Havale Ödeme", 100, null)];
+        static byte[] Kitap(params object?[][] satirlar) => TestExcel.Xlsx(("C", satirlar));
+        foreach (var birim in new[] { null, "TL", "TRY", "Türk Lirası" })
+            Assert.Equal(100m, Assert.Single(EkstreExcelOkuyucu.OkuErp(Kitap(Tablo("Borç", birim))).Satirlar).Borc);
+        Assert.Equal("ERP12 dosyasında 1 hata var; düzeltilmeden işleme alınmadı.\nSatır 2, Para birimi (C2): para birimi USD; yalnız TL hareketler yüklenir.", Red(Kitap(Tablo("Borç", "USD"))));
+        Assert.Contains("para birimi EUR", Red(Kitap(Tablo("Borç", "Euro"))));
+        Assert.Contains("para birimi USD", Red(Kitap(S("Tarih", "Cari", "Borç (USD)"), S(G(1), "A LTD", 100))));
+        Assert.Contains("para birimi USD", Red(Kitap(S("Para Birimi: USD"), S("Tarih", "Cari", "Borç", "Alacak"), S(G(1), "A LTD", 100, null))));
+    }
+
     // ---- Yükleme ----
 
     [Fact]
@@ -163,7 +177,7 @@ public class ErpAktarimTests
         Assert.All(kayitli.Kayitlar, k => Assert.Equal(EslesmeDurumlari.Eslesti, k.EslesmeDurumu));
         // Cari adı İşlemler'de ve ekstrenin kapanan satırlarında.
         var islemler = (await c.GetFromJsonAsync<List<JsonElement>>("/api/islemler", Ct))!;
-        Assert.Equal(["Ahmet Yılmaz Ltd. Şti.", null], islemler.OrderBy(i => i.GetProperty("cari").GetString()).Select(i => i.GetProperty("erpCari").GetString()));
+        Assert.Equal(["Ahmet Yılmaz Ltd. Şti.", null], islemler.OrderBy(i => i.GetProperty("cari").GetString()).Select(i => i.TryGetProperty("erpCari", out var e) ? e.GetString() : null));
         var guncel = (await c.GetFromJsonAsync<EkstreBelgeDto>($"/api/ekstre-aktar/{banka.Id}", Ct))!;
         Assert.Equal(["Ahmet Yılmaz Ltd. Şti.", "DENİZ TİCARET", null], guncel.Kayitlar.OrderBy(k => k.SatirNo).Select(k => k.ErpCari));
 
@@ -255,6 +269,41 @@ public class ErpAktarimTests
         using var sil = new HttpRequestMessage(HttpMethod.Delete, $"/api/takip/cekler/{cek.Id}") { Content = JsonContent.Create(new CekSilYaz(Guid.NewGuid(), cek.Surum)) };
         Assert.Equal(HttpStatusCode.NoContent, (await c.SendAsync(sil, Ct)).StatusCode);
         Assert.Equal(EslesmeDurumlari.KayitYok, (await c.GetFromJsonAsync<EkstreBelgeDto>($"/api/ekstre-aktar/{d.Id}", Ct))!.Kayitlar.Single().EslesmeDurumu);
+    }
+
+    /// <summary>Alınan çek müşterinin girişiyle, aynı çekin cirosu tedarikçinin çıkışıyla eşleşir (Codex incelemesi, EmarKasa#64).</summary>
+    [Fact]
+    public async Task Alinan_cek_girisle_cirosu_cikisla_ayri_ayri_eslesir_geri_alinan_ciro_kayit_yok_gosterir()
+    {
+        await using var f = KasaWebFactory.Sabit(Bugun);
+        using var c = await Editor(f);
+        var cek = await Post<CekDto>(c, "/api/takip/cekler", new CekYaz(Guid.NewGuid(), 0, CekTurleri.Cek, CekYonleri.Alinan, "555", "Ziraat", "Yıldırım Market", 4_000m, Bugun.AddDays(30), null, false, null, null));
+        cek = await Post<CekDto>(c, $"/api/takip/cekler/{cek.Id}/hareketler", new CekHareketYaz(Guid.NewGuid(), cek.Surum, CekHareketTurleri.Ciro, G(2), 4_000m, null, "MEZAT", "Bereket Toptan"));
+        var d = await Yukle(c, Dosya(S(G(9), "120", "YILDIRIM MARKET", "Alınan Çek", "C1", null, null, 4_000), S(G(2), "320", "BEREKET TOPTAN LTD", "Çek Cirosu Ödeme", "C2", null, 4_000)));
+        var o = await Oneriler(c, d);
+        Assert.Equal([(ErpOneriDurumlari.Eslesme, EslesmeTurleri.CekKaydi, cek.Id), (ErpOneriDurumlari.Eslesme, EslesmeTurleri.CekCirosu, cek.Hareketler!.Single().Id)], o.Select(x => (x.Durum, x.Adaylar![0].Tur, x.Adaylar![0].Id)));
+        var (kayitli, onizleme) = await Kaydet(c, d, Satir(d, 1, "Eslestir", EslesmeTurleri.CekKaydi, cek.Id), Satir(d, 2, "Eslestir", EslesmeTurleri.CekCirosu, cek.Hareketler!.Single().Id));
+        Assert.Equal(0m, onizleme.KasaEtkisi);
+        Assert.All(kayitli.Kayitlar, k => Assert.Equal(EslesmeDurumlari.Eslesti, k.EslesmeDurumu));
+        using var geri = new HttpRequestMessage(HttpMethod.Delete, $"/api/takip/cekler/{cek.Id}/hareketler/son") { Content = JsonContent.Create(new CekSilYaz(Guid.NewGuid(), cek.Surum)) };
+        var r = await c.SendAsync(geri, Ct);
+        Assert.True(r.IsSuccessStatusCode, await r.Content.ReadAsStringAsync(Ct));
+        Assert.Equal([EslesmeDurumlari.Eslesti, EslesmeDurumlari.KayitYok], (await c.GetFromJsonAsync<EkstreBelgeDto>($"/api/ekstre-aktar/{d.Id}", Ct))!.Kayitlar.OrderBy(k => k.SatirNo).Select(k => k.EslesmeDurumu));
+    }
+
+    /// <summary>Elle girilip banka ekstresiyle eşleştirilmiş gider bankadandır: nakit satırın karşılığı değildir (Codex incelemesi, EmarKasa#64).</summary>
+    [Fact]
+    public async Task Ekstreyle_eslesmis_elle_girilen_gider_nakit_satira_aday_olmaz()
+    {
+        await using var f = KasaWebFactory.Sabit(Bugun);
+        using var c = await Editor(f);
+        (await c.PostAsJsonAsync("/api/islemler", new { tarih = G(5), cari = "Temizlik", tutarTl = 80m, kanal = "MEZAT", tip = "Cari" }, Ct)).EnsureSuccessStatusCode();
+        var islem = (await c.GetFromJsonAsync<List<JsonElement>>("/api/islemler", Ct))!.Single().GetProperty("id").GetInt32();
+        var banka = await Banka(c, S(G(5), "FAST TEMIZLIK", -80));
+        await Kaydet(c, banka, Satir(banka, 1, "Eslestir", EslesmeTurleri.Gider, islem));
+        var d = await Yukle(c, Dosya(S(G(5), "2", "TEMİZLİK AYŞE", "Nakit Ödeme", "2", null, 80), S(G(5), "2", "TEMİZLİK AYŞE", "Havale Ödeme", "3", null, 80)));
+        Assert.Equal([ErpOneriDurumlari.Nakit, ErpOneriDurumlari.Eslesme], (await Oneriler(c, d)).Select(x => x.Durum));
+        Assert.Contains("eşleşmiyor", await Reddet(c, $"/api/ekstre-aktar/{d.Id}/onizleme", new EkstreKaydetYaz(Guid.NewGuid(), d.Surum, [Satir(d, 1, "Eslestir", EslesmeTurleri.Gider, islem)])));
     }
 
     // ---- Cariler ----

@@ -10,6 +10,7 @@ public class ErpSozlesmeTests : SozlesmeTemeli
         TestExcel.Xlsx(("Cari", [["Tarih", "Cari Kodu", "Cari Ünvanı", "Evrak Tipi", "Evrak No", "Açıklama", "Borç", "Alacak"], .. satirlar]));
 
     [Fact]
+    [KosulluAlanSenaryosu(typeof(Kasa.Api.Servisler.IslemOkuDto), nameof(Kasa.Api.Servisler.IslemOkuDto.ErpCari))]
     [SozlesmeKapsami(nameof(IErpApi.ErpCarilerAsync), nameof(IErpApi.ErpCariHareketleriAsync), nameof(IEkstreAktarmaApi.ErpBelgeSilAsync), nameof(IEkstreAktarmaApi.EkstreYukleAsync),
         nameof(IEkstreAktarmaApi.EkstreOnerilerAsync), nameof(IEkstreAktarmaApi.EkstreEslesmeAdaylariAsync), nameof(IKasaApi.IslemlerAsync))]
     public async Task Erp_aktarimi_eslesme_ve_cariler_istemci_turlerine_uyar()
