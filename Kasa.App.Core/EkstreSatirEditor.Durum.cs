@@ -85,6 +85,7 @@ public partial class EkstreSatirEditor
         }
         finally { _oneriUygulaniyor = false; }
         ElleDegisti = eski.ElleDegisti;
+        HafizaDayanaginiAl(eski);
     }
 
     /// <summary>İşaretli satırlara toplu uygulama: tür (null: satırdaki tür kalır) ve dağılım. Dağılımı seçilmeyen tür (karta ödeme,

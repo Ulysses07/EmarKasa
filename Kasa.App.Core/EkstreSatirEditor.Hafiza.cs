@@ -65,6 +65,14 @@ public partial class EkstreSatirEditor
         return once != Durum();
     }
 
+    /// <summary>Yenilenen modele taslak taşınırken alanların hafızadan geldiği ve PDF'ten okunan ilk tür de taşınır: hafıza bu arada
+    /// unutulduysa satır ilk hâline dönebilir (Codex incelemesi, EmarKasa#62).</summary>
+    private void HafizaDayanaginiAl(EkstreSatirEditor eski)
+    {
+        _hafizadan = eski._hafizadan;
+        _ilkTur = eski._ilkTur is { } tur ? IslemTurleri.FirstOrDefault(t => t.Kod == tur.Kod) : null;
+    }
+
     /// <summary>Tür seçilince gelen varsayılan dağılım (tür değişmediyse yeniden kurulur).</summary>
     private void VarsayilanDagilim()
     {

@@ -78,6 +78,34 @@ public partial class EkstreAktarmaTests
         Assert.False(vm.HazirVar);
     }
 
+    /// <summary>Codex incelemesi (EmarKasa#62): yenilemede model baştan kurulur (kanal listesi değişti); hafıza bu arada unutulduysa satır
+    /// PDF'ten okunan hâline döner, öneri sürüyorsa ilk tür hafızanınkiyle karışmaz.</summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Yenilenen_model_hafizadan_doldugunu_ve_ilk_turu_korur(bool oncelikleUnutulur)
+    {
+        var finans = new SahteApi { KanallarListe = [new(1, "MEZAT", true, 0, 0)] };
+        var api = new Sahte { Veri = DurumBelgesi(Satir(1) with { OnerilenIslem = "Gelir" }), Oneriler = [HafizaOnerisi(1, dagilim: "Esit", kanallar: [1], aciklama: "Kısa ad")] };
+        var vm = new EkstreAktarmaViewModel(api, finans, new FinansTakipTests.Sahte(), new AuthViewModel(new SahteApi()) { AktifRol = Rol.Editor });
+        await vm.YukleAsync();
+        await vm.BelgeAcAsync(1);
+        Assert.Equal(("Gider", "Kısa ad"), (vm.Satirlar[0].IslemTuru!.Kod, vm.Satirlar[0].Aciklama));
+        var ilk = vm.Satirlar[0];
+        finans.KanallarListe = [new(1, "MEZAT", true, 0, 0), new(5, "YENİ", true, 1, 0)];
+        if (oncelikleUnutulur)
+            api.Oneriler = [];
+        await vm.YukleAsync();
+        Assert.NotSame(ilk, vm.Satirlar[0]);
+        if (!oncelikleUnutulur)
+        {
+            Assert.Equal("Gider", vm.Satirlar[0].IslemTuru!.Kod);
+            api.Oneriler = [];
+            await vm.KurallariYenileAsync();
+        }
+        Assert.Equal(("Gelir", (string?)null, "Hareket 1", 0), (vm.Satirlar[0].IslemTuru!.Kod, vm.Satirlar[0].DagilimTuru?.Kod, vm.Satirlar[0].Aciklama, vm.Satirlar[0].Paylar.Count));
+    }
+
     [Fact]
     public async Task Pasif_kanalli_ozel_ve_eksik_oneri_hazir_sayilmaz()
     {
