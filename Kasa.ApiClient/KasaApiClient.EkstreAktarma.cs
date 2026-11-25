@@ -24,6 +24,14 @@ public sealed partial class KasaApiClient : IEkstreAktarmaApi
     public Task<EkstreOnizlemeDto> EkstreOnizlemeAsync(int id, EkstreKaydetYaz g) => GonderJsonAsync<EkstreOnizlemeDto>(HttpMethod.Post, $"api/ekstre-aktar/{id}/onizleme", g);
     public Task<EkstreBelgeDto> EkstreKaydetAsync(int id, EkstreKaydetYaz g) => GonderJsonAsync<EkstreBelgeDto>(HttpMethod.Post, $"api/ekstre-aktar/{id}/kaydet", g);
     public Task<EkstreBelgeDto> EkstreKayitIptalAsync(int id, int kayitId, EkstreIptalYaz g) => GonderJsonAsync<EkstreBelgeDto>(HttpMethod.Post, $"api/ekstre-aktar/{id}/kayitlar/{kayitId}/iptal", g);
+    public Task<EkstreBelgeDto> EkstreYokSayAsync(int id, EkstreYokSayYaz g) => GonderJsonAsync<EkstreBelgeDto>(HttpMethod.Post, $"api/ekstre-aktar/{id}/yok-say", g);
+    public async Task<EkstreBelgeDto> EkstreYenidenOkuAsync(int id, EkstreYenidenOkuYaz g, CancellationToken cancellationToken = default)
+    {
+        // Sunucu PDF'i baştan okur: yükleme ile aynı süre sınırı.
+        using var istek = new HttpRequestMessage(HttpMethod.Post, $"api/ekstre-aktar/{id}/yeniden-oku") { Content = JsonContent.Create(g, options: Json) };
+        using var yanit = await GonderAsync(istek, zamanAsimi: _zaman.Yukleme, cancellationToken: cancellationToken);
+        return (await yanit.Content.ReadFromJsonAsync<EkstreBelgeDto>(Json, cancellationToken))!;
+    }
     public Task<IReadOnlyList<EkstreEslesmeAdayiDto>> EkstreEslesmeAdaylariAsync(int id, EkstreEslesmeAdayiSorgu g) => GonderJsonAsync<IReadOnlyList<EkstreEslesmeAdayiDto>>(HttpMethod.Post, $"api/ekstre-aktar/{id}/eslesme-adaylari", g);
 
     public async Task<EkstreBelgeDto> EkstreYukleAsync(byte[] icerik, string dosyaAdi, string kaynak, string banka, string hesapAdi, int? kartId, CancellationToken cancellationToken = default)

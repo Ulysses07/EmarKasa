@@ -357,7 +357,9 @@ export function createStatementImportUi() {
           .includes(term);
     });
     for (const source of document.satirlar || []) {
-      const blocked = currentRows.has(source.no);
+      // Yok sayılan satır (masaüstü/iOS uygulaması) kapalıdır: sunucu kaydetmez, buradan seçilemez.
+      const ignored = (document.yokSayilanlar || []).includes(source.no);
+      const blocked = ignored || currentRows.has(source.no);
       const foreign = !supportedCurrency(source);
       let manual = false;
       let applying = false;
@@ -530,7 +532,7 @@ export function createStatementImportUi() {
       const status = h('p', { class: 'import-status' });
       const saved = currentRows.get(source.no);
       const updateStatus = () => {
-        status.textContent = `Sayfa ${source.sayfa} · ${classes[source.sinif] || source.sinif || 'Hareket'}${blocked ? ` · ${saved.islemTuru === 'Eslestir' || saved.eslesmeTuru ? recordState(saved) : 'Zaten kaydedildi'}` : foreign ? ' · Bu para birimi kaydedilemez' : checked.checked ? ' · Seçili' : ' · Henüz seçilmedi'}`;
+        status.textContent = `Sayfa ${source.sayfa} · ${classes[source.sinif] || source.sinif || 'Hareket'}${ignored ? ' · Yok sayıldı (uygulamadan geri alınır)' : blocked ? ` · ${saved.islemTuru === 'Eslestir' || saved.eslesmeTuru ? recordState(saved) : 'Zaten kaydedildi'}` : foreign ? ' · Bu para birimi kaydedilemez' : checked.checked ? ' · Seçili' : ' · Henüz seçilmedi'}`;
       };
       updateStatus();
       const editLabel = h('span', { class: 'import-row-toggle-label' }, 'İncele / düzenle');

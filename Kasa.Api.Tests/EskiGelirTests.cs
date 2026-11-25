@@ -58,13 +58,13 @@ public class EskiGelirTests
         KasaVeritabaniBaslatici.Baslat(db);
         KasaVeritabaniBaslatici.Baslat(db);
 
-        Assert.Equal(27, db.Database.GetAppliedMigrations().Count());
+        Assert.Equal(28, db.Database.GetAppliedMigrations().Count());
         Assert.Empty(db.Database.GetPendingMigrations());
         Assert.False(db.Database.HasPendingModelChanges());
         AssertOriginalRows(db);
         Assert.Throws<NotSupportedException>(() => db.GetService<IMigrator>().Migrate("20260923000400_Operations"));
-        // Geri alma denemesi işlemler aşamasına kadar kısmi olarak uygular; yeni dizin göçü de burada geri alınmıştır.
-        Assert.Equal(25, db.Database.GetAppliedMigrations().Count());
+        // En yeni göç (ekstre satır durumu) geri alınmayı reddeder: hiçbir göç geri alınmadan durur.
+        Assert.Equal(28, db.Database.GetAppliedMigrations().Count());
         AssertOriginalRows(db);
     }
 

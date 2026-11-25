@@ -136,4 +136,25 @@ public class BildirimVeEkstreSozlesmeTests : SozlesmeTemeli
         belge = await o.Ekstre.EkstreKayitIptalAsync(belge.Id, kayit.Id, new EkstreIptalYaz(Guid.NewGuid(), "Yanlış satır"));
         Assert.True(Assert.Single(belge.Kayitlar).Iptal);
     }
+
+    [Fact]
+    [SozlesmeKapsami(nameof(IEkstreAktarmaApi.EkstreYokSayAsync), nameof(IEkstreAktarmaApi.EkstreYenidenOkuAsync))]
+    public async Task Satiri_yok_sayma_ve_yeniden_okuma_istemci_turlerine_uyar()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var o = await Editor();
+        var belge = await o.Ekstre.EkstreYukleAsync("%PDF-1.7 yok say"u8.ToArray(), "ekstre.pdf", "Banka", "Akbank", "Ana hesap", null, ct);
+        Assert.Empty(belge.YokSayilanlar!);
+        Assert.NotNull(belge.Atlananlar);
+        Assert.Equal("Isaret", Assert.Single(belge.Satirlar).YonKaynagi);
+        Assert.True(belge.YenidenOkunabilir);
+        belge = await o.Ekstre.EkstreYenidenOkuAsync(belge.Id, new EkstreYenidenOkuYaz(Guid.NewGuid(), belge.Surum), ct);
+        var no = Assert.Single(belge.Satirlar).No;
+        belge = await o.Ekstre.EkstreYokSayAsync(belge.Id, new EkstreYokSayYaz(Guid.NewGuid(), belge.Surum, [no], true));
+        Assert.Equal([no], belge.YokSayilanlar!);
+        Assert.False(belge.YenidenOkunabilir);
+        Assert.Equal(1, Assert.Single(await o.Ekstre.EkstreBelgelerAsync()).YokSayilanSayisi);
+        belge = await o.Ekstre.EkstreYokSayAsync(belge.Id, new EkstreYokSayYaz(Guid.NewGuid(), belge.Surum, [no], false));
+        Assert.Empty(belge.YokSayilanlar!);
+    }
 }

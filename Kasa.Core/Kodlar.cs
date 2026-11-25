@@ -62,6 +62,20 @@ public static class EkstreIslemTurleri
     public const string Atla = "Atla";
 }
 
+/// <summary>Okunan ekstre satırının giriş/çıkış yönünün dayanağı (EkstreOkunanSatir.YonKaynagi; yön belirsizse, varsayımsa ya da satır bu
+/// alandan önce okunduysa null).</summary>
+public static class YonKaynaklari
+{
+    /// <summary>Borç/Alacak kolonu ya da tutarın B/A eki.</summary>
+    public const string Sutun = "Sutun";
+    /// <summary>Tutarın artı/eksi işareti.</summary>
+    public const string Isaret = "Isaret";
+    /// <summary>Komşu satırla bakiye farkı satırdaki tutara kuruşu kuruşuna eşit.</summary>
+    public const string Bakiye = "Bakiye";
+    /// <summary>Açıklamadaki tek anlamlı sözcükler (başka kanıt yokken).</summary>
+    public const string Sozcuk = "Sozcuk";
+}
+
 /// <summary>Ekstre belgesinin kaynağı (EkstreBelgeEntity.Kaynak, ekstre yükleme formunun 'kaynak' alanı, EkstreBelgeDto.Kaynak).</summary>
 public static class EkstreKaynaklari
 {

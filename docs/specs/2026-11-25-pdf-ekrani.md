@@ -42,17 +42,17 @@ sunucu iletisi satır numarası taşımıyor, bazı durumlarda hiçbir şey yaz�
 - Borç/Alacak kolonu, B/A eki ya da işaretten okunan yön bakiyeyle **çelişirse** yön "Belirsiz" olur ve uyarı yazılır.
 - Bakiye zinciri kurulmuşken bir satırda kopuyorsa belge uyarısı satır numaralarını söyler (arada okunamayan hareket olabilir).
 - **Anahtar kelime (yalnız banka, başka kanıt yoksa):** giriş — gelen EFT/havale/FAST, para yatırma, POS satışı/bloke çözümü/üye işyeri,
-  mevduat faizi; çıkış — giden EFT/havale/FAST, ATM/nakit para çekme, POS harcaması/alışveriş, fatura ödemesi, otomatik ödeme, kredi
-  kartı ödemesi, kredi taksidi, çek ödemesi, komisyon/vergi/ücret. "Maaş", yalın "çek", yalın "POS", "faiz" ve iade/iptal geçen
-  satırlar iki anlamlıdır, belirsiz kalır. İki yöne de uyan açıklama belirsizdir.
-- **Atlanan satırlar:** tarih ya da tutar içerdiği hâlde harekete alınmayan satırlar nedeniyle saklanır (en çok 300) ve belgede açılıp
-  görülür.
+  mevduat faizi; çıkış — giden EFT/havale/FAST, ATM/nakit para çekme, POS harcaması/alışveriş, kurum faturası (elektrik, su, doğal
+  gaz, telefon…), otomatik ödeme, kredi kartı ödemesi, kredi taksidi, çek ödemesi, komisyon/vergi/ücret. "Maaş", "çek tahsilatı",
+  yalın "POS", "faiz", müşterinin de yazabileceği yalın "fatura ödemesi" ve iade/iptal geçen satırlar iki anlamlıdır, belirsiz kalır.
+  İki yöne de uyan açıklama belirsizdir.
+- **Atlanan satırlar:** tutar içerdiği hâlde harekete alınmayan satırlar nedeniyle saklanır (en çok 300) ve belgede açılıp görülür.
 - **PDF'yi yeniden oku:** yalnız hiç kaydı (iptal edilmişler dahil) ve yok sayılan satırı olmayan belgede; saklanan PDF yeniden okunur.
   Eski belgeler kendiliğinden değişmez.
 
 ## Sunucu
 
-- `EkstreOkunanSatir.YonKaynagi` (`YonKaynaklari`: Sutun, Isaret, Bakiye, Aciklama; eski satırda null).
+- `EkstreOkunanSatir.YonKaynagi` (`YonKaynaklari`: Sutun, Isaret, Bakiye, Sozcuk; eski satırda null).
 - `EkstreBelgeler.AtlananJson`; yeni tablo `EkstreYokSayilanlar(Id, BelgeId, SatirNo)`, (BelgeId, SatirNo) tekil. Göç
   `20261125000100_EkstreSatirDurumu`.
 - `EkstreBelgeDto`: `YokSayilanlar`, `Atlananlar`, `YenidenOkunabilir`; `EkstreBelgeOzetDto`: `YokSayilanSayisi`. Hepsi sona eklenir;

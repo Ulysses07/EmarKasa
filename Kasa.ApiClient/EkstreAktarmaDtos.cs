@@ -3,9 +3,19 @@ namespace Kasa.ApiClient;
 /// <summary>Ekstre yüklemede seçilebilen banka: <paramref name="Kod"/> yüklemede gönderilen ve belgede görünen değer,
 /// <paramref name="Ad"/> görünen adı (GET api/ekstre-aktar/bankalar; liste yalnız sunucudadır).</summary>
 public record EkstreBankaDto(string Kod, string Ad);
-public record EkstreBelgeOzetDto(int Id, int Surum, string Kaynak, string Banka, string HesapAdi, int? KartId, string DosyaAdi, DateTimeOffset Yuklendi, int SatirSayisi, int KayitSayisi);
-public record EkstreBelgeDto(int Id, int Surum, string Kaynak, string Banka, string HesapAdi, int? KartId, string DosyaAdi, DateTimeOffset Yuklendi, IReadOnlyList<string> Uyarilar, IReadOnlyList<EkstreOkunanSatir> Satirlar, IReadOnlyList<EkstreKayitDto> Kayitlar);
-public record EkstreOkunanSatir(int No, int Sayfa, string KaynakSatir, DateOnly? Tarih, string Aciklama, decimal? Tutar, string Yon, string OnerilenIslem, string Sinif, string ParaBirimi, IReadOnlyList<string> Uyarilar);
+public record EkstreBelgeOzetDto(int Id, int Surum, string Kaynak, string Banka, string HesapAdi, int? KartId, string DosyaAdi, DateTimeOffset Yuklendi, int SatirSayisi, int KayitSayisi, int YokSayilanSayisi = 0);
+/// <summary><paramref name="YokSayilanlar"/>: kaydetmeden kapatılan satır numaraları; yok saymayı bilmeyen eski sunucuda null.
+/// <paramref name="Atlananlar"/>: tutar içerdiği hâlde harekete alınmayan satırlar. <paramref name="YenidenOkunabilir"/>: hiç kaydı ve yok sayılan
+/// satırı yok, saklanan PDF yeniden okunabilir.</summary>
+public record EkstreBelgeDto(int Id, int Surum, string Kaynak, string Banka, string HesapAdi, int? KartId, string DosyaAdi, DateTimeOffset Yuklendi, IReadOnlyList<string> Uyarilar, IReadOnlyList<EkstreOkunanSatir> Satirlar, IReadOnlyList<EkstreKayitDto> Kayitlar,
+    IReadOnlyList<int>? YokSayilanlar = null, IReadOnlyList<EkstreAtlananSatir>? Atlananlar = null, bool YenidenOkunabilir = false);
+/// <summary><paramref name="YonKaynagi"/>: yönün dayanağı (Kasa.Core.Kodlar.YonKaynaklari); bilinmiyorsa null.</summary>
+public record EkstreOkunanSatir(int No, int Sayfa, string KaynakSatir, DateOnly? Tarih, string Aciklama, decimal? Tutar, string Yon, string OnerilenIslem, string Sinif, string ParaBirimi, IReadOnlyList<string> Uyarilar, string? YonKaynagi = null);
+/// <summary>PDF'de tutar içerdiği hâlde harekete alınmayan satır ve nedeni.</summary>
+public record EkstreAtlananSatir(int Sayfa, string Metin, string Neden);
+/// <summary>Satırları kaydetmeden kapatır (<paramref name="YokSay"/> true) ya da geri açar; kasa ve kart borcu değişmez.</summary>
+public record EkstreYokSayYaz(Guid IstekId, int Surum, IReadOnlyList<int> SatirNolar, bool YokSay);
+public record EkstreYenidenOkuYaz(Guid IstekId, int Surum);
 /// <summary><paramref name="IptalAciklamasi"/> ve <paramref name="IptalZamani"/> yalnız iptal edilmiş satırda doludur; sürüm öncesi
 /// iptalin anı bilinmez (null). Alanları taşımayan eski sunucuda ikisi de null. <paramref name="EslesmeTuru"/>/<paramref name="EslesmeId"/>:
 /// satırın bağlı olduğu mevcut kayıt ('Gider', 'KartHarcama', 'KartTaksidi', 'KartOdeme'); 'Eslestir' satırı yalnız bağdır, kaydı
@@ -46,6 +56,10 @@ public interface IEkstreAktarmaApi
     Task<EkstreOnizlemeDto> EkstreOnizlemeAsync(int id, EkstreKaydetYaz g);
     Task<EkstreBelgeDto> EkstreKaydetAsync(int id, EkstreKaydetYaz g);
     Task<EkstreBelgeDto> EkstreKayitIptalAsync(int id, int kayitId, EkstreIptalYaz g);
+    /// <summary>Satırları kaydetmeden kapatır ya da geri açar (mali etkisi yok).</summary>
+    Task<EkstreBelgeDto> EkstreYokSayAsync(int id, EkstreYokSayYaz g) => Task.FromException<EkstreBelgeDto>(new KasaApiException(System.Net.HttpStatusCode.NotFound));
+    /// <summary>Hiç işlenmemiş belgenin saklanan PDF'ini yeniden okur.</summary>
+    Task<EkstreBelgeDto> EkstreYenidenOkuAsync(int id, EkstreYenidenOkuYaz g, CancellationToken cancellationToken = default) => Task.FromException<EkstreBelgeDto>(new KasaApiException(System.Net.HttpStatusCode.NotFound));
     /// <summary>Satırın eşleştirilebileceği mevcut kayıtlar (aynı tutar, ±3 gün; belge türüne uygun, başka satıra bağlanmamış), en çok 20.</summary>
     Task<IReadOnlyList<EkstreEslesmeAdayiDto>> EkstreEslesmeAdaylariAsync(int id, EkstreEslesmeAdayiSorgu g);
 }

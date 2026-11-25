@@ -11,6 +11,7 @@ public partial class EkstreAktarmaTests
         gorunum.BindingContext = satir;
         return gorunum;
     }
+    private static CollectionView BekleyenListe(EkstreAktarmaPage page) => page.GetVisualTreeDescendants().OfType<CollectionView>().Single(l => l.AutomationId == "BekleyenSatirlar");
     private static Entry[] SatirGirdileri(View gorunum) => gorunum.GetVisualTreeDescendants().OfType<Entry>().ToArray();
 
     [Fact]
@@ -19,7 +20,7 @@ public partial class EkstreAktarmaTests
         GorunumOrtami.Kur();
         var (vm, api, _) = await Hazir();
         var page = new EkstreAktarmaPage(vm);
-        var liste = page.GetVisualTreeDescendants().OfType<CollectionView>().Single();
+        var liste = BekleyenListe(page);
         var ilk = SatirGorunumu(liste, vm.Satirlar[0]);
         var ikinci = SatirGorunumu(liste, vm.Satirlar[1]);
         Assert.Empty(SatirGirdileri(ilk));
@@ -51,7 +52,7 @@ public partial class EkstreAktarmaTests
         GorunumOrtami.Kur();
         var (vm, _, _) = await Hazir();
         var page = new EkstreAktarmaPage(vm);
-        var liste = page.GetVisualTreeDescendants().OfType<CollectionView>().Single();
+        var liste = BekleyenListe(page);
         var satir = SatirGorunumu(liste, vm.Satirlar[0]);
         vm.SeciliSatir = vm.Satirlar[0];
         var alanlar = satir.GetVisualTreeDescendants().OfType<Grid>()
@@ -78,7 +79,7 @@ public partial class EkstreAktarmaTests
         vm.Onay = true;
         var onizleme = vm.OnizlemeMetni;
         var page = new EkstreAktarmaPage(vm);
-        var liste = page.GetVisualTreeDescendants().OfType<CollectionView>().Single();
+        var liste = BekleyenListe(page);
         var hucre = SatirGorunumu(liste, vm.Satirlar[0]);
         vm.SeciliSatir = vm.Satirlar[0];
         Assert.Contains(SatirGirdileri(hucre), e => e.Text == "Düzenlenmiş taslak");
