@@ -53,6 +53,7 @@ public class DosyaAdiTests
     [InlineData("application/zip", ".zip")]
     [InlineData("text/csv", ".csv")]
     [InlineData("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", ".xlsx")]
+    [InlineData("application/vnd.ms-excel", ".xls")]
     [InlineData("text/html", ".html")]
     [InlineData("application/hta", ".bin")]
     [InlineData(null, ".bin")]

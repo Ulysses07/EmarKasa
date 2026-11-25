@@ -137,6 +137,22 @@ public class BildirimVeEkstreSozlesmeTests : SozlesmeTemeli
         Assert.True(Assert.Single(belge.Kayitlar).Iptal);
     }
 
+    /// <summary>Örnek Excel iner; örnekleri silinmeden yüklenirse satır satır hatayla reddedilir (422), iletisi istemciye aynen ulaşır.</summary>
+    [Fact]
+    [SozlesmeKapsami(nameof(IEkstreAktarmaApi.EkstreSablonAsync), nameof(IEkstreAktarmaApi.EkstreYukleAsync))]
+    public async Task Ornek_excel_iner_silinmemis_ornekler_satir_satir_reddedilir()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var o = await Editor();
+        using var ornek = new MemoryStream();
+        var dosya = await o.Ekstre.EkstreSablonAsync(ornek, ct);
+        Assert.Equal(("kasa-hareket-ornegi.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"), (dosya.DosyaAdi, dosya.IcerikTuru));
+        var hata = await Assert.ThrowsAsync<KasaApiException>(() => o.Ekstre.EkstreYukleAsync(ornek.ToArray(), "hareket.xlsx", "Banka", "Akbank", "Ana hesap", null, ct));
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, hata.DurumKodu);
+        Assert.Equal("Excel dosyasında 2 hata var; düzeltilmeden işleme alınmadı.\nSatır 2: örnek satır; silip yeniden yükleyin.\nSatır 3: örnek satır; silip yeniden yükleyin.", hata.Message);
+        Assert.Empty(await o.Ekstre.EkstreBelgelerAsync());
+    }
+
     [Fact]
     [SozlesmeKapsami(nameof(IEkstreAktarmaApi.EkstreHafizaAsync), nameof(IEkstreAktarmaApi.EkstreHafizaUnutAsync), nameof(IEkstreAktarmaApi.EkstreOnerilerAsync))]
     public async Task Islem_hafizasi_istemci_turlerine_uyar_unutulunca_bosalir()

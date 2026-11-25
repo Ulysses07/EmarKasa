@@ -81,6 +81,7 @@ public partial class EkstreAktarmaViewModel(IEkstreAktarmaApi api, IKasaApi fina
         TopluHatasi = null;
         _yokSayilanTaslak.Clear();
         AtlananAcik = false;
+        YuklemeHatasi = null;
         Belge = null;
         SeciliSatir = null;
         Kaynak = null;
@@ -148,21 +149,21 @@ public partial class EkstreAktarmaViewModel(IEkstreAktarmaApi api, IKasaApi fina
         try
         { return (await api.EkstreBankalarAsync(), null); }
         catch (KasaApiException e) when (e.DurumKodu == HttpStatusCode.NotFound)
-        { return ([], "Banka listesi alınamadı: sunucu banka listesini vermiyor (sunucu bu uygulama sürümünden eski olabilir). PDF yüklemek için sunucu güncellenmeli."); }
+        { return ([], "Banka listesi alınamadı: sunucu banka listesini vermiyor (sunucu bu uygulama sürümünden eski olabilir). Belge yüklemek için sunucu güncellenmeli."); }
         catch (KasaApiException e) when (e.DurumKodu is not (HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden))
-        { return ([], "Banka listesi alınamadı; PDF yüklenemez. " + OkumaHataMesaji(e)); }
+        { return ([], "Banka listesi alınamadı; belge yüklenemez. " + OkumaHataMesaji(e)); }
     }
     public EkstreYuklemeSecimi? YuklemeSecimi()
     {
         if (!EditorMu || !VeriHazir || Mesgul)
             return null;
         if (Bankalar.Count == 0)
-        { Hata = "Banka listesi sunucudan alınamadı; PDF yüklenemez. Ekranı yenileyip yeniden deneyin."; return null; }
+        { Hata = "Banka listesi sunucudan alınamadı; belge yüklenemez. Ekranı yenileyip yeniden deneyin."; return null; }
         if (Kaynak is null || Banka is null || (BankaMi && (string.IsNullOrWhiteSpace(HesapAdi) || HesapAdi.Trim().Length > 100)) || (KartMi && Kart is null))
         { Hata = "Belge türünü, bankayı ve kartı / kısa hesap adını seçin."; return null; }
         return new(OturumNesli, Kaynak.Kod, Banka.Kod, BankaMi ? HesapAdi.Trim() : "", KartMi ? Kart!.Id : null);
     }
-    /// <summary>PDF seçimi (maui-8; önceden EkstreAktarmaPage.PdfSecAsync'teydi): yalnız PDF, en çok 10 MB; seçim ya da okuma
+    /// <summary>PDF ya da Excel seçimi (maui-8; önceden EkstreAktarmaPage.PdfSecAsync'teydi): en çok 10 MB; seçim ya da okuma
     /// sürerken oturum değişirse dosya yüklenmez ve eski oturumun hatası yazılmaz. Belge kaynağının değişmediğini
     /// <see cref="PdfYukleAsync"/> denetler.</summary>
     /// <param name="sec">Dosya seçiciyi açar; vazgeçilirse null.</param>
@@ -174,25 +175,35 @@ public partial class EkstreAktarmaViewModel(IEkstreAktarmaApi api, IKasaApi fina
             var dosya = await sec();
             if (dosya is null || !OturumSuruyor())
                 return;
-            if (!DosyaSecimKurallari.PdfMi(dosya.Ad))
-            { Hata = "Yalnız PDF dosyası seçin."; return; }
+            if (!DosyaSecimKurallari.EkstreMi(dosya.Ad))
+            { Hata = "Yalnız PDF ya da Excel (.xlsx, .xls) dosyası seçin."; return; }
             DosyaOkumasi okuma;
             await using (var akis = await dosya.Ac())
                 okuma = await DosyaSecimKurallari.SinirliOkuAsync(akis, DosyaSecimKurallari.EnFazlaBayt, OturumSuruyor);
             if (okuma.Durum == DosyaOkumaDurumu.Vazgecildi)
                 return;
             if (okuma.Durum == DosyaOkumaDurumu.SinirAsildi)
-            { Hata = "PDF en fazla 10 MB olabilir."; return; }
+            { Hata = "Dosya en fazla 10 MB olabilir."; return; }
             await PdfYukleAsync(okuma.Icerik!, dosya.Ad, secim);
         }
-        catch (Exception) { if (OturumSuruyor()) Hata = "PDF okunamadı. Dosyayı kontrol edip yeniden seçin."; }
+        catch (Exception) { if (OturumSuruyor()) Hata = "Dosya okunamadı. Kontrol edip yeniden seçin."; }
+    }
+    /// <summary>Yüklenen dosyanın okunamama nedeni (hatalı Excel'de satır satır liste); yükleme kartında görünür.</summary>
+    [ObservableProperty] private string? _yuklemeHatasi;
+    /// <summary>Örnek Excel'i <paramref name="hedef"/>'e yazar; hata ya da eski oturumda null.</summary>
+    public async Task<IndirmeBilgisi?> SablonAsync(Stream hedef)
+    {
+        IndirmeBilgisi? sonuc = null;
+        await YurutAsync(async n => { if (!EditorMu) return; var s = await api.EkstreSablonAsync(hedef); if (Gecerli(n)) sonuc = s; });
+        return sonuc;
     }
     public Task PdfYukleAsync(byte[] icerik, string ad, EkstreYuklemeSecimi secim) => YurutAsync(async n =>
     {
+        YuklemeHatasi = null;
         if (!EditorMu || !VeriHazir || secim.Oturum != n || secim.Kaynak != Kaynak?.Kod || secim.Banka != Banka?.Kod || secim.HesapAdi != (BankaMi ? HesapAdi.Trim() : "") || secim.KartId != (KartMi ? Kart?.Id : null))
-        { Hata = "Dosya seçimi sırasında oturum veya belge kaynağı değişti. PDF'yi yeniden seçin."; return; }
-        if (!DosyaSecimKurallari.PdfMi(ad) || icerik.Length == 0 || icerik.Length > DosyaSecimKurallari.EnFazlaBayt)
-        { Hata = "En fazla 10 MB büyüklüğünde bir PDF seçin."; return; }
+        { Hata = "Dosya seçimi sırasında oturum veya belge kaynağı değişti. Dosyayı yeniden seçin."; return; }
+        if (!DosyaSecimKurallari.EkstreMi(ad) || icerik.Length == 0 || icerik.Length > DosyaSecimKurallari.EnFazlaBayt)
+        { Hata = "En fazla 10 MB büyüklüğünde bir PDF ya da Excel seçin."; return; }
         var b = await api.EkstreYukleAsync(icerik, ad, secim.Kaynak, secim.Banka, secim.HesapAdi, secim.KartId);
         if (!Gecerli(n))
             return;
@@ -201,8 +212,8 @@ public partial class EkstreAktarmaViewModel(IEkstreAktarmaApi api, IKasaApi fina
         await KurallariAlAsync(n);
         if (!Gecerli(n))
             return;
-        Mesaj = HazirVar ? "PDF okundu. Hafızadan hazır satırlar var; kalanları tek tek kontrol edin." : "PDF okundu. Kaydetmek istediğiniz satırları tek tek seçip kontrol edin.";
-    });
+        Mesaj = HazirVar ? "Belge okundu. Hafızadan hazır satırlar var; kalanları tek tek kontrol edin." : "Belge okundu. Kaydetmek istediğiniz satırları tek tek seçip kontrol edin.";
+    }, hataIsle: e => YuklemeHatasi = e is HttpRequestException ? Yurutucu.KayitBaglantiIletisi : HataMesaji(e));
     public Task BelgeAcAsync(int id) => YurutAsync(async n =>
     {
         if (!EditorMu || !VeriHazir)

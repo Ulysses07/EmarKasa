@@ -59,8 +59,10 @@ public static partial class EkstreAktarmaEndpoints
             }
             response.Headers.CacheControl = "private, no-store";
             response.Headers.XContentTypeOptions = "nosniff";
-            return Results.File(akis, "application/pdf", d.DosyaAdi);
+            return Results.File(akis, IcerikTuru(d.DosyaAdi), d.DosyaAdi);
         });
+        // Örnek Excel (docs/specs/2026-11-25-excel-yukleme.md); veritabanına dokunmaz.
+        api.MapGet("/sablon", (TimeProvider saat) => Results.File(EkstreSablonu.Olustur(DateOnly.FromDateTime(saat.GetLocalNow().DateTime)), EkstreSablonu.IcerikTuru, EkstreSablonu.DosyaAdi));
         // Önizleme bir benzetimdir: satırlar (ve tarihe bağlı türetme, Sync) geri alınan kayıt noktasında uygulanır, kalıcı
         // hiçbir şey yazılmaz. Benzetim yazarak hesaplandığından yazma transaction'ı içinde çalışır.
         api.MapPost("/{id:int}/onizleme", (int id, EkstreKaydetYaz dto, KasaDbContext db) => Safe(() => AlisEndpoints.Mutate(db, () =>
@@ -146,9 +148,9 @@ public static partial class EkstreAktarmaEndpoints
     private static async Task<IResult> Upload(HttpRequest request, KasaDbContext db, IPdfMetinOkuyucu pdf, TimeProvider saat, BelgeDeposu depo, CancellationToken ct)
     {
         if (request.ContentLength is > FileLimit + 65536)
-            return Error("PDF dosyası en fazla 10 MB olabilir.", 413);
+            return Error(DosyaBuyuk, 413);
         if (!request.HasFormContentType)
-            return Error("PDF dosyasını yükleyin.");
+            return Error("PDF ya da Excel dosyasını yükleyin.");
         IFormCollection form;
         try
         { form = await request.ReadFormAsync(ct); }
@@ -167,7 +169,7 @@ public static partial class EkstreAktarmaEndpoints
         if (source == EkstreKaynaklari.Kart)
             account = "";
         if (file is null || file.Length is <= 0 or > FileLimit)
-            return Error("PDF dosyası en fazla 10 MB olabilir.", 413);
+            return Error(DosyaBuyuk, 413);
         byte[] bytes;
         await using (var stream = file.OpenReadStream())
         using (var buffer = new MemoryStream())
@@ -177,32 +179,35 @@ public static partial class EkstreAktarmaEndpoints
             while ((count = await stream.ReadAsync(block, ct)) > 0)
             {
                 if (buffer.Length + count > FileLimit)
-                    return Error("PDF dosyası en fazla 10 MB olabilir.", 413);
+                    return Error(DosyaBuyuk, 413);
                 await buffer.WriteAsync(block.AsMemory(0, count), ct);
             }
             bytes = buffer.ToArray();
         }
-        if (bytes.Length < 5 || !bytes.AsSpan(0, 5).SequenceEqual("%PDF-"u8))
-            return Error("Geçerli PDF dosyası seçin.");
+        var excel = EkstreExcelOkuyucu.ExcelMi(bytes);
+        if (!excel && !PdfMi(bytes))
+            return Error(EkstreExcelOkuyucu.WebSayfasiMi(bytes) ? "Bu dosya gerçek Excel değil (web sayfası). Excel'de açıp .xlsx olarak kaydedin ve yeniden yükleyin." : "Geçerli PDF ya da Excel (.xlsx, .xls) dosyası seçin.");
         var hash = Convert.ToHexString(SHA256.HashData(bytes));
         var existing = db.EkstreBelgeler.AsNoTracking().SingleOrDefault(d => d.DosyaOzeti == hash);
         IResult Existing(EkstreBelgeEntity d) => d.Kaynak == source && d.Banka == bank && d.HesapAdi == account && d.KartId == card
-            ? Results.Ok(Document(db, d.Id)) : Error("Bu PDF farklı kaynak bilgileriyle yüklenmiş. İlk belgeden devam edin.", 409);
+            ? Results.Ok(Document(db, d.Id)) : Error("Bu dosya farklı kaynak bilgileriyle yüklenmiş. İlk belgeden devam edin.", 409);
         if (existing is not null)
             return Existing(existing);
-        var (read, hata) = await PdfOku(pdf, bytes, source, bank, ct);
+        var (read, hata) = await BelgeOku(pdf, bytes, source, bank, ct);
         if (read is null)
             return hata!;
         var name = Path.GetFileName(file.FileName.Replace('\\', '/'));
         name = new string(name.Where(c => !char.IsControl(c)).Take(180).ToArray());
         if (string.IsNullOrWhiteSpace(name))
-            name = "ekstre.pdf";
-        if (!name.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase))
-            name += ".pdf";
-        // PDF, yazma kilidi alınmadan belge deposuna yazılır (diske işlenmiş); satır ondan sonra eklenir. Satır kaydedilemezse dosya
+            name = "ekstre";
+        // Uzantı içerikten belirlenir (indirme türü de ona göre verilir); xlsx kabının diğer uzantıları korunur.
+        var uzanti = !excel ? ".pdf" : bytes[0] == (byte)'P' ? ".xlsx" : ".xls";
+        if (!name.EndsWith(uzanti, StringComparison.OrdinalIgnoreCase) && !(uzanti == ".xlsx" && Path.GetExtension(name).ToLowerInvariant() is ".xlsm" or ".xlsb"))
+            name += uzanti;
+        // Dosya, yazma kilidi alınmadan belge deposuna yazılır (diske işlenmiş); satır ondan sonra eklenir. Satır kaydedilemezse dosya
         // hiçbir kaydın göstermediği dosya olarak bakımda silinir.
         if (depo.Yaz(bytes, ct).Ozet != hash)
-            return Error("PDF belge deposuna doğrulanarak yazılamadı. Yeniden deneyin.", 500);
+            return Error("Dosya belge deposuna doğrulanarak yazılamadı. Yeniden deneyin.", 500);
         return Safe(() => AlisEndpoints.Mutate(db, () =>
         {
             var old = db.EkstreBelgeler.SingleOrDefault(d => d.DosyaOzeti == hash);
@@ -229,18 +234,40 @@ public static partial class EkstreAktarmaEndpoints
 
     /// <summary>Okunan belgenin saklanacak biçimi (Json).</summary>
     private sealed record OkunanBelge(string Satirlar, string Uyarilar, string Atlananlar);
-    private static async Task<(OkunanBelge? Belge, IResult? Hata)> PdfOku(IPdfMetinOkuyucu pdf, byte[] bytes, string source, string bank, CancellationToken ct)
+    private const string DosyaBuyuk = "Dosya en fazla 10 MB olabilir.";
+    private static readonly SemaphoreSlim ExcelSirasi = new(2, 2);
+    private static bool PdfMi(byte[] bytes) => bytes.Length >= 5 && bytes.AsSpan(0, 5).SequenceEqual("%PDF-"u8);
+    private static string IcerikTuru(string dosyaAdi) => Path.GetExtension(dosyaAdi).ToLowerInvariant() switch
+    {
+        ".pdf" => "application/pdf",
+        ".xlsx" => EkstreSablonu.IcerikTuru,
+        ".xls" => "application/vnd.ms-excel",
+        _ => "application/octet-stream",
+    };
+    /// <summary>Belgenin türü (satır notlarında): "Excel" ya da "PDF".</summary>
+    private static string BelgeTuru(EkstreBelgeEntity d) => Path.GetExtension(d.DosyaAdi).ToLowerInvariant() is ".xlsx" or ".xls" or ".xlsm" or ".xlsb" ? "Excel" : "PDF";
+    /// <summary>PDF ya da Excel (imzasından) okur; hatalı Excel bütün hata listesiyle reddedilir.</summary>
+    private static async Task<(OkunanBelge? Belge, IResult? Hata)> BelgeOku(IPdfMetinOkuyucu pdf, byte[] bytes, string source, string bank, CancellationToken ct)
     {
         EkstreOkumaSonucu read;
         try
-        { read = EkstreMetinOkuyucu.Oku(await pdf.OkuAsync(bytes, ct), source, bank); }
+        { read = EkstreExcelOkuyucu.ExcelMi(bytes) ? await ExcelOku(bytes, source, ct) : EkstreMetinOkuyucu.Oku(await pdf.OkuAsync(bytes, ct), source, bank); }
         catch (PdfOkumaException e) { return (null, Error(e.Message, e.StatusCode)); }
+        catch (ExcelOkumaException e) { return (null, Error(e.Message, e.StatusCode)); }
         if (read.Satirlar.Count > 1500)
-            return (null, Error("PDF en fazla 1500 hareket içerebilir.", 422));
+            return (null, Error("Belge en fazla 1500 hareket içerebilir.", 422));
         var belge = new OkunanBelge(Json(read.Satirlar), Json(read.Uyarilar), Json(read.Atlananlar));
         if (belge.Satirlar.Length > 4_000_000 || belge.Uyarilar.Length > 100_000)
-            return (null, Error("PDF metni çok uzun; daha kısa tarih aralığı seçin.", 422));
+            return (null, Error("Belge metni çok uzun; daha kısa tarih aralığı seçin.", 422));
         return (belge, null);
+    }
+    private static async Task<EkstreOkumaSonucu> ExcelOku(byte[] bytes, string source, CancellationToken ct)
+    {
+        if (!await ExcelSirasi.WaitAsync(0, ct))
+            throw new ExcelOkumaException("Başka belgeler okunuyor. Kısa süre sonra tekrar deneyin.", 429);
+        try
+        { return await Task.Run(() => EkstreExcelOkuyucu.Oku(bytes, source), ct); }
+        finally { ExcelSirasi.Release(); }
     }
 
     private sealed record KartSurumu(int KrediKartiId, int Surum);
@@ -293,7 +320,7 @@ public static partial class EkstreAktarmaEndpoints
                 if (row.IslemTuru != EkstreIslemTurleri.Eslestir)
                 {
                     if (original.OnerilenIslem != row.IslemTuru)
-                        notices.Add("İşlem türü PDF önerisinden farklı; yönünü ve kasaya etkisini kontrol edin.");
+                        notices.Add("İşlem türü belgeden okunan öneriden farklı; yönünü ve kasaya etkisini kontrol edin.");
                     if (document.Kaynak == EkstreKaynaklari.Banka && original.Sinif == "Transfer")
                         notices.Add("Kendi hesaplarınız arasındaki transfer genel kasayı değiştirmez; böyle bir satırı seçmeden bırakın. Gelir/gider olarak işlerseniz genel kasa değişir.");
                     notices.AddRange(Duplicates(db, similar, document, row, batch, sameDocument));
@@ -357,7 +384,7 @@ public static partial class EkstreAktarmaEndpoints
 
     private static void Validate(KasaDbContext db, EkstreBelgeEntity doc, EkstreSatirYaz row, EkstreOkunanSatir? original)
     {
-        Require(original is not null, "Kaynak satır bu PDF'de bulunamadı.");
+        Require(original is not null, "Kaynak satır bu belgede bulunamadı.");
         Require(!db.EkstreYokSayilanlar.Any(y => y.BelgeId == doc.Id && y.SatirNo == row.SatirNo), "Bu satır yok sayıldı. Kaydetmek için önce Kapanan sekmesinden geri alın.", 409);
         Require(original.ParaBirimi is "TRY" or "TL" or "Belirsiz", "Yalnız TL hareketleri kaydedilebilir.");
         Require(!db.EkstreKayitlar.Any(k => k.BelgeId == doc.Id && k.SatirNo == row.SatirNo && !k.Iptal), "Bu kaynak satır zaten kaydedilmiş; geçmişinden devam edin.", 409);
@@ -590,7 +617,7 @@ public static partial class EkstreAktarmaEndpoints
                     Kanal = shares.Count == 1 ? shares[0].Kanal : KanalEtiketleri.GenelKasa,
                     KanalId = shares.Count == 1 ? shares[0].KanalId : null,
                     Tip = GiderTipi.Cari,
-                    Not = "PDF hesap hareketi · " + doc.Banka + " · " + doc.HesapAdi
+                    Not = BelgeTuru(doc) + " hesap hareketi · " + doc.Banka + " · " + doc.HesapAdi
                 };
                 db.Islemler.Add(expense);
                 db.SaveChanges();

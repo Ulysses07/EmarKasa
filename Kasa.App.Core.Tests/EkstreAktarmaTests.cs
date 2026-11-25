@@ -46,7 +46,7 @@ public partial class EkstreAktarmaTests
         var vm3 = Yeni(new Sahte { BankaHatasi = new KasaApiException(HttpStatusCode.InternalServerError, izKimligi: "0HN7ABCDEF") });
         await vm3.YukleAsync();
         Assert.Empty(vm3.Bankalar);
-        Assert.StartsWith("Banka listesi alınamadı; PDF yüklenemez. Sunucu işlemi tamamlayamadı.", vm3.Hata);
+        Assert.StartsWith("Banka listesi alınamadı; belge yüklenemez. Sunucu işlemi tamamlayamadı.", vm3.Hata);
 
         // Oturum sonu bütün yüklemeyi durdurur (liste boş, iletisi oturum iletisidir).
         var vm4 = Yeni(new Sahte { BankaHatasi = new KasaApiException(HttpStatusCode.Unauthorized) });
@@ -303,19 +303,48 @@ public partial class EkstreAktarmaTests
         vm.Banka = vm.Bankalar[0];
         vm.HesapAdi = "Ana";
         await vm.PdfSecVeYukleAsync(vm.YuklemeSecimi()!, Secici("ekstre.png", [1]));
-        Assert.Equal("Yalnız PDF dosyası seçin.", vm.Hata);
+        Assert.Equal("Yalnız PDF ya da Excel (.xlsx, .xls) dosyası seçin.", vm.Hata);
         Assert.Equal(0, api.YuklemeSayisi);
         await vm.PdfSecVeYukleAsync(vm.YuklemeSecimi()!, Secici("buyuk.pdf", new byte[DosyaSecimKurallari.EnFazlaBayt + 1]));
-        Assert.Equal("PDF en fazla 10 MB olabilir.", vm.Hata);
+        Assert.Equal("Dosya en fazla 10 MB olabilir.", vm.Hata);
         Assert.Equal(0, api.YuklemeSayisi);
         await vm.PdfSecVeYukleAsync(vm.YuklemeSecimi()!, () => Task.FromException<SecilenDosya?>(new IOException()));
-        Assert.Equal("PDF okunamadı. Dosyayı kontrol edip yeniden seçin.", vm.Hata);
+        Assert.Equal("Dosya okunamadı. Kontrol edip yeniden seçin.", vm.Hata);
         await vm.PdfSecVeYukleAsync(vm.YuklemeSecimi()!, () => Task.FromResult<SecilenDosya?>(null));   // seçiciden vazgeçildi
         Assert.Equal(0, api.YuklemeSayisi);
         await vm.PdfSecVeYukleAsync(vm.YuklemeSecimi()!, Secici("EKSTRE.PDF", [1, 2, 3]));
         Assert.Equal(1, api.YuklemeSayisi);
         Assert.Equal((3, "EKSTRE.PDF"), (api.SonYukleme!.Value.Boyut, api.SonYukleme.Value.Ad));
         Assert.Null(vm.Hata);
+    }
+    /// <summary>docs/specs/2026-11-25-excel-yukleme.md: hatalı Excel'in satır satır listesi yükleme kartında kalır, belge değişmez; sonraki
+    /// denemede ve oturum değişince kalkar. Örnek dosya indirilir.</summary>
+    [Fact]
+    public async Task Hatali_excel_nedenleriyle_yukleme_kartinda_kalir_ornek_dosya_iner()
+    {
+        var (vm, api, auth) = await Hazir();
+        vm.Kaynak = vm.Kaynaklar[1];
+        vm.Banka = vm.Bankalar[0];
+        vm.HesapAdi = "Ana";
+        var belge = vm.Belge;
+        api.YuklemeHatasi = new KasaApiException(System.Net.HttpStatusCode.UnprocessableEntity, "Excel dosyasında 2 hata var; düzeltilmeden işleme alınmadı.\nSatır 2: tarih boş.\nSatır 5: tutar boş.");
+        await vm.PdfSecVeYukleAsync(vm.YuklemeSecimi()!, Secici("hareket.xlsx", [1]));
+        Assert.Equal("Excel dosyasında 2 hata var; düzeltilmeden işleme alınmadı.\nSatır 2: tarih boş.\nSatır 5: tutar boş.", vm.YuklemeHatasi);
+        Assert.Null(vm.Hata);
+        Assert.Same(belge, vm.Belge);
+        api.YuklemeHatasi = new HttpRequestException();
+        await vm.PdfSecVeYukleAsync(vm.YuklemeSecimi()!, Secici("hareket.xlsx", [1]));
+        Assert.Equal(Yurutucu.KayitBaglantiIletisi, vm.YuklemeHatasi);
+        await vm.PdfSecVeYukleAsync(vm.YuklemeSecimi()!, Secici("hareket.xls", [1]));
+        Assert.Null(vm.YuklemeHatasi);
+        Assert.StartsWith("Belge okundu.", vm.Mesaj);
+        using var hedef = new MemoryStream();
+        Assert.Equal("ornek.xlsx", (await vm.SablonAsync(hedef))!.DosyaAdi);
+        Assert.Equal(1, hedef.Length);
+        api.YuklemeHatasi = new HttpRequestException();
+        await vm.PdfSecVeYukleAsync(vm.YuklemeSecimi()!, Secici("hareket.xlsx", [1]));
+        auth.OturumSurumu++;
+        Assert.Null(vm.YuklemeHatasi);
     }
     [Fact]
     public async Task Pdf_secilirken_oturum_degisirse_yuklenmez_ve_hata_yazilmaz()
@@ -461,7 +490,18 @@ public partial class EkstreAktarmaTests
         public Task<EkstreBelgeDto> EkstreBelgeAsync(int id) { BelgeSayisi++; return Task.FromResult(Veri); }
         public Task<EkstreBelgeDto> EkstreKaynakBelgeAsync(int kayitId) { KaynakId = kayitId; return KaynakYaniti ?? Task.FromResult(Veri); }
         public (int Boyut, string Ad)? SonYukleme;
-        public Task<EkstreBelgeDto> EkstreYukleAsync(byte[] b, string ad, string kaynak, string banka, string hesapAdi, int? kartId, CancellationToken ct = default) { YuklemeSayisi++; SonYukleme = (b.Length, ad); return Task.FromResult(Veri); }
+        /// <summary>Verilirse sonraki yükleme bu hatayla düşer; bir kez.</summary>
+        public Exception? YuklemeHatasi;
+        public Task<EkstreBelgeDto> EkstreYukleAsync(byte[] b, string ad, string kaynak, string banka, string hesapAdi, int? kartId, CancellationToken ct = default)
+        {
+            YuklemeSayisi++;
+            SonYukleme = (b.Length, ad);
+            if (YuklemeHatasi is not { } hata)
+                return Task.FromResult(Veri);
+            YuklemeHatasi = null;
+            return Task.FromException<EkstreBelgeDto>(hata);
+        }
+        public async Task<IndirmeBilgisi> EkstreSablonAsync(Stream hedef, CancellationToken ct = default) { await hedef.WriteAsync(new byte[] { 1 }, ct); return new("ornek.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", 1); }
         public async Task<IndirmeBilgisi> EkstreDosyaAsync(int id, Stream hedef, CancellationToken ct = default) { await hedef.WriteAsync(new byte[] { 1 }, ct); return new("belge.pdf", "application/pdf", 1); }
         public Task<EkstreOnizlemeDto> EkstreOnizlemeAsync(int id, EkstreKaydetYaz g) { OnizlemeSayisi++; return OnizlemeYaniti ?? Task.FromResult(new EkstreOnizlemeDto("ozet", -g.Satirlar.Sum(s => s.Tutar), g.Satirlar.Select(s => new EkstreSatirOnizleme(s.SatirNo, s.Tarih, s.Aciklama, s.Tutar, s.IslemTuru, -s.Tutar, [], [])).ToArray(), [], TekrarGerekli)); }
         public Task<EkstreBelgeDto> EkstreKaydetAsync(int id, EkstreKaydetYaz g) { KaydetIstekleri.Add(g); if (KaydetHata) throw new HttpRequestException(); return KayitYaniti ?? Task.FromResult(Veri with { Surum = Veri.Surum + 1 }); }

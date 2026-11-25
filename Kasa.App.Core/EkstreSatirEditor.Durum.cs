@@ -46,10 +46,10 @@ public partial class EkstreSatirEditor
     public string EtkinYon => TurYonu(Kayit?.Veri.IslemTuru ?? IslemTuru?.Kod, _kartBelgesi) ?? Kaynak.Yon;
     public static string YonAdi(string yon) => yon switch { "Giris" => "Giriş +", "Cikis" => "Çıkış −", _ => "Belirsiz" };
     /// <summary>"Giriş +", "Çıkış −" ya da "Belirsiz"; yanında dayanağı ya da seçilen türle çelişen PDF yönü.</summary>
-    public string YonMetni => YonAdi(EtkinYon) + (Kaynak.Yon is "Giris" or "Cikis" && Kaynak.Yon != EtkinYon ? $" · PDF: {YonAdi(Kaynak.Yon)}"
+    public string YonMetni => YonAdi(EtkinYon) + (Kaynak.Yon is "Giris" or "Cikis" && Kaynak.Yon != EtkinYon ? $" · belgede: {YonAdi(Kaynak.Yon)}"
         : EtkinYon != Kaynak.Yon ? "" : Kaynak.YonKaynagi switch
         {
-            YonKaynaklari.Sutun => " · PDF kolonundan",
+            YonKaynaklari.Sutun => " · belgenin kolonundan",
             YonKaynaklari.Isaret => " · tutarın işaretinden",
             YonKaynaklari.Bakiye => " · bakiyeden",
             YonKaynaklari.Sozcuk => " · açıklamadan",

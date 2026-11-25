@@ -19,9 +19,13 @@ public class DosyaSecimKurallariTests
     [Theory]
     [InlineData("ekstre.pdf", true)]
     [InlineData("EKSTRE.PDF", true)]
+    [InlineData("Hareketler.XLSX", true)]
+    [InlineData("hareket.xls", true)]
+    [InlineData("hareket.xlsm", false)]
+    [InlineData("hareket.csv", false)]
     [InlineData("ekstre.pdf.exe", false)]
     [InlineData("ekstre.png", false)]
-    public void Pdf_uzantisi_denetlenir(string ad, bool beklenen) => Assert.Equal(beklenen, DosyaSecimKurallari.PdfMi(ad));
+    public void Ekstre_uzantisi_denetlenir(string ad, bool beklenen) => Assert.Equal(beklenen, DosyaSecimKurallari.EkstreMi(ad));
 
     [Fact]
     public async Task Tam_sinirdaki_dosya_okunur_bir_bayt_fazlasi_reddedilir()

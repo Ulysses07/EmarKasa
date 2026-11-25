@@ -19,6 +19,8 @@ public static class DosyaTurleri
         ["application/zip"] = ".zip",
         ["text/csv"] = ".csv",
         ["application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"] = ".xlsx",
+        // Kullanıcının yüklediği banka ekstresi (Excel 97-2003) aynı türle geri iner.
+        ["application/vnd.ms-excel"] = ".xls",
         // Yalnız yazdırılabilir rapor (sunucunun kendi ürettiği HTML); bilinmeyen türde .html korunmaz.
         ["text/html"] = ".html",
     };
@@ -41,7 +43,7 @@ public static class DosyaTurleri
         ".jpg" => "JPEG görseli",
         ".zip" => "ZIP arşivi",
         ".csv" => "CSV dosyası",
-        ".xlsx" => "Excel dosyası",
+        ".xlsx" or ".xls" => "Excel dosyası",
         ".html" => "HTML raporu",
         _ => "Dosya",
     };

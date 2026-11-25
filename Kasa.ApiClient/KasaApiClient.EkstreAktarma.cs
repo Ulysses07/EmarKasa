@@ -23,6 +23,8 @@ public sealed partial class KasaApiClient : IEkstreAktarmaApi
     public Task<EkstreBelgeDto> EkstreKaynakBelgeAsync(int kayitId) => GetAsync<EkstreBelgeDto>($"api/ekstre-aktar/kayitlar/{kayitId}");
     public Task<IndirmeBilgisi> EkstreDosyaAsync(int id, Stream hedef, CancellationToken cancellationToken = default)
         => DosyaIndirAsync(HttpMethod.Get, $"api/ekstre-aktar/{id}/dosya", "ekstre.pdf", hedef, _zaman.Indirme, cancellationToken);
+    public Task<IndirmeBilgisi> EkstreSablonAsync(Stream hedef, CancellationToken cancellationToken = default)
+        => DosyaIndirAsync(HttpMethod.Get, "api/ekstre-aktar/sablon", "kasa-hareket-ornegi.xlsx", hedef, _zaman.Indirme, cancellationToken);
     public Task<EkstreOnizlemeDto> EkstreOnizlemeAsync(int id, EkstreKaydetYaz g) => GonderJsonAsync<EkstreOnizlemeDto>(HttpMethod.Post, $"api/ekstre-aktar/{id}/onizleme", g);
     public Task<EkstreBelgeDto> EkstreKaydetAsync(int id, EkstreKaydetYaz g) => GonderJsonAsync<EkstreBelgeDto>(HttpMethod.Post, $"api/ekstre-aktar/{id}/kaydet", g);
     public Task<EkstreBelgeDto> EkstreKayitIptalAsync(int id, int kayitId, EkstreIptalYaz g) => GonderJsonAsync<EkstreBelgeDto>(HttpMethod.Post, $"api/ekstre-aktar/{id}/kayitlar/{kayitId}/iptal", g);
@@ -39,10 +41,15 @@ public sealed partial class KasaApiClient : IEkstreAktarmaApi
     public async Task<EkstreBelgeDto> EkstreYukleAsync(byte[] icerik, string dosyaAdi, string kaynak, string banka, string hesapAdi, int? kartId, CancellationToken cancellationToken = default)
     {
         if (icerik.Length is 0 or > 10 * 1024 * 1024)
-            throw new ArgumentException("PDF dosyası en fazla 10 MB olabilir.", nameof(icerik));
+            throw new ArgumentException("Dosya en fazla 10 MB olabilir.", nameof(icerik));
         using var form = new MultipartFormDataContent();
         var dosya = new ByteArrayContent(icerik);
-        dosya.Headers.ContentType = new MediaTypeHeaderValue("application/pdf");
+        dosya.Headers.ContentType = new MediaTypeHeaderValue(Path.GetExtension(dosyaAdi).ToLowerInvariant() switch
+        {
+            ".xlsx" => "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            ".xls" => "application/vnd.ms-excel",
+            _ => "application/pdf",
+        });
         form.Add(dosya, "dosya", GuvenliDosyaAdi(dosyaAdi, "ekstre.pdf"));
         form.Add(new StringContent(kaynak), "kaynak");
         form.Add(new StringContent(banka), "banka");
