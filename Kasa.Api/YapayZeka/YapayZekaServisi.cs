@@ -80,7 +80,7 @@ public sealed partial class YapayZekaServisi(YapayZekaAyarlari ayarlar, IYapayZe
     }
 
     /// <param name="Satirlar">Bu çağrıda sorulacaklar.</param>
-    /// <param name="Kalan">Sonraki çağrıya kalan satır sayısı.</param>
+    /// <param name="Kalan">Sonraki çağrıya kalan, hiç sorulmamış satır sayısı.</param>
     internal sealed record Hazirlik(string Kaynak, IReadOnlyList<SoruSatiri> Satirlar, int Kalan, int OrnekSayisi, YapayZekaIstegi? Istek);
 
     private static string YonYazisi(string yon) => yon switch { "Giris" => "GIRIS", "Cikis" => "CIKIS", _ => "BELIRSIZ" };
@@ -95,13 +95,16 @@ public sealed partial class YapayZekaServisi(YapayZekaAyarlari ayarlar, IYapayZe
         var kanallar = Kanallar(db, maske);
         var ornekler = Ornekler(Kararlar(db, belge.Kaynak).Take(YapayZekaAyarlari.EnCokOrnek), maske);
         var ornekYerTutuculari = ornekler.SelectMany(o => YerTutucu().Matches(o).Select(m => m.Value)).ToHashSet(StringComparer.Ordinal);
+        // Öneri gelmemiş satır yeniden sorulabilir ama hiç sorulmamışlardan sonra; yoksa kalan satırlara hiç sıra gelmezdi (Codex incelemesi, EmarKasa#65).
+        var sorulmus = db.YapayZekaOneriler.AsNoTracking().Where(o => o.BelgeId == belge.Id).ToDictionary(o => o.SatirNo, o => o.CagriId);
         var gruplar = acik.Select(r => (Satir: r, Metin: maske.Maskele(r.Aciklama), Aralik: YapayZekaMaskesi.TutarAraligi(r.Tutar)))
             // Hiç açık sözcüğü olmayan ve örneklerde geçmeyen satır modele bir şey söylemez.
             .Where(x => x.Metin.Metin.Split(' ').Any(s => s.Any(char.IsLetter) || ornekYerTutuculari.Contains(s)))
             .GroupBy(x => (x.Satir.Yon, x.Aralik, x.Metin.Metin))
-            .Select(g => new SoruSatiri(g.First().Satir.No, g.Key.Yon, g.Key.Aralik, g.First().Metin, g.Select(x => x.Satir).ToList())).ToList();
+            .Select(g => new SoruSatiri(g.First().Satir.No, g.Key.Yon, g.Key.Aralik, g.First().Metin, g.Select(x => x.Satir).ToList()))
+            .OrderBy(g => g.Satirlar.Min(r => sorulmus.GetValueOrDefault(r.No))).ThenBy(g => g.No).ToList();
         var soru = gruplar.Take(YapayZekaAyarlari.EnCokSatir).ToList();
-        var kalan = gruplar.Skip(soru.Count).Sum(g => g.Satirlar.Count);
+        var kalan = gruplar.Skip(soru.Count).SelectMany(g => g.Satirlar).Count(r => !sorulmus.ContainsKey(r.No));
         return new(belge.Kaynak, soru, kalan, ornekler.Count, soru.Count == 0 ? null : Istek(belge.Kaynak, kanallar, ornekler, soru.Select(s => s.Yazi)));
     }
 
@@ -218,38 +221,42 @@ public sealed partial class YapayZekaServisi(YapayZekaAyarlari ayarlar, IYapayZe
         return [.. sonuc.Values];
     }
 
-    /// <summary>Yanıtı belgenin hâlâ açık satırlarına öneri olarak yazar.</summary>
-    /// <returns>Önerilen satır sayısı; yanıt okunamadıysa null.</returns>
-    internal static int? Yaz(KasaDbContext db, EkstreBelgeEntity belge, Hazirlik h, YapayZekaCagriEntity cagri, string metin)
+    /// <summary>Yanıtı belgenin hâlâ açık satırlarına öneri olarak yazar; öneri gelmeyen satır da sorulmuş sayılır.</summary>
+    /// <returns>Önerilen satır sayısı; yanıt yoksa ya da okunamadıysa null.</returns>
+    internal static int? Yaz(KasaDbContext db, int belgeId, Hazirlik h, YapayZekaCagriEntity cagri, string? metin)
     {
         var kanallar = db.Kanallar.AsNoTracking().Where(k => k.Aktif).Select(k => k.Id).ToHashSet();
         var sorulan = h.Satirlar.ToDictionary(s => s.No, s => (s.Yon, s.Satirlar.Any(r => r.Uyarilar.Count > 0), s.Metin));
-        if (Coz(metin, belge.Kaynak, sorulan, kanallar) is not { } oneriler)
-            return null;
-        var kapali = db.EkstreKayitlar.Where(k => k.BelgeId == belge.Id && !k.Iptal).Select(k => k.SatirNo).ToHashSet();
-        kapali.UnionWith(db.EkstreYokSayilanlar.Where(y => y.BelgeId == belge.Id).Select(y => y.SatirNo));
-        kapali.UnionWith(db.YapayZekaOneriler.Where(o => o.BelgeId == belge.Id).Select(o => o.SatirNo));
-        var satirlar = h.Satirlar.ToDictionary(s => s.No, s => s.Satirlar);
-        var yeni = oneriler.SelectMany(o => satirlar[o.No].Where(r => !kapali.Contains(r.No)).Select(r => new YapayZekaOneriEntity
+        var cozulen = metin is null ? null : Coz(metin, h.Kaynak, sorulan, kanallar);
+        var oneriler = (cozulen ?? []).ToDictionary(o => o.No);
+        var kapali = db.EkstreKayitlar.Where(k => k.BelgeId == belgeId && !k.Iptal).Select(k => k.SatirNo).ToHashSet();
+        kapali.UnionWith(db.EkstreYokSayilanlar.Where(y => y.BelgeId == belgeId).Select(y => y.SatirNo));
+        var mevcut = db.YapayZekaOneriler.Where(o => o.BelgeId == belgeId).ToDictionary(o => o.SatirNo);
+        var sayi = 0;
+        foreach (var (grup, satir) in h.Satirlar.SelectMany(g => g.Satirlar.Select(r => (g, r))))
         {
-            BelgeId = belge.Id,
-            SatirNo = r.No,
-            CagriId = cagri.Id,
-            IslemTuru = o.IslemTuru,
-            DagilimTuru = o.DagilimTuru,
-            KanalIdsJson = Json(o.KanalIds),
-            Kategori = o.Kategori,
-            Aciklama = o.Aciklama,
-            Guven = o.Guven,
-        })).ToList();
-        db.YapayZekaOneriler.AddRange(yeni);
-        return yeni.Count;
+            if (kapali.Contains(satir.No) || mevcut.TryGetValue(satir.No, out var kayit) && kayit.IslemTuru.Length > 0)
+                continue;
+            if (kayit is null)
+                db.YapayZekaOneriler.Add(kayit = new() { BelgeId = belgeId, SatirNo = satir.No });
+            kayit.CagriId = cagri.Id;
+            if (!oneriler.TryGetValue(grup.No, out var o))
+                continue;
+            kayit.IslemTuru = o.IslemTuru;
+            kayit.DagilimTuru = o.DagilimTuru;
+            kayit.KanalIdsJson = Json(o.KanalIds);
+            kayit.Kategori = o.Kategori;
+            kayit.Aciklama = o.Aciklama;
+            kayit.Guven = o.Guven;
+            sayi++;
+        }
+        return cozulen is null ? null : sayi;
     }
 
     /// <summary>Kural ve hafızanın tanımadığı satırın saklı önerisi; yoksa null.</summary>
     internal static EkstreKuralOnerisi? SatirOnerisi(EkstreOkunanSatir row, IReadOnlyDictionary<int, YapayZekaOneriEntity> oneriler, IReadOnlySet<int> kanallar)
     {
-        if (!oneriler.TryGetValue(row.No, out var o))
+        if (!oneriler.TryGetValue(row.No, out var o) || o.IslemTuru.Length == 0)
             return null;
         var ids = Read<int>(o.KanalIdsJson);
         var kanalVar = ids.All(kanallar.Contains);
@@ -276,7 +283,7 @@ public sealed partial class YapayZekaServisi(YapayZekaAyarlari ayarlar, IYapayZe
     /// <summary>Önerisi sonuçlanan (kaydedilen ya da yok sayılan) satırlar ve kullanıcının kararı öneriyle aynı türde olanlar.</summary>
     internal static (int Sonuclanan, int Ayni) Dogruluk(KasaDbContext db)
     {
-        var oneriler = db.YapayZekaOneriler.AsNoTracking().Select(o => new { o.BelgeId, o.SatirNo, o.IslemTuru }).ToList();
+        var oneriler = db.YapayZekaOneriler.AsNoTracking().Where(o => o.IslemTuru != "").Select(o => new { o.BelgeId, o.SatirNo, o.IslemTuru }).ToList();
         if (oneriler.Count == 0)
             return (0, 0);
         var kararlar = db.EkstreKayitlar.AsNoTracking().Where(k => !k.Iptal && db.YapayZekaOneriler.Any(o => o.BelgeId == k.BelgeId && o.SatirNo == k.SatirNo))

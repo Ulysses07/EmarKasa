@@ -50,7 +50,8 @@ API'ye gönderilen veri izinsiz model eğitiminde kullanılmaz; saklama için pl
 
 - Aylık sınır `YapayZeka:AylikSinirUsd` (varsayılan **2 $**). Her çağrıdan önce en yüksek olası maliyet ayrılır; ayın harcaması + ayrılan sınırı aşacaksa
   çağrı yapılmaz. Yanıt gelince gerçek maliyet yazılır; bağlantı kesilip sonuç bilinmiyorsa ayrılan tutar harcanmış sayılır.
-- Aynı anda tek çağrı; bir çağrıda en çok 60 farklı satır. Aynı istek kimliği ikinci kez ücret doğurmaz.
+- Aynı anda tek çağrı; bir çağrıda en çok 60 farklı satır. Öneri gelmeyen satır yeniden sorulabilir ama hiç sorulmamışlardan sonra.
+- Aynı istek kimliği ikinci kez ücret doğurmaz, ilk sonuç aynen döner.
 - Anthropic Console'da ayrıca harcama sınırı konmalıdır.
 
 ## Ölçüm

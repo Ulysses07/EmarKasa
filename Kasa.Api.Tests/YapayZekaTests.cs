@@ -189,7 +189,31 @@ public class YapayZekaTests
         f.Istemci.Yanitlari(Y(1, "Gider"));
         var sonuc = await Sor(c, d.Id);
         Assert.Equal((60, 4, 1), (sonuc.Sorulan, sonuc.KalanSatir, sonuc.Onerilen));
-        Assert.Equal(60, f.Istemci.Istekler[0].Soru.Split('\n').Count(s => s.Contains(" | ")) - 1);
+        static List<int> Nolar(YapayZekaIstegi i) => i.Soru.Split('\n').Skip(2).Select(s => int.Parse(s.Split(" | ")[0])).ToList();
+        Assert.Equal(Enumerable.Range(1, 60), Nolar(f.Istemci.Istekler[0]));
+        // Öneri gelmeyen 59 satır yeniden sorulabilir ama önce hiç sorulmayan 4 satır gelir (Codex incelemesi, EmarKasa#65).
+        f.Istemci.Yanitlari();
+        Assert.Equal((60, 0, 0), ((await Sor(c, d.Id)).Sorulan, (await Sor(c, d.Id)).KalanSatir, (await Durum(c)).Sonuclanan));
+        Assert.Equal([61, 62, 63, 64], Nolar(f.Istemci.Istekler[1]).Order().TakeLast(4));
+        Assert.Equal([61, 62, 63, 64], Nolar(f.Istemci.Istekler[1]).Take(4));
+        // Sonraki soruda en eski sorulanlar öndedir; ilk çağrıda sorulup ikincisine girmeyenler.
+        Assert.Equal(Enumerable.Range(58, 3), Nolar(f.Istemci.Istekler[2]).Take(3));
+    }
+
+    /// <summary>Yanıtı kaybolan isteğin yinelenmesi ilk sonucu (kalan satır ve not dahil) aynen döndürür (Codex incelemesi, EmarKasa#65).</summary>
+    [Fact]
+    public async Task Tekrar_istek_kalan_satiri_ve_notu_korur()
+    {
+        await using var f = Ac();
+        using var c = await Editor(f);
+        string[] a = ["KARGO", "ELEKTRIK", "DOGALGAZ", "MARKET", "YAKIT", "REKLAM", "KIRTASIYE", "SIGORTA"], b = ["FATURA", "ODEME", "MASRAF", "BEDELI", "KOMISYON", "IADE", "AIDAT", "UCRET"];
+        var d = await Banka(c, [.. a.SelectMany((x, i) => b.Select((y, j) => S(G(3), $"{x} {y}", -10m - i * 8 - j)))]);
+        f.Istemci.Yanitla = _ => Task.FromResult(new YapayZekaYaniti(null, "Yanıt yarım kaldı.", 1_000, 16_000, 0, 0));
+        var istek = Guid.NewGuid();
+        var ilk = await Sor(c, d.Id, istek);
+        Assert.Equal((60, 0, 4, "Yanıt yarım kaldı."), (ilk.Sorulan, ilk.Onerilen, ilk.KalanSatir, ilk.Not));
+        Assert.Equal(ilk, await Sor(c, d.Id, istek));
+        Assert.Single(f.Istemci.Istekler);
     }
 
     // ---- Yanıt ----
@@ -241,6 +265,20 @@ public class YapayZekaTests
         // Çağrı sürerken kaydedilen satıra öneri yazılmaz.
         f.Istemci.Yanitla = async _ => { await Kaydet(c, d, (1, "Gider", "Genel", [])); return Yanit(Y(1, "Gider", "Genel")); };
         Assert.Equal(0, (await Sor(c, d.Id)).Onerilen);
+        // Çağrı sürerken belge yeniden okunup satırları değiştiyse eski numaralara öneri yazılmaz (Codex incelemesi, EmarKasa#65).
+        var d2 = await Banka(c, S(G(2), "MARKET MASRAF", -15));
+        f.Istemci.Yanitla = _ =>
+        {
+            using var kapsam = f.Services.CreateScope();
+            var db = kapsam.ServiceProvider.GetRequiredService<KasaDbContext>();
+            var belge = db.EkstreBelgeler.Single(b => b.Id == d2.Id);
+            belge.SatirlarJson = belge.SatirlarJson.Replace("MARKET", "KIRA");
+            db.SaveChanges();
+            return Task.FromResult(Yanit(Y(1, "Gider", "Genel")));
+        };
+        var sonuc = await Sor(c, d2.Id);
+        Assert.Equal((0, "Belge bu sırada yeniden okundu; yeniden sorun."), (sonuc.Onerilen, sonuc.Not));
+        Assert.Equal("Yok", (await Oneriler(c, d2.Id)).Single().Durum);
     }
 
     [Fact]
@@ -299,7 +337,7 @@ public class YapayZekaTests
         var istek = Guid.NewGuid();
         var ilk = await Sor(c, d.Id, istek);
         var tekrar = await Sor(c, d.Id, istek);
-        Assert.Equal((ilk.Onerilen, ilk.MaliyetUsd), (tekrar.Onerilen, tekrar.MaliyetUsd));
+        Assert.Equal(ilk, tekrar);
         Assert.Equal(2, f.Istemci.Istekler.Count);
         Assert.Equal("İstek kimliği başka bir işlem için kullanılmış.", (await Hata(c, "/api/ekstre-aktar/yapay-zeka/olcum", new YapayZekaOlcumYaz(istek, "Banka"))).Hata);
         Assert.Equal("Geçerli bir istek kimliği gerekir.", (await SorHata(c, d.Id, Guid.Empty)).Hata);
@@ -382,7 +420,8 @@ public class YapayZekaTests
         var db = kapsam.ServiceProvider.GetRequiredService<KasaDbContext>();
         Assert.DoesNotContain(db.DenetimOlaylari.AsNoTracking().Select(x => x.Varlik).ToList(), v => v.StartsWith("YapayZeka"));
         var cagri = db.YapayZekaCagrilar.AsNoTracking().Single();
-        Assert.Equal((YapayZekaCagriDurumlari.Tamam, "2026-09", 1, 3_500L, 400L, null), (cagri.Durum, cagri.Ay, cagri.SatirSayisi, cagri.GirdiJetonu, cagri.CiktiJetonu, cagri.SonucJson));
+        Assert.Equal((YapayZekaCagriDurumlari.Tamam, "2026-09", 1, 3_500L, 400L), (cagri.Durum, cagri.Ay, cagri.SatirSayisi, cagri.GirdiJetonu, cagri.CiktiJetonu));
+        Assert.DoesNotContain("KARGO", cagri.SonucJson, StringComparison.OrdinalIgnoreCase);
     }
 
     // ---- SDK ----

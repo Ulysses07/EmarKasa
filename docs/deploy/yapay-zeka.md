@@ -4,8 +4,8 @@
 
 ## Önce
 
-1. [Claude Console](https://platform.claude.com/)'da hesap açın, kredi yükleyin ve **aylık harcama sınırı** koyun (Settings → Limits). Uygulamanın kendi sınırı ayrıca vardır.
-2. Yalnız bu uygulama için bir API anahtarı oluşturun. Anahtarı e-posta, sohbet ya da depoya yazmayın.
+1. [Claude Console](https://platform.claude.com/)'da hesap açın, kredi yükleyin ve [aylık harcama sınırı](https://platform.claude.com/settings/spend-limits) koyun. Uygulamanın kendi sınırı ayrıca vardır.
+2. Yalnız bu uygulama için, **tek bir çalışma alanına (workspace) ait** bir [API anahtarı](https://platform.claude.com/settings/keys) oluşturun (çalışma alanına bağlı olmayan anahtar ek başlık ister ve reddedilir). Anahtarı e-posta, sohbet ya da depoya yazmayın.
 
 ## Açma
 

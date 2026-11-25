@@ -23,18 +23,19 @@ public sealed class YapayZekaCagriEntity
     public decimal MaliyetUsd { get; set; }
     /// <summary><see cref="Kasa.Core.Kodlar.YapayZekaCagriDurumlari"/>.</summary>
     public string Durum { get; set; } = "";
-    /// <summary>Ölçümün sonucu (YapayZekaOlcumDto); diğer çağrılarda null.</summary>
+    /// <summary>İstemciye dönen sonuç (YapayZekaSonucDto ya da YapayZekaOlcumDto): yanıtı kaybolan istek aynı kimlikle yinelenince aynen döner.</summary>
     public string? SonucJson { get; set; }
 }
 
-/// <summary>Belgenin bir satırına gelen öneri. Satır kaydedilse de kalır: doğruluk, kaydedilen kararla karşılaştırılarak okunur.</summary>
+/// <summary>Belgenin sorulan satırı ve gelen öneri. Satır kaydedilse de kalır: doğruluk, kaydedilen kararla karşılaştırılarak okunur. Öneri gelmediyse
+/// <see cref="IslemTuru"/> boştur: satır yeniden sorulabilir ama hiç sorulmamışlardan sonra.</summary>
 public sealed class YapayZekaOneriEntity
 {
     public int Id { get; set; }
     public int BelgeId { get; set; }
     public int SatirNo { get; set; }
     public int CagriId { get; set; }
-    /// <summary><see cref="Kasa.Core.Kodlar.EkstreIslemTurleri"/>.</summary>
+    /// <summary><see cref="Kasa.Core.Kodlar.EkstreIslemTurleri"/>; öneri gelmediyse boş.</summary>
     public string IslemTuru { get; set; } = "";
     public string? DagilimTuru { get; set; }
     public string KanalIdsJson { get; set; } = "[]";

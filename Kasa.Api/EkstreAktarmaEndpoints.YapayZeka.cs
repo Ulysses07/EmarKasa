@@ -47,7 +47,7 @@ public static partial class EkstreAktarmaEndpoints
         var ay = yz.Ay();
         var (sonuclanan, ayni) = YapayZekaServisi.Dogruluk(db);
         var olcumler = db.YapayZekaCagrilar.AsNoTracking().Where(c => c.Tur == YapayZekaCagriTurleri.Olcum && c.SonucJson != null).OrderByDescending(c => c.Id).Select(c => c.SonucJson!).ToList()
-            .Select(j => System.Text.Json.JsonSerializer.Deserialize<YapayZekaOlcumDto>(j)!).DistinctBy(o => o.Kaynak).ToList();
+            .Select(j => System.Text.Json.JsonSerializer.Deserialize<YapayZekaOlcumDto>(j, System.Text.Json.JsonSerializerOptions.Web)!).DistinctBy(o => o.Kaynak).ToList();
         return new(yz.Ayarlar.KapaliNedeni is null, yz.Ayarlar.KapaliNedeni, YapayZekaAyarlari.Model, YapayZekaServisi.AyHarcamasi(db, ay), yz.Ayarlar.AylikSinirUsd,
             db.YapayZekaCagrilar.Count(c => c.Ay == ay), sonuclanan, ayni, olcumler);
     }
@@ -93,8 +93,7 @@ public static partial class EkstreAktarmaEndpoints
         var on = Safe(() => AlisEndpoints.Mutate(db, () =>
         {
             var belge = GetDocument(db, id);
-            if (YapayZekaTekrari(db, dto.IstekId, YapayZekaCagriTurleri.Satir, id, c => Results.Ok(new YapayZekaSonucDto(c.SatirSayisi,
-                db.YapayZekaOneriler.Count(o => o.CagriId == c.Id), 0, c.MaliyetUsd, null))) is { } onceki)
+            if (YapayZekaTekrari(db, dto.IstekId, YapayZekaCagriTurleri.Satir, id, c => Results.Content(c.SonucJson ?? "null", "application/json")) is { } onceki)
                 return onceki;
             var hazirlik = YapayZekaHazirla(db, yz, belge);
             Require(hazirlik.Istek is not null, "Yapay zekâya sorulacak satır yok: bekleyen satırlar kural ya da hafızayla tanınıyor, önerisi var ya da yalnız ad ve sayıdan oluşuyor.", 409);
@@ -108,12 +107,16 @@ public static partial class EkstreAktarmaEndpoints
             return on;
         return await YapayZekaCagir(db, yz, loglar, cagri, h.Istek, yanit =>
         {
-            var belge = GetDocument(db, id);
-            var (onerilen, not) = yanit.Metin is null ? (0, yanit.Neden)
-                // Çağrı sürerken belge yeniden okunduysa satır numaraları başka hareketlerdir.
-                : belge.SatirlarJson != satirlarJson ? (0, "Belge bu sırada yeniden okundu; yeniden sorun.")
-                : YapayZekaServisi.Yaz(db, belge, h, cagri, yanit.Metin) is { } sayi ? (sayi, sayi == 0 ? "Bu satırlar için güvenilir öneri gelmedi." : null) : (0, "Yanıt okunamadı.");
-            return Results.Ok(new YapayZekaSonucDto(cagri.SatirSayisi, onerilen, h.Kalan, cagri.MaliyetUsd, not));
+            // Çağrı sürerken belge yeniden okunduysa satır numaraları başka hareketlerdir. Belge bu bağlamda izleniyor; güncel hâli veritabanından
+            // sorulur (Codex incelemesi, EmarKasa#65).
+            var ayniBelge = db.EkstreBelgeler.AsNoTracking().Any(b => b.Id == id && b.SatirlarJson == satirlarJson);
+            var oneriler = ayniBelge ? YapayZekaServisi.Yaz(db, id, h, cagri, yanit.Metin) : null;
+            var not = yanit.Metin is null ? yanit.Neden
+                : !ayniBelge ? "Belge bu sırada yeniden okundu; yeniden sorun."
+                : oneriler is null ? "Yanıt okunamadı." : oneriler == 0 ? "Bu satırlar için güvenilir öneri gelmedi." : null;
+            var sonuc = new YapayZekaSonucDto(cagri.SatirSayisi, oneriler ?? 0, h.Kalan, cagri.MaliyetUsd, not);
+            cagri.SonucJson = System.Text.Json.JsonSerializer.Serialize(sonuc, System.Text.Json.JsonSerializerOptions.Web);
+            return Results.Ok(sonuc);
         });
     }
 
@@ -141,7 +144,7 @@ public static partial class EkstreAktarmaEndpoints
         return await YapayZekaCagir(db, yz, loglar, cagri, o.Istek, yanit =>
         {
             var sonuc = YapayZekaServisi.OlcumSonucu(db, dto.Kaynak, o.Sorulan, o.Beklenen, yanit.Metin ?? "", cagri);
-            cagri.SonucJson = Json(sonuc);
+            cagri.SonucJson = System.Text.Json.JsonSerializer.Serialize(sonuc, System.Text.Json.JsonSerializerOptions.Web);
             return Results.Ok(sonuc);
         });
     }
