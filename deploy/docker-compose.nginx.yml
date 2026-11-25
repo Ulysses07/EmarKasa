@@ -36,6 +36,10 @@ services:
       # Editör şifresini ortamdaki KASA_EDITOR_SIFRE'ye zorla sıfırlama (varsayılan kapalı). Yalnız sıfırlama sırasında true;
       # işi bitince kaldırın. Adımlar: deploy/README.md "Editör şifresini sıfırlama".
       Kasa__EditorSifreSifirla: "${KASA_EDITOR_SIFRE_SIFIRLA:-false}"
+      # Yapay zekâ önerileri (varsayılan kapalı; kapalıyken dış bağlantı kurulmaz). Adımlar: docs/deploy/yapay-zeka.md.
+      YapayZeka__Etkin: "${KASA_YAPAY_ZEKA_ETKIN:-false}"
+      YapayZeka__Anahtar: "${KASA_YAPAY_ZEKA_ANAHTAR:-}"
+      YapayZeka__AylikSinirUsd: "${KASA_YAPAY_ZEKA_AYLIK_SINIR_USD:-2}"
       Yedek__Etkin: "true"
       Yedek__Dizin: "/yedekler"
     # Uzun sözdizimi + create_host_path: false: kaynak yol yoksa Docker boş dizin AÇMAZ, 'up' hata verir.

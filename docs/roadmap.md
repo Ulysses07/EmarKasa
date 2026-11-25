@@ -32,6 +32,8 @@ Cari/tedarikçi kartı yönetimi, toplu tedarikçi borcu ve vade takibi, miktar-
 
 25 Kasım 2026 kullanıcı kararı: cari hesapların aslı ERP12'de kalır; ERP12'den Excel olarak dışa aktarılan cari hareketleri bu uygulamaya aynen yüklenir ve **Cariler** ekranında salt okunur görünür. Kasayı yine ekstre etkiler: ERP12 hareketi kasadaki kayıtla eşleşip cari adını verir, ekstrede karşılığı olmayan nakit hareket kullanıcıya sorulur. ERP12'ye veri gönderilmez, cari kartı açılmaz. Kurallar `docs/specs/2026-11-25-erp12-aktarimi.md`'dedir.
 
+25 Kasım 2026 kullanıcı kararı: kural ve hafızanın tanımadığı ekstre satırları isteğe bağlı olarak yapay zekâya sorulabilir. Yalnız maskeli satır açıklaması gönderilir, öneri kaydetmez, aylık harcama sınırı vardır; özellik kapalı gelir. Kurallar `docs/specs/2026-11-25-yapay-zeka-onerileri.md`'dedir.
+
 Alış içindeki ödenen/kalan tutar, o alışın gider bağlantısını kontrol etmek içindir; ayrı bir cari hesap veya borç modülü değildir; Cariler ekranındaki bakiye de yalnız aktarılan hareketlerin toplamıdır. Stok, e-fatura, banka entegrasyonu, çift taraflı muhasebe ve çok şirketli kullanım da kapsamda değildir.
 
 ## Hesaplama ve kullanım sınırları

@@ -94,7 +94,7 @@ public static class EkstreHafizaServisi
     }
 
     /// <summary>En yeni karar önce: hareket tarihi, sonra belge ve satır.</summary>
-    private static List<Karar> Sirala(IEnumerable<Karar> kararlar) =>
+    internal static List<Karar> Sirala(IEnumerable<Karar> kararlar) =>
         [.. kararlar.OrderByDescending(k => k.Tarih).ThenByDescending(k => k.BelgeId).ThenByDescending(k => k.SatirNo)];
 
     /// <summary>Bir belgenin satırlarına öneri üreten okuma (kararlar bir kez okunur).</summary>
@@ -172,7 +172,7 @@ public static class EkstreHafizaServisi
     }
 
     /// <summary>İşlem türünün beklenen yönü; eşleştirmede yok.</summary>
-    private static string? Yon(string islemTuru, string kaynak) => islemTuru switch
+    internal static string? Yon(string islemTuru, string kaynak) => islemTuru switch
     {
         EkstreIslemTurleri.Gelir or EkstreIslemTurleri.KartIade => "Giris",
         EkstreIslemTurleri.Gider or EkstreIslemTurleri.KartHarcama => "Cikis",

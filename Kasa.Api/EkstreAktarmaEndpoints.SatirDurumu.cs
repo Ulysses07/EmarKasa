@@ -74,6 +74,7 @@ public static partial class EkstreAktarmaEndpoints
             var document = GetDocument(db, id);
             Require(document.Surum == dto.Surum, "Belge değişmiş. Yenileyip yeniden deneyin.", 409);
             Require(!Islenmis(db, id), YenidenOkunamaz, 409);
+            db.YapayZekaOneriler.RemoveRange(db.YapayZekaOneriler.Where(o => o.BelgeId == id));
             document.SatirlarJson = read.Satirlar;
             document.UyarilarJson = read.Uyarilar;
             document.AtlananJson = read.Atlananlar;

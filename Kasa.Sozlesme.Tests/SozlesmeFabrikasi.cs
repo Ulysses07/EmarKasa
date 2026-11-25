@@ -3,6 +3,7 @@ using System.Security.Cryptography;
 using Kasa.Api;
 using Kasa.Api.Data;
 using Kasa.Api.Servisler;
+using Kasa.Api.YapayZeka;
 using Kasa.ApiClient;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
@@ -42,6 +43,13 @@ public sealed class SozlesmeFabrikasi : SizdirmayanFabrika<Program>
     public Dictionary<string, string?> EkAyarlar { get; init; } = [];
     /// <summary>Sahte PDF okuyucunun döndürdüğü metin: bugün tarihli tek banka komisyonu.</summary>
     public string PdfMetni { get; init; } = $"İşlem Tarihi    Açıklama                Tutar        Bakiye\n{Bugun:dd.MM.yyyy}    KOMİSYON                  -10,00 TL    990,00 TL\n";
+
+    /// <summary>Sahte yapay zekânın döndürdüğü yanıt (dış bağlantı kurulmaz).</summary>
+    public string YapayZekaYaniti { get; init; } = """{"satirlar":[{"no":1,"tur":"Gider","dagilim":"Genel","kanallar":[],"guven":"Yuksek","kategori":"kargo","aciklama":"[1] kargo"}]}""";
+    private sealed class SahteYapayZeka(string metin) : IYapayZekaIstemcisi
+    {
+        public Task<YapayZekaYaniti> SorAsync(YapayZekaIstegi istek, CancellationToken ct) => Task.FromResult(new YapayZekaYaniti(metin, null, 1_000, 400, 0, 0));
+    }
 
     public SozlesmeFabrikasi()
     {
@@ -87,6 +95,8 @@ public sealed class SozlesmeFabrikasi : SizdirmayanFabrika<Program>
         {
             s.RemoveAll<DbContextOptions<KasaDbContext>>();
             s.AddDbContext<KasaDbContext>(o => o.UseSqlite(_baglanti));
+            s.RemoveAll<IYapayZekaIstemcisi>();
+            s.AddSingleton<IYapayZekaIstemcisi>(new SahteYapayZeka(YapayZekaYaniti));
             s.RemoveAll<TimeProvider>();
             s.AddSingleton<TimeProvider>(new SabitSaat(Bugun));
             s.RemoveAll<IPushGonderici>();

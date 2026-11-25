@@ -31,6 +31,8 @@ internal static class DenetimYakalayici
         typeof(DenetimOlayEntity), typeof(FinansIstekEntity), typeof(BildirimEntity), typeof(BildirimTeslimEntity),
         typeof(PushAbonelikEntity), typeof(BildirimAyarEntity), typeof(AyRaporAnlikGoruntuEntity), typeof(AyKilidiEntity),
         typeof(AyKilidiOlayEntity), typeof(EditorGuvenlikEntity), typeof(SistemDurumuEntity),
+        // Yapay zekâ çağrısı ve önerisi mali kayıt değildir; çağrının kendisi (maliyet, jeton) tablosundadır.
+        typeof(YapayZekaCagriEntity), typeof(YapayZekaOneriEntity),
     ];
     /// <summary>Değeri asla yazılmayan alanlar: yalnız değiştiği (ya da dolu olduğu) görünür.</summary>
     private static readonly HashSet<string> Gizli = ["SifreHash", "KurtarmaHash", "IzleyiciSifreHash", "OturumDamgasi"];

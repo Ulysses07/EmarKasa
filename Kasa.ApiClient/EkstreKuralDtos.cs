@@ -6,9 +6,11 @@ public record EkstreKuralDto(int Id, int Surum, string Ad, string Kaynak, string
     string? Yon, string IslemTuru, string DagilimTuru, IReadOnlyList<int> KanalIds, bool Aktif);
 /// <summary>Kişisel kuralda yalnız 'Oneri' uygulanabilir. İşlem hafızasında (<paramref name="Hafiza"/> dolu; Durum EkstreHafizaDurumlari) satır
 /// kendiliğinden doldurulur; IslemTuru 'Atla' hareketin daha önce yok sayıldığını söyler. ERP12 satırında (Durum ErpOneriDurumlari) olası karşılıklar
-/// <paramref name="Adaylar"/>'dadır, kesinse ilki. Hiçbiri kayıt üretmez.</summary>
+/// <paramref name="Adaylar"/>'dadır, kesinse ilki. Yapay zekâ önerisinde (Durum YapayZekaDurumlari) <paramref name="YapayZeka"/> doludur; satır
+/// doldurulur, işaretlenmez. Hiçbiri kayıt üretmez.</summary>
 public record EkstreKuralOnerisi(int SatirNo, string Durum, IReadOnlyList<string> KuralAdlari, string? IslemTuru,
-    string? DagilimTuru, IReadOnlyList<int> KanalIds, string Aciklama, EkstreHafizaOnerisi? Hafiza = null, IReadOnlyList<EkstreEslesmeAdayiDto>? Adaylar = null);
+    string? DagilimTuru, IReadOnlyList<int> KanalIds, string Aciklama, EkstreHafizaOnerisi? Hafiza = null, IReadOnlyList<EkstreEslesmeAdayiDto>? Adaylar = null,
+    EkstreYapayZekaOnerisi? YapayZeka = null);
 /// <summary>Hafıza önerisinin dayanağı; <paramref name="Adet"/> son kararın art arda kaç kez aynı verildiği.</summary>
 public record EkstreHafizaOnerisi(string Anahtar, int Adet, DateOnly SonTarih, int? KrediKartiId, string? Aciklama);
 /// <summary>Hafıza listesinin öğesi: anahtar ve yönün son kararı.</summary>

@@ -25,6 +25,10 @@ Kaydettiğin ve yok saydığın her satır kendiliğinden öğrenilir; kural yaz
 
 ERP12'den cari hareketlerini Excel olarak dışa aktarıp belge türü **ERP12 cari hareketleri (Excel)** ile yükle (Tarih, Cari, Borç ve Alacak; varsa cari kodu, işlem türü, belge no, açıklama). Fatura, devir gibi satırlar yalnız **Cariler** ekranında görünür. Tahsilat ve ödeme satırları kasadaki karşılığıyla eşleşir: kesin olan hazır gelir, birden çok karşılığı olan sana sorulur, karşılığı olmayan banka hareketi ekstresi yüklenene kadar bekler. **Nakit** satır kasada yoksa "kasaya yazılsın mı" diye sorulur. Eşleşme kasayı değiştirmez. Aynı hareket ikinci kez alınmaz. Yanlış yüklenen, hiçbir satırı işlenmemiş dosya silinebilir. Ayrıntı: [tasarım](specs/2026-11-25-erp12-aktarimi.md).
 
+## Yapay zekâ önerileri (isteğe bağlı)
+
+Sunucuda açıldıysa kural ve hafızanın tanımadığı satırlar için **Yapay zekâya sor** düğmesi çıkar. Belge gönderilmez; yalnız maskeli açıklama, yön ve tutar aralığı gider: IBAN, kart ve bütün sayılar, kişi, firma ve yer adları gizlenir (**Gönderilecek metni göster** ile önceden görülür). Öneri satırı doldurur ama işaretlemez, "hazır" saymaz ve kaydetmez; kontrol edip kendin işaretlersin. Kaydettiğin satır hafızaya geçer, bir daha sorulmaz. Aylık harcama sınırı sunucudadır. Doğruluk **Yapay zekâ** kartından ölçülür. Ayrıntı: [tasarım](specs/2026-11-25-yapay-zeka-onerileri.md), açma: [kılavuz](deploy/yapay-zeka.md).
+
 ## Kural yönetimi
 
 **Kural ekle** ile açıklama ifadesi, banka (istersen tüm bankalar), belge türü ve yön koşullarını belirle. Eşleşme için tüm koşullar birlikte aranır. Türkçe harfler, büyük/küçük harf ve noktalama sadeleştirilir; sözcük sınırı korunur: `MIGROS`, `MIGROSAN` ile eşleşmez. Düzenle, kapat/etkinleştir ve sil seçenekleri vardır. Windows'ta kapatma, düzenleme formundaki **Kural etkin** işaretini kaldırarak yapılır.
@@ -35,7 +39,7 @@ Aynı açıklamaya uyan kurallar aynı sonucu önerirse tek öneri gösterilir. 
 
 ## Okuma ve doğruluk sınırları
 
-Bu özellik yapay zekâ veya dış servis kullanmaz. Yeni bir gelir/gider kategorisi raporu oluşturmaz; mevcut işlem türünü ve kanal dağılımını önerir. Kart ödemesi, iade ve mevcut kayıt eşleşmesi satırda seçilir. Tarih/tutar/yön/para birimi belirsizse veya PDF ayrıştırıcısı uyarı verdiyse mali öneri uygulanabilir sayılmaz; kaynak PDF'yi kontrol et.
+Kurallar ve hafıza yapay zekâ veya dış servis kullanmaz; isteğe bağlı yapay zekâ önerileri aşağıdadır. Yeni bir gelir/gider kategorisi raporu oluşturmaz; mevcut işlem türünü ve kanal dağılımını önerir. Kart ödemesi, iade ve mevcut kayıt eşleşmesi satırda seçilir. Tarih/tutar/yön/para birimi belirsizse veya PDF ayrıştırıcısı uyarı verdiyse mali öneri uygulanabilir sayılmaz; kaynak PDF'yi kontrol et.
 
 Mevcut PDF okuyucu değişmedi: metin içeren şifresiz PDF gerekir, tarama/fotoğraf için OCR yoktur. Gerçek banka PDF örnekleri verilmediği için bütün banka düzenleri veya kişisel sınıflandırma doğruluğu için başarı yüzdesi verilemez.
 

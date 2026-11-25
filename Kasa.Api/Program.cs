@@ -20,6 +20,11 @@ builder.Services.AddKasaSaati();
 builder.Services.AddScoped<HesapServisi>();
 builder.Services.AddScoped<IslemListeServisi>();
 builder.Services.AddSingleton<IPdfMetinOkuyucu, PdfMetinOkuyucu>();
+// Yapay zekâ önerileri (varsayılan kapalı; kapalıyken dış bağlantı kurulmaz).
+builder.Services.AddSingleton<Kasa.Api.YapayZeka.YapayZekaAyarlari>();
+builder.Services.AddHttpClient(Kasa.Api.YapayZeka.AnthropicIstemcisi.HttpAdi);
+builder.Services.AddSingleton<Kasa.Api.YapayZeka.IYapayZekaIstemcisi, Kasa.Api.YapayZeka.AnthropicIstemcisi>();
+builder.Services.AddSingleton<Kasa.Api.YapayZeka.YapayZekaServisi>();
 builder.Services.AddKasaBildirimleri();
 builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler<VeritabaniHataIsleyici>();

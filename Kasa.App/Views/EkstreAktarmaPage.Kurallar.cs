@@ -28,6 +28,7 @@ public sealed partial class EkstreAktarmaPage
                     await Vm.KuralSilAsync(rule, epoch);
             }), _kuralFormu)));
         HafizaBolumunuKur();
+        YapayZekaKartiniKur();
         Vm.PropertyChanged += (_, e) =>
         {
             if (e.PropertyName is nameof(Vm.OturumNesli) or nameof(Vm.EditorMu))

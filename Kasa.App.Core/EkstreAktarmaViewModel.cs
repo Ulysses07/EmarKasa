@@ -83,6 +83,7 @@ public partial class EkstreAktarmaViewModel(IEkstreAktarmaApi api, IKasaApi fina
     protected override void OturumTemizle()
     {
         HafizayiTemizle();
+        YapayZekayiTemizle();
         GirdiDegisti();
         HatalariTemizle();
         SatirMesaji = null;
@@ -146,6 +147,7 @@ public partial class EkstreAktarmaViewModel(IEkstreAktarmaApi api, IKasaApi fina
         if (belge is not null)
             BelgeyiYansit(belge, koru: true);
         await KurallariAlAsync(n);
+        await YapayZekaDurumunuAlAsync(n);
         if (!Gecerli(n))
             return;
         Tamamlandi();

@@ -26,6 +26,7 @@ public static partial class EkstreAktarmaEndpoints
         MapKurallar(api);
         MapSatirDurumu(api);
         MapErp(app, api);
+        MapYapayZeka(api);
         api.MapPost("/yukle", Upload).RequireRateLimiting("guvenlik")
             .WithMetadata(new Microsoft.AspNetCore.Mvc.RequestSizeLimitAttribute(FileLimit + 65536),
                 new Microsoft.AspNetCore.Mvc.RequestFormLimitsAttribute { MultipartBodyLengthLimit = FileLimit + 65536 });

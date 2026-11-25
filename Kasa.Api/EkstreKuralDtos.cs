@@ -5,10 +5,14 @@ public record EkstreKuralYaz(Guid IstekId, int Surum, string Ad, string Kaynak, 
 public record EkstreKuralDto(int Id, int Surum, string Ad, string Kaynak, string? Banka, string AciklamaIcerir,
     string? Yon, string IslemTuru, string DagilimTuru, IReadOnlyList<int> KanalIds, bool Aktif);
 /// <summary>Durum: Oneri, Yok, Celiski, Kontrol, Kayitli, YokSayildi (kişisel kural) ya da EkstreHafizaDurumlari (işlem hafızası; o zaman
-/// <paramref name="Hafiza"/> doludur) ya da ErpOneriDurumlari (ERP12 satırı; olası karşılıklar <paramref name="Adaylar"/>, kesinse ilki). Hiçbir durum mali
+/// <paramref name="Hafiza"/> doludur) ya da ErpOneriDurumlari (ERP12 satırı; olası karşılıklar <paramref name="Adaylar"/>, kesinse ilki) ya da
+/// YapayZekaDurumlari (<paramref name="YapayZeka"/> doludur; IslemTuru 'Atla' kasa hareketi olmayabileceğini söyler). Hiçbir durum mali
 /// kayıt üretmez. Hafızada IslemTuru 'Atla' satırın daha önce yok sayıldığını söyler.</summary>
 public record EkstreKuralOnerisi(int SatirNo, string Durum, IReadOnlyList<string> KuralAdlari, string? IslemTuru,
-    string? DagilimTuru, IReadOnlyList<int> KanalIds, string Aciklama, EkstreHafizaOnerisi? Hafiza = null, IReadOnlyList<EkstreEslesmeAdayiDto>? Adaylar = null);
+    string? DagilimTuru, IReadOnlyList<int> KanalIds, string Aciklama, EkstreHafizaOnerisi? Hafiza = null, IReadOnlyList<EkstreEslesmeAdayiDto>? Adaylar = null,
+    EkstreYapayZekaOnerisi? YapayZeka = null);
+/// <summary>Yapay zekâ önerisinin güveni, kategorisi ve düzenlenmiş açıklaması (yoksa null).</summary>
+public record EkstreYapayZekaOnerisi(string Guven, string Kategori, string? Aciklama);
 /// <summary>Hafıza önerisinin dayanağı: anahtar, son kararın art arda kaç kez aynı verildiği ve tarihi; karta ödemede kart;
 /// <paramref name="Aciklama"/> yeniden kullanılabilir düzeltilmiş açıklama (yoksa null).</summary>
 public record EkstreHafizaOnerisi(string Anahtar, int Adet, DateOnly SonTarih, int? KrediKartiId, string? Aciklama);

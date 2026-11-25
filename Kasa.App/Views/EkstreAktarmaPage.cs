@@ -162,7 +162,7 @@ public sealed partial class EkstreAktarmaPage : TakipSayfasi<EkstreAktarmaViewMo
             {
                 Metin("Kaydedeceğiniz satırların kutularını işaretleyin. Bir satırı inceleyerek tarih, tutar, işlem türü ve kanal dağılımını "
                     + "düzeltebilirsiniz; satırı açmak seçmek değildir. Kaydetmeyeceğiniz satırı yok sayarak kapatabilirsiniz."),
-                HazirBolumu(vm), _bekleyenListe, secim, TopluBolum(vm),
+                HazirBolumu(vm), YapayZekaBolumu(vm), _bekleyenListe, secim, TopluBolum(vm),
                 Eylemler(Dugme("Seçilen satırların etkisini göster", nameof(vm.OnizleCommand)),
                     Goster(Ikincil(Tikla("Seçilenleri yok say", SecilenleriYokSayAsync)), nameof(vm.YokSayDestekleniyor))),
                 _hataKutusu
