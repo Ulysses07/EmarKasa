@@ -12,6 +12,15 @@
 
 Örnek: Banka hareketi, açıklamada `YURTİÇİ KARGO`, yön Çıkış → Banka çıkışı, seçilen kanallara eşit dağılım. `KARGO` gibi kısa bir koşul daha fazla açıklamaya uyabilir; kendi belgelerindeki ortak ifadeyi seç.
 
+## İşlem hafızası
+
+Kaydettiğin ve yok saydığın her satır kendiliğinden öğrenilir; kural yazman gerekmez. Sonraki belgede açıklamasının değişmeyen kısmı (tarih, referans numarası ve ay adı sayılmaz) ve yönü aynı olan satır aynı tür, dağılım ve düzeltilmiş açıklamayla **doldurulur**. Satırın altında "Gider · Yalnız genel kasa · Hafızadan: 3 kez aynı işlendi, son 12.10.2026" yazar. **Hazırları işaretle ve etkisini göster** hepsini işaretler; kayıt yine önizlemeyi onaylayınca olur. Daha önce yok saydığın hareketlerin aynıları için ayrı bir **yok say** düğmesi çıkar.
+
+- Son iki karar farklıysa öneri doldurulmaz. Yön, tutar ya da tarih kesin değilse satır doldurulur ama "hazır" sayılmaz.
+- Elle değiştirdiğin satır hafızadan ezilmez. Kişisel kural eşleşirse kural önceliklidir.
+- Yanlış öğrenilen hareketi satırdan **Bu hafızayı unut** ya da **İşlem hafızası** listesinden **Unut** ile çıkar. Kaydın kendisi ve raporlar değişmez. Bir kaydı iptal etmek de o kararı hafızadan çıkarır.
+- Ayrıntı: [tasarım](specs/2026-11-25-islem-hafizasi.md).
+
 ## Kural yönetimi
 
 **Kural ekle** ile açıklama ifadesi, banka (istersen tüm bankalar), belge türü ve yön koşullarını belirle. Eşleşme için tüm koşullar birlikte aranır. Türkçe harfler, büyük/küçük harf ve noktalama sadeleştirilir; sözcük sınırı korunur: `MIGROS`, `MIGROSAN` ile eşleşmez. Düzenle, kapat/etkinleştir ve sil seçenekleri vardır. Windows'ta kapatma, düzenleme formundaki **Kural etkin** işaretini kaldırarak yapılır.

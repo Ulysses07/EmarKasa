@@ -11,8 +11,17 @@ public partial class EkstreSatirEditor
 
     /// <summary>Satırın hafıza önerisi var (hazır ya da kontrol).</summary>
     public bool HafizaVar => !Kapali && Oneri?.Hafiza is not null;
-    /// <summary>Satır özetinin altındaki hafıza notu; yoksa boş.</summary>
-    public string HafizaMetni => HafizaVar ? Oneri!.Aciklama : "";
+    /// <summary>Satır özetinin altındaki hafıza notu (ne yapılacağı ve dayanağı): "Gider · Yalnız genel kasa · Hafızadan: …"; yoksa boş.</summary>
+    public string HafizaMetni => !HafizaVar || Oneri is not { } o ? ""
+        : string.Join(" · ", new[] { o.IslemTuru == EkstreIslemTurleri.Atla ? "Yok sayma önerisi" : IslemTurleri.FirstOrDefault(t => t.Kod == o.IslemTuru)?.Ad, DagilimNotu(o), o.Aciklama }
+            .Where(s => !string.IsNullOrEmpty(s)));
+
+    private string? DagilimNotu(Kasa.ApiClient.EkstreKuralOnerisi o) => o.IslemTuru == EkstreIslemTurleri.Atla ? null : o.DagilimTuru switch
+    {
+        DagilimBicimleri.Genel => "Yalnız genel kasa",
+        DagilimBicimleri.Esit or DagilimBicimleri.Ozel => string.Join(", ", o.KanalIds.Select(id => Kanallar.FirstOrDefault(k => k.Id == id)?.Ad).OfType<string>()),
+        _ => o.Hafiza?.KrediKartiId is { } kart ? Kartlar.FirstOrDefault(k => k.Id == kart)?.Ad : null
+    };
     /// <summary>Daha önce yok sayılmış hareket: toplu yok sayma önerisine girer.</summary>
     public bool YokSayOnerisi => YokSayilabilir && !ElleDegisti && Oneri is { Durum: EkstreHafizaDurumlari.Hazir, IslemTuru: EkstreIslemTurleri.Atla };
     /// <summary>Toplu işaretlemeye girer: hafızadan eksiksiz doldu ya da kesin kişisel kural önerisi var; elle değiştirilmedi.</summary>

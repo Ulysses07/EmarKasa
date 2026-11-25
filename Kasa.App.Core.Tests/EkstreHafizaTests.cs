@@ -21,8 +21,9 @@ public partial class EkstreAktarmaTests
         var s = vm.Satirlar[0];
         Assert.Equal(("Gider", "Esit", "Yurtiçi Kargo", false, false), (s.IslemTuru!.Kod, s.DagilimTuru!.Kod, s.Aciklama, s.Secili, s.ElleDegisti));
         Assert.Equal("PERAKENDE", Assert.Single(s.Paylar).Kanal!.Ad);
-        Assert.Equal("Hafızadan: 2 kez aynı işlendi, son 27.08.2026.", s.HafizaMetni);
-        Assert.Equal(s.HafizaMetni, s.OneriMetni);
+        Assert.Equal("Gider · PERAKENDE · Hafızadan: 2 kez aynı işlendi, son 27.08.2026.", s.HafizaMetni);
+        Assert.Equal("Hafızadan: 2 kez aynı işlendi, son 27.08.2026.", s.OneriMetni);
+        Assert.Equal("Gider · Yalnız genel kasa · Hafızadan: 2 kez aynı işlendi, son 27.08.2026.", vm.Satirlar[1].HafizaMetni);
         // Kontrol gerektiren satır da doldurulur ama hazır sayılmaz; önerisi olmayan satır değişmez.
         Assert.Equal(("Genel", true, false), (vm.Satirlar[1].DagilimTuru!.Kod, vm.Satirlar[1].HafizaVar, vm.Satirlar[1].HazirOneri));
         Assert.Equal((false, "", (string?)null), (vm.Satirlar[2].HafizaVar, vm.Satirlar[2].HafizaMetni, vm.Satirlar[2].DagilimTuru?.Kod));
@@ -97,6 +98,7 @@ public partial class EkstreAktarmaTests
         // Takipteki örnek kartın kimliği 1'dir.
         var (vm, _, _) = await Hazir(new() { Veri = DurumBelgesi(Satir(1)), Oneriler = [HafizaOnerisi(1, "KartOdemesi", "Otomatik", kart: 1)] });
         Assert.Equal((1, true), (vm.Satirlar[0].Kart?.Id, vm.Satirlar[0].HazirOneri));
+        Assert.StartsWith("Karta ödeme · Kart · Hafızadan", vm.Satirlar[0].HafizaMetni);
         Assert.Equal(1, vm.Satirlar[0].Yaz().KrediKartiId);
     }
 
@@ -117,6 +119,7 @@ public partial class EkstreAktarmaTests
     {
         var (vm, api, _) = await Hazir(new() { Veri = DurumBelgesi(Satir(1), Satir(2), Satir(3)), Oneriler = [HafizaOnerisi(1, "Atla"), HafizaOnerisi(2), HafizaOnerisi(3, "Atla")] });
         Assert.Equal("Gider", vm.Satirlar[0].IslemTuru!.Kod);   // yok sayma önerisi satırın alanlarını değiştirmez
+        Assert.StartsWith("Yok sayma önerisi · Hafızadan", vm.Satirlar[0].HafizaMetni);
         Assert.Equal((true, "Daha önce yok sayılanları yok say (2)"), (vm.YokSayOneriVar, vm.YokSayOneriDugmesi));
         await vm.OnerilenleriYokSayAsync();
         Assert.Equal([1, 3], Assert.Single(api.YokSayIstekleri).SatirNolar);
