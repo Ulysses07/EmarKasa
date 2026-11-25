@@ -34,6 +34,7 @@ public partial class EkstreAktarmaViewModel
             TakipMetni.Doldur(Kurallar, list);
             foreach (var satir in Satirlar)
                 satir.Oneri = oneriler.FirstOrDefault(o => o.SatirNo == satir.Kaynak.No);
+            HafizayiYansit();
             KurallarDestekleniyor = true;
             KuralDurumu = $"{list.Count} kişisel kural. Öneriler satır seçmez veya kayıt oluşturmaz.";
         }
@@ -45,6 +46,7 @@ public partial class EkstreAktarmaViewModel
             Kurallar.Clear();
             foreach (var satir in Satirlar)
                 satir.Oneri = null;
+            HazirlariBildir();
             KuralDurumu = e is KasaApiException { DurumKodu: HttpStatusCode.NotFound } ? "Sunucu kişisel kuralları desteklemiyor. PDF satırlarını elle işlemeye devam edebilirsiniz." : "Kurallar alınamadı; yenileyerek tekrar deneyin. " + (e is KasaApiException apiError ? OkumaHataMesaji(apiError) : "Bağlantı kesildi veya istek zaman aşımına uğradı.");
         }
     }

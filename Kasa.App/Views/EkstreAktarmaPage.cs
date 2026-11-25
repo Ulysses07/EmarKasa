@@ -154,7 +154,7 @@ public sealed partial class EkstreAktarmaPage : TakipSayfasi<EkstreAktarmaViewMo
             {
                 Metin("Kaydedeceğiniz satırların kutularını işaretleyin. Bir satırı inceleyerek tarih, tutar, işlem türü ve kanal dağılımını "
                     + "düzeltebilirsiniz; satırı açmak seçmek değildir. Kaydetmeyeceğiniz satırı yok sayarak kapatabilirsiniz."),
-                _bekleyenListe, secim, TopluBolum(vm),
+                HazirBolumu(vm), _bekleyenListe, secim, TopluBolum(vm),
                 Eylemler(Dugme("Seçilen satırların etkisini göster", nameof(vm.OnizleCommand)),
                     Goster(Ikincil(Tikla("Seçilenleri yok say", SecilenleriYokSayAsync)), nameof(vm.YokSayDestekleniyor))),
                 _hataKutusu
@@ -262,7 +262,7 @@ public sealed partial class EkstreAktarmaPage : TakipSayfasi<EkstreAktarmaViewMo
         {
             Spacing = 2,
             VerticalOptions = LayoutOptions.Center,
-            Children = { Bagli(nameof(EkstreSatirEditor.Ozet)), YonEtiketi() }
+            Children = { Bagli(nameof(EkstreSatirEditor.Ozet)), YonEtiketi(), Dolu(Etiket("LblTakipKucuk"), nameof(EkstreSatirEditor.HafizaMetni)) }
         };
         var tiklama = new TapGestureRecognizer();
         tiklama.Tapped += (_, _) => { if (satir.BindingContext is EkstreSatirEditor s) vm.SeciliSatir = s; };
@@ -348,6 +348,7 @@ public sealed partial class EkstreAktarmaPage : TakipSayfasi<EkstreAktarmaViewMo
             return Task.CompletedTask;
         }), nameof(s.OneriUygulanabilir)));
         eylemler.Add(Tikla("Bu seçimi hatırla", () => { KuralHatirla(s); return Task.CompletedTask; }));
+        eylemler.Add(Goster(Ikincil(Tikla("Bu hafızayı unut", () => SatirHafizasiniUnutAsync(s))), nameof(s.HafizaVar)));
         eylemler.Add(Goster(Tikla("Yok say", () => Vm.YokSayAsync([s], true)), nameof(s.YokSayilabilir)));
         foreach (var eylem in eylemler.Children.OfType<View>())
             eylem.Margin = new Thickness(0, 0, 8, 4);

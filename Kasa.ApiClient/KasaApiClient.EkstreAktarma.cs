@@ -10,6 +10,8 @@ public sealed partial class KasaApiClient : IEkstreAktarmaApi
     public Task<EkstreKuralDto> EkstreKuralEkleAsync(EkstreKuralYaz g) => GonderJsonAsync<EkstreKuralDto>(HttpMethod.Post, "api/ekstre-aktar/kurallar", g);
     public Task<EkstreKuralDto> EkstreKuralDuzenleAsync(int id, EkstreKuralYaz g) => GonderJsonAsync<EkstreKuralDto>(HttpMethod.Put, $"api/ekstre-aktar/kurallar/{id}", g);
     public Task<IReadOnlyList<EkstreKuralOnerisi>> EkstreOnerilerAsync(int id) => GetAsync<IReadOnlyList<EkstreKuralOnerisi>>($"api/ekstre-aktar/{id}/oneriler");
+    public Task<IReadOnlyList<EkstreHafizaDto>> EkstreHafizaAsync() => GetAsync<IReadOnlyList<EkstreHafizaDto>>("api/ekstre-aktar/hafiza");
+    public Task EkstreHafizaUnutAsync(EkstreHafizaUnutYaz g) => GonderJsonAsync(HttpMethod.Post, "api/ekstre-aktar/hafiza/unut", g);
     public async Task EkstreKuralSilAsync(int id, int surum)
     {
         using var request = new HttpRequestMessage(HttpMethod.Delete, $"api/ekstre-aktar/kurallar/{id}?surum={surum}");

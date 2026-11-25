@@ -22,6 +22,22 @@ public static partial class EkstreAktarmaEndpoints
             return Results.NoContent();
         })));
         api.MapGet("/{id:int}/oneriler", (int id, KasaDbContext db) => Safe(() => AlisEndpoints.Oku(db, () => Results.Ok(EkstreKuralServisi.Oneriler(db, GetDocument(db, id))))));
+        api.MapGet("/hafiza", (KasaDbContext db) => Safe(() => AlisEndpoints.Oku(db, () => Results.Ok(EkstreHafizaServisi.Liste(db)))));
+        api.MapPost("/hafiza/unut", (EkstreHafizaUnutYaz dto, KasaDbContext db) => Safe(() => AlisEndpoints.Mutate(db, () => HafizaUnut(db, dto))));
+    }
+
+    /// <summary>Hafızadaki anahtarı unutur (mali etkisi yoktur; kayıtlar ve raporlar değişmez).</summary>
+    private static IResult HafizaUnut(KasaDbContext db, EkstreHafizaUnutYaz dto)
+    {
+        Require(dto is { Kaynak: EkstreKaynaklari.Banka or EkstreKaynaklari.Kart, Yon: "Giris" or "Cikis" or "Belirsiz", Anahtar.Length: > 0 and <= 2000 }, "Geçerli hafıza kaydını seçin.");
+        var digest = FinansHesaplari.Ozet(new { dto.Kaynak, dto.Anahtar, dto.Yon });
+        if (FinansHesaplari.Tekrar(db, dto.IstekId, "EkstreHafizaUnut", digest, _ => Results.NoContent()) is { } repeat)
+            return repeat;
+        Require(EkstreHafizaServisi.Kararlar(db).Any(k => k.Kaynak == dto.Kaynak && k.Anahtar == dto.Anahtar && k.Yon == dto.Yon), "Bu kayıt hafızada yok; listeyi yenileyin.", 404);
+        EkstreHafizaServisi.Unut(db, dto);
+        FinansHesaplari.IstekKaydet(db, dto.IstekId, "EkstreHafizaUnut", digest, 0);
+        db.SaveChanges();
+        return Results.NoContent();
     }
 
     private static IResult KuralYaz(KasaDbContext db, int? id, EkstreKuralYaz dto)

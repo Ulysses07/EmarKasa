@@ -138,6 +138,31 @@ public class BildirimVeEkstreSozlesmeTests : SozlesmeTemeli
     }
 
     [Fact]
+    [SozlesmeKapsami(nameof(IEkstreAktarmaApi.EkstreHafizaAsync), nameof(IEkstreAktarmaApi.EkstreHafizaUnutAsync), nameof(IEkstreAktarmaApi.EkstreOnerilerAsync))]
+    public async Task Islem_hafizasi_istemci_turlerine_uyar_unutulunca_bosalir()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var o = await Editor();
+        await o.Kasa.AyarGuncelleAsync(new AyarYaz(Baslangic, 1000m));
+        Assert.Empty(await o.Ekstre.EkstreHafizaAsync());
+        var belge = await o.Ekstre.EkstreYukleAsync("%PDF-1.7 hafiza bir"u8.ToArray(), "ekstre.pdf", "Banka", "Akbank", "Ana hesap", null, ct);
+        var s = Assert.Single(belge.Satirlar);
+        var istek = new EkstreKaydetYaz(Guid.NewGuid(), belge.Surum, [new EkstreSatirYaz(s.No, s.Tarih!.Value, "Banka masrafı", Math.Abs(s.Tutar!.Value), "Gider", "Genel", [])]);
+        var onizleme = await o.Ekstre.EkstreOnizlemeAsync(belge.Id, istek);
+        await o.Ekstre.EkstreKaydetAsync(belge.Id, istek with { OnizlemeOzeti = onizleme.OnizlemeOzeti, TekrarOnay = true });
+
+        var hafiza = Assert.Single(await o.Ekstre.EkstreHafizaAsync());
+        Assert.Equal(("Banka", "Cikis", "Gider", "Genel", "Banka masrafı", 1, false), (hafiza.Kaynak, hafiza.Yon, hafiza.IslemTuru, hafiza.DagilimTuru, hafiza.Aciklama, hafiza.Adet, hafiza.Celiskili));
+        var yeni = await o.Ekstre.EkstreYukleAsync("%PDF-1.7 hafiza iki"u8.ToArray(), "ekstre.pdf", "Banka", "Akbank", "Ana hesap", null, ct);
+        var oneri = Assert.Single(await o.Ekstre.EkstreOnerilerAsync(yeni.Id));
+        Assert.Equal(("Hafiza", "Gider", new EkstreHafizaOnerisi(hafiza.Anahtar, 1, hafiza.SonTarih, null, "Banka masrafı")), (oneri.Durum, oneri.IslemTuru, oneri.Hafiza));
+
+        await o.Ekstre.EkstreHafizaUnutAsync(new EkstreHafizaUnutYaz(Guid.NewGuid(), hafiza.Kaynak, hafiza.Anahtar, hafiza.Yon));
+        Assert.Empty(await o.Ekstre.EkstreHafizaAsync());
+        Assert.Equal("Yok", Assert.Single(await o.Ekstre.EkstreOnerilerAsync(yeni.Id)).Durum);
+    }
+
+    [Fact]
     [SozlesmeKapsami(nameof(IEkstreAktarmaApi.EkstreYokSayAsync), nameof(IEkstreAktarmaApi.EkstreYenidenOkuAsync))]
     public async Task Satiri_yok_sayma_ve_yeniden_okuma_istemci_turlerine_uyar()
     {

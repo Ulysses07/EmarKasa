@@ -62,6 +62,15 @@ public static class EkstreIslemTurleri
     public const string Atla = "Atla";
 }
 
+/// <summary>İşlem hafızasının öneri durumu (EkstreKuralOnerisi.Durum; docs/specs/2026-11-25-islem-hafizasi.md).</summary>
+public static class EkstreHafizaDurumlari
+{
+    /// <summary>Satır hafızadan doldurulur ve toplu işaretlemeye girer (yok sayma kararında "yok say" önerisidir).</summary>
+    public const string Hazir = "Hafiza";
+    /// <summary>Doldurulabilenler doldurulur ama toplu işaretlemeye girmez; nedeni iletidedir.</summary>
+    public const string Kontrol = "HafizaKontrol";
+}
+
 /// <summary>Okunan ekstre satırının giriş/çıkış yönünün dayanağı (EkstreOkunanSatir.YonKaynagi; yön belirsizse, varsayımsa ya da satır bu
 /// alandan önce okunduysa null).</summary>
 public static class YonKaynaklari
