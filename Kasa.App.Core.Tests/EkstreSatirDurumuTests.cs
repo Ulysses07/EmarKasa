@@ -324,6 +324,26 @@ public partial class EkstreAktarmaTests
         Assert.Equal(40m, s.EtkinTutar);
     }
 
+    [Theory]
+    [InlineData("2026-09-27", "2500,00", "TRY", "#1 · 27.09.2026 · Hareket 1 · 2.500,00 ₺")]
+    [InlineData("", "", "TRY", "#1 · tarih okunamadı · Hareket 1 · tutar okunamadı")]
+    [InlineData("27.9", "abc", "USD", "#1 · 27.9 · Hareket 1 · abc USD")]
+    [InlineData("2026-09-27", "5", "Belirsiz", "#1 · 27.09.2026 · Hareket 1 · 5,00 (para birimi belirsiz)")]
+    public void Satir_ozeti_turkce_tarih_ve_tutar_yazar(string tarih, string tutar, string para, string beklenen)
+    {
+        var s = new EkstreSatirEditor(Satir(1, para), Belge(), [], [], () => { }) { TarihMetni = tarih, TutarMetni = tutar };
+        Assert.Equal(beklenen, s.Ozet);
+    }
+
+    [Fact]
+    public async Task Kapanan_satir_kaydedilen_degerleri_gosterir()
+    {
+        var kayit = Kayit(7, 1) with { Aciklama = "Düzeltilmiş", Tutar = 75m };
+        var (vm, _, _) = await Hazir(new() { Veri = DurumBelgesi(Satir(1)) with { Kayitlar = [kayit] } });
+        Assert.Equal("Satır 1 · 27.09.2026 · Düzeltilmiş · 75,00 ₺", vm.Kapananlar[0].KapananBaslik);
+        Assert.Equal(75m, vm.Kapananlar[0].EtkinTutar);
+    }
+
     [Fact]
     public void Kart_odemesi_banka_belgesinde_cikis_kart_belgesinde_giristir()
     {

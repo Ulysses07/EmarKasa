@@ -91,7 +91,7 @@ public sealed partial class EkstreAktarmaPage : TakipSayfasi<EkstreAktarmaViewMo
         _satirSonucu = new VerticalStackLayout
         {
             Spacing = 4,
-            Children = { Dolu(Etiket("LblTakipMesaj"), nameof(vm.SatirMesaji)), Dolu(Etiket("LblTakipHata"), nameof(vm.SatirHatasi)) }
+            Children = { sekmeler, Dolu(Etiket("LblTakipMesaj"), nameof(vm.SatirMesaji)), Dolu(Etiket("LblTakipHata"), nameof(vm.SatirHatasi)) }
         };
         var atlananDugmesi = Ikincil(Dugme("", nameof(vm.AtlananAcKapatCommand)));
         atlananDugmesi.SetBinding(Button.TextProperty, nameof(vm.AtlananDugmesi));
@@ -103,7 +103,7 @@ public sealed partial class EkstreAktarmaPage : TakipSayfasi<EkstreAktarmaViewMo
                 Goster(Ikincil(Tikla("PDF'yi yeniden oku", YenidenOkuAsync)), nameof(vm.YenidenOkunabilir)),
                 Goster(atlananDugmesi, nameof(vm.AtlananVar))),
             Dolu(Etiket("LblTakipKucuk"), nameof(vm.AtlananMetni)),
-            yonOzeti, sekmeler, _satirSonucu,
+            yonOzeti, _satirSonucu,
             Sekmede(BekleyenBolumu(vm), EkstreSekmesi.Bekleyen), Sekmede(KapananBolumu(vm), EkstreSekmesi.Kapanan));
     }
 
@@ -184,7 +184,7 @@ public sealed partial class EkstreAktarmaPage : TakipSayfasi<EkstreAktarmaViewMo
         liste.ItemTemplate = new DataTemplate(() =>
         {
             var satir = new VerticalStackLayout { Spacing = 4, Padding = new Thickness(2, 8) };
-            satir.Add(Bagli(nameof(EkstreSatirEditor.Ozet)));
+            satir.Add(Bagli(nameof(EkstreSatirEditor.KapananBaslik)));
             satir.Add(YonEtiketi());
             satir.Add(BagliMetin(nameof(EkstreSatirEditor.SonucMetni)));
             var dugme = Ikincil(new Button { HorizontalOptions = LayoutOptions.Start, MinimumHeightRequest = 44, Padding = new Thickness(12, 6) });

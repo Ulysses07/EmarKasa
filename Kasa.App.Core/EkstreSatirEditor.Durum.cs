@@ -1,3 +1,4 @@
+using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Kasa.Core.Kodlar;
 
@@ -17,6 +18,19 @@ public partial class EkstreSatirEditor
     public bool Kapali => Kayitli || YokSayildi;
     /// <summary>Satırın iptal edilmemiş kaydı (Kapanan sekmesinde sonucu ve iptali).</summary>
     public EkstreKayitSatiri? Kayit { get; init; }
+    /// <summary>Kapanan satırın başlığı: kaydı varsa kaydedilen (düzeltilmiş olabilir) tarih, açıklama ve tutar.</summary>
+    public string KapananBaslik => Kayit?.Baslik ?? Ozet;
+    private string TarihYazisi => DateOnly.TryParseExact(TarihMetni.Trim(), "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var t)
+        ? t.ToString("dd.MM.yyyy", CultureInfo.InvariantCulture) : TarihMetni.Trim() is { Length: > 0 } yazilan ? yazilan : "tarih okunamadı";
+    private string TutarYazisi
+    {
+        get
+        {
+            var tutar = ParaAyristirici.Coz(TutarMetni, out var t, out _) ? Bicim.Tl(t) : TutarMetni.Trim();
+            return tutar.Length == 0 || TutarMetni.Trim().Length == 0 ? "tutar okunamadı"
+                : Kaynak.ParaBirimi switch { "TRY" or "TL" => $"{tutar} ₺", "Belirsiz" => $"{tutar} (para birimi belirsiz)", var birim => $"{tutar} {birim}" };
+        }
+    }
     public string SonucMetni => YokSayildi ? "Yok sayıldı · kaydedilmedi, kasa etkisi yok" : Kayit?.Ozet ?? "";
 
     private static string? TurYonu(string? tur, bool kartBelgesi) => tur switch

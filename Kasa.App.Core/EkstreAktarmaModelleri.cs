@@ -21,7 +21,7 @@ public partial class EkstreSatirEditor : ObservableObject
     public bool Secilebilir => !Kapali && TlMi;
     public string KaynakMetni => $"Sayfa {Kaynak.Sayfa} · satır {Kaynak.No} · {YonAdi(Kaynak.Yon)} · {Kaynak.ParaBirimi}\n{Kaynak.KaynakSatir}";
     public string Uyarilar => string.Join("\n", Kaynak.Uyarilar.Concat(Kayitli ? [EslesmeDurumu is { } durum ? $"{durum}. Bağı kaldırmak için kaydını iptal edin." : "Bu satır zaten kaydedildi. Yeniden kaydetmek için önce kaydını iptal edin."] : []).Concat(!TlMi && !Kapali ? ["Yalnız TL hareketleri kaydedilebilir."] : []));
-    public string Ozet => $"#{Kaynak.No} · {TarihMetni} · {Aciklama} · {TutarMetni} {Kaynak.ParaBirimi}" + (EslesmeDurumu is { } durum ? $" · {durum}" : "");
+    public string Ozet => $"#{Kaynak.No} · {TarihYazisi} · {Aciklama} · {TutarYazisi}" + (EslesmeDurumu is { } durum ? $" · {durum}" : "");
     public IReadOnlyList<EkstreSecenek> IslemTurleri { get; }
     public IReadOnlyList<EkstreSecenek> DagilimTurleri { get; } = [new(DagilimBicimleri.Genel, "Yalnız genel kasa"), new(DagilimBicimleri.Esit, "Seçilen kanallara eşit"), new(DagilimBicimleri.Ozel, "Özel kanal tutarları"), new(DagilimBicimleri.Otomatik, "Kartın kayıtlı dağılımı")];
     public IReadOnlyList<KartTakipDto> Kartlar { get; }
