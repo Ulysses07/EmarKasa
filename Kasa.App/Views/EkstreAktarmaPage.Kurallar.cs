@@ -27,6 +27,7 @@ public sealed partial class EkstreAktarmaPage
                 if (await DisplayAlertAsync("Kuralı sil", $"{rule.Ad}\nBu kural silinecek. Önceden kaydedilen hareketler korunur.", "Sil", "Vazgeç"))
                     await Vm.KuralSilAsync(rule, epoch);
             }), _kuralFormu)));
+        HafizaBolumunuKur();
         Vm.PropertyChanged += (_, e) =>
         {
             if (e.PropertyName is nameof(Vm.OturumNesli) or nameof(Vm.EditorMu))

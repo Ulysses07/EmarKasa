@@ -9,12 +9,14 @@ public partial class EkstreSatirEditor
     private bool _degisiklikIzle, _oneriUygulaniyor;
     public bool ElleDegisti { get; private set; }
     [ObservableProperty] private EkstreKuralOnerisi? _oneri;
-    public string OneriMetni => Oneri is { } o ? $"{string.Join(", ", o.KuralAdlari)} · {o.Aciklama}" : "Kişisel kural önerisi henüz alınmadı.";
+    public string OneriMetni => Oneri is { } o ? string.Join(" · ", new[] { string.Join(", ", o.KuralAdlari), o.Aciklama }.Where(s => s.Length > 0)) : "Kişisel kural önerisi henüz alınmadı.";
     public bool OneriUygulanabilir => Secilebilir && Oneri?.Durum == "Oneri" && Aciklama == Kaynak.Aciklama;
     partial void OnOneriChanged(EkstreKuralOnerisi? value)
     {
         OnPropertyChanged(nameof(OneriMetni));
         OnPropertyChanged(nameof(OneriUygulanabilir));
+        OnPropertyChanged(nameof(HafizaVar));
+        OnPropertyChanged(nameof(HafizaMetni));
     }
     private void ElleDegisiklik()
     {

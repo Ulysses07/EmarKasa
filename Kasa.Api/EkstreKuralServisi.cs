@@ -35,6 +35,7 @@ public static class EkstreKuralServisi
         var aktifKanallar = db.Kanallar.AsNoTracking().Where(k => k.Aktif).Select(k => k.Id).ToHashSet();
         var kayitli = db.EkstreKayitlar.AsNoTracking().Where(k => k.BelgeId == belge.Id && !k.Iptal).Select(k => k.SatirNo).ToHashSet();
         var yokSayilan = db.EkstreYokSayilanlar.AsNoTracking().Where(y => y.BelgeId == belge.Id).Select(y => y.SatirNo).ToHashSet();
+        var hafiza = new EkstreHafizaServisi.Okuma(db, belge);
         return Read<EkstreOkunanSatir>(belge.SatirlarJson).Select(row =>
         {
             EkstreKuralOnerisi Durum(string durum, string ileti, string[]? adlar = null) => new(row.No, durum, adlar ?? [], null, null, [], ileti);
@@ -44,8 +45,9 @@ public static class EkstreKuralServisi
                 return Durum("YokSayildi", "Bu satır yok sayıldı.");
             var text = " " + Normalize(row.Aciklama) + " ";
             var matched = kurallar.Where(k => (k.Kural.Yon == null || k.Kural.Yon == row.Yon) && text.Contains(k.Kosul, StringComparison.Ordinal)).Select(k => k.Kural).ToArray();
+            // Kullanıcının açıkça yazdığı kural önceliklidir; eşleşen kural yoksa işlem hafızası.
             if (matched.Length == 0)
-                return Durum("Yok", "Eşleşen kişisel kural yok; PDF önerisini kontrol edin.");
+                return hafiza.Oneri(row) ?? Durum("Yok", "Eşleşen kişisel kural ya da hafıza yok; PDF önerisini kontrol edin.");
             var names = matched.Select(k => k.Ad).ToArray();
             var targets = matched.Select(k => $"{k.IslemTuru}|{k.DagilimTuru}|{string.Join(',', k.KanalIds.Order())}").Distinct().ToArray();
             if (targets.Length != 1)

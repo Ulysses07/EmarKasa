@@ -68,9 +68,11 @@ public partial class EkstreAktarmaViewModel(IEkstreAktarmaApi api, IKasaApi fina
         OnPropertyChanged(nameof(BelgeOzeti));
         OnPropertyChanged(nameof(YonOzeti));
         OnPropertyChanged(nameof(SecimOzeti));
+        HazirlariBildir();
     }
     protected override void OturumTemizle()
     {
+        HafizayiTemizle();
         GirdiDegisti();
         HatalariTemizle();
         SatirMesaji = null;
@@ -199,7 +201,7 @@ public partial class EkstreAktarmaViewModel(IEkstreAktarmaApi api, IKasaApi fina
         await KurallariAlAsync(n);
         if (!Gecerli(n))
             return;
-        Mesaj = "PDF okundu. Kaydetmek istediğiniz satırları tek tek seçip kontrol edin.";
+        Mesaj = HazirVar ? "PDF okundu. Hafızadan hazır satırlar var; kalanları tek tek kontrol edin." : "PDF okundu. Kaydetmek istediğiniz satırları tek tek seçip kontrol edin.";
     });
     public Task BelgeAcAsync(int id) => YurutAsync(async n =>
     {

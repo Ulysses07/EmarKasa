@@ -45,6 +45,10 @@ public interface IEkstreAktarmaApi
     Task<EkstreKuralDto> EkstreKuralDuzenleAsync(int id, EkstreKuralYaz g) => Task.FromException<EkstreKuralDto>(new KasaApiException(System.Net.HttpStatusCode.NotFound));
     Task EkstreKuralSilAsync(int id, int surum) => Task.FromException(new KasaApiException(System.Net.HttpStatusCode.NotFound));
     Task<IReadOnlyList<EkstreKuralOnerisi>> EkstreOnerilerAsync(int id) => Task.FromException<IReadOnlyList<EkstreKuralOnerisi>>(new KasaApiException(System.Net.HttpStatusCode.NotFound));
+    /// <summary>İşlem hafızası: anahtar ve yön başına son karar, en yeni önce.</summary>
+    Task<IReadOnlyList<EkstreHafizaDto>> EkstreHafizaAsync() => Task.FromException<IReadOnlyList<EkstreHafizaDto>>(new KasaApiException(System.Net.HttpStatusCode.NotFound));
+    /// <summary>Anahtarın bugüne kadarki kararlarını hafızadan çıkarır; kayıtlar değişmez.</summary>
+    Task EkstreHafizaUnutAsync(EkstreHafizaUnutYaz g) => Task.FromException(new KasaApiException(System.Net.HttpStatusCode.NotFound));
     /// <summary>Yükleme formunun banka seçenekleri (tek kaynak: sunucu).</summary>
     Task<IReadOnlyList<EkstreBankaDto>> EkstreBankalarAsync();
     Task<IReadOnlyList<EkstreBelgeOzetDto>> EkstreBelgelerAsync(int? beforeId = null);

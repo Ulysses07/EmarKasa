@@ -445,6 +445,11 @@ public partial class EkstreAktarmaTests
         public Exception? KuralHatasi;
         public Task<IReadOnlyList<EkstreKuralDto>> EkstreKurallarAsync() => KuralHatasi is { } error ? Task.FromException<IReadOnlyList<EkstreKuralDto>>(error) : Task.FromResult<IReadOnlyList<EkstreKuralDto>>([]);
         public Task<IReadOnlyList<EkstreKuralOnerisi>> EkstreOnerilerAsync(int id) => OneriYaniti ?? Task.FromResult(Oneriler);
+        public IReadOnlyList<EkstreHafizaDto> Hafiza = [];
+        public Exception? HafizaHatasi;
+        public List<EkstreHafizaUnutYaz> Unutulanlar = [];
+        public Task<IReadOnlyList<EkstreHafizaDto>> EkstreHafizaAsync() => HafizaHatasi is { } h ? Task.FromException<IReadOnlyList<EkstreHafizaDto>>(h) : Task.FromResult(Hafiza);
+        public Task EkstreHafizaUnutAsync(EkstreHafizaUnutYaz g) { Unutulanlar.Add(g); return Task.CompletedTask; }
         public IReadOnlyList<EkstreBankaDto> BankaListesi = [new("Vakifbank", "VakıfBank"), new("Akbank", "Akbank"), new("Isbank", "İş Bankası")];
         public Exception? BankaHatasi; public int BankaSayisi;
         public Task<IReadOnlyList<EkstreBankaDto>> EkstreBankalarAsync() { BankaSayisi++; return BankaHatasi is { } h ? Task.FromException<IReadOnlyList<EkstreBankaDto>>(h) : Task.FromResult(BankaListesi); }
