@@ -290,6 +290,26 @@ public class CekTopluTests
         Assert.False(vm.TopluAcik);
     }
 
+    /// <summary>Codex incelemesi (EmarKasa#61): kayıt tamamlanıp yanıt kaybolduysa ve liste yenilendiyse tekrar gönderim satırları çoğaltmaz.</summary>
+    [Fact]
+    public async Task Yaniti_kaybolan_toplu_kayit_yenilenen_listede_satirlari_cogaltmaz()
+    {
+        var (vm, api) = await KurToplu();
+        Seri(vm, adet: 2);
+        api.TopluHatasi = new HttpRequestException();
+        await vm.TopluKaydetCommand.ExecuteAsync(null);
+        api.Liste.AddRange([CekTakipViewModelTests.Cek(200, CekYonleri.Verilen, 10_000m, no: "0012345"), CekTakipViewModelTests.Cek(201, CekYonleri.Verilen, 10_000m, no: "0012346")]);
+        await vm.YukleAsync();
+        Assert.True(vm.TopluAcik);
+        vm.SecCommand.Execute(vm.Cekler[0]);
+        await vm.TopluKaydetCommand.ExecuteAsync(null);
+        Assert.True(vm.TopluAyniVar);
+        await vm.TopluYineDeKaydetCommand.ExecuteAsync(null);
+        Assert.Equal(api.Toplular[0].IstekId, api.Toplular[1].IstekId);
+        Assert.Equal([200, 201], vm.Cekler.Select(s => s.Veri.Id).Order());
+        Assert.Equal([200, 201], vm.OncekiSatirlar.Concat(vm.SonrakiSatirlar).Select(s => s.Veri.Id).Order());
+    }
+
     [Fact]
     public async Task Yazilmis_toplu_form_birakilmadan_once_sorulur_liste_yenilenince_kasa_secimi_kalir()
     {
