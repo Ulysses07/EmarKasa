@@ -226,6 +226,182 @@ public partial class EkstreAktarmaTests
     }
 
     [Fact]
+    public async Task Yenileme_taslaklari_isaretleri_ve_acik_satiri_korur_kanal_listesi_yenilenir()
+    {
+        var kanallar = new SahteApi { KanallarListe = [new(1, "MEZAT", true, 0, 0), new(2, "PERAKENDE", true, 1, 0)] };
+        var api = new Sahte { Veri = DurumBelgesi(Satir(1), Satir(2), Satir(3)) };
+        var vm = new EkstreAktarmaViewModel(api, kanallar, new FinansTakipTests.Sahte(), new AuthViewModel(new SahteApi()) { AktifRol = Rol.Editor });
+        await vm.YukleAsync();
+        await vm.BelgeAcAsync(1);
+        var s = vm.Satirlar[0];
+        s.Aciklama = "Taslak";
+        s.TarihMetni = "2026-09-20";
+        s.TutarMetni = "77,50";
+        s.DagilimTuru = s.DagilimTurleri.Single(x => x.Kod == "Esit");
+        s.PayEkle();
+        s.PayEkle();
+        s.Paylar[0].Kanal = vm.Kanallar[0];
+        s.Paylar[1].Kanal = vm.Kanallar[1];
+        s.Secili = true;
+        vm.SeciliSatir = s;
+        vm.TopluDagilim = vm.TopluDagilimlar.Single(d => d.Kod == "Esit");
+        foreach (var k in vm.TopluKanallar)
+            k.Secili = true;
+        await vm.OnizleCommand.ExecuteAsync(null);
+        Assert.True(vm.OnizlemeVar);
+
+        // PERAKENDE pasifleşti, yeni kanal geldi; sayfa yenilendi (elle ya da bağlantı dönünce).
+        kanallar.KanallarListe = [new(1, "MEZAT", true, 0, 0), new(2, "PERAKENDE", false, 1, 0), new(3, "TOPTAN", true, 2, 0)];
+        await vm.YukleAsync();
+        var yeni = vm.Satirlar[0];
+        Assert.Equal(("Taslak", "2026-09-20", "77,50", "Gider", "Esit", true), (yeni.Aciklama, yeni.TarihMetni, yeni.TutarMetni, yeni.IslemTuru!.Kod, yeni.DagilimTuru!.Kod, yeni.Secili));
+        Assert.True(yeni.ElleDegisti);
+        Assert.Same(yeni, vm.SeciliSatir);
+        Assert.Same(yeni, vm.Bekleyenler[0]);
+        Assert.False(vm.OnizlemeVar);
+        // Artık olmayan kanalın payı sessizce kaymaz: kanalsız kalır ve seçilmesi istenir.
+        Assert.Equal([1, (int?)null], yeni.Paylar.Select(p => p.Kanal?.Id));
+        Assert.Contains("kanalları birer kez", Assert.Throws<DogrulamaHatasi>(() => yeni.Yaz()).Message);
+        Assert.Equal([1, 3], yeni.Kanallar.Select(k => k.Id));
+        Assert.Equal([(1, true), (3, false)], vm.TopluKanallar.Select(k => (k.Veri.Id, k.Secili)));
+        // Değişiklik yeni modelden izlenir.
+        yeni.Paylar[1].Kanal = yeni.Kanallar[1];
+        await vm.OnizleCommand.ExecuteAsync(null);
+        Assert.True(vm.OnizlemeVar);
+        yeni.TutarMetni = "1";
+        Assert.False(vm.OnizlemeVar);
+    }
+
+    [Fact]
+    public void Toplu_uygula_eksik_kanalda_satira_dokunmaz()
+    {
+        var s = new EkstreSatirEditor(Satir(1), Belge(), [new(1, "MEZAT", true, 0, 0)], [], () => { });
+        Assert.False(s.TopluUygula(null, "Esit", [1, 2]));
+        Assert.Null(s.DagilimTuru);
+        Assert.True(s.TopluUygula(null, "Esit", [1]));
+    }
+
+    [Fact]
+    public async Task Yok_sayilan_satirin_taslagi_geri_alininca_gelir_hepsi_birden_geri_alinir()
+    {
+        var (vm, api, _) = await Hazir(new() { Veri = DurumBelgesi(Satir(1), Satir(2), Satir(3)) });
+        foreach (var s in vm.Satirlar)
+        {
+            Sec(s);
+            s.Aciklama = "Taslak " + s.Kaynak.No;
+        }
+        Assert.False(vm.TopluGeriAlGorunur);
+        await vm.SeciliyiYokSayCommand.ExecuteAsync(null);
+        Assert.Equal((0, 3, true), (vm.Bekleyenler.Count, vm.YokSayilanSayisi, vm.TopluGeriAlGorunur));
+        Assert.Equal("Yok sayılanların hepsini geri al (3)", vm.TopluGeriAlDugmesi);
+        await vm.YokSayilanlariGeriAlCommand.ExecuteAsync(null);
+        Assert.Equal([1, 2, 3], api.YokSayIstekleri[1].SatirNolar);
+        Assert.Equal(["Taslak 1", "Taslak 2", "Taslak 3"], vm.Bekleyenler.Select(s => s.Aciklama));
+        Assert.All(vm.Bekleyenler, s => Assert.Equal(("Genel", false), (s.DagilimTuru!.Kod, s.Secili)));
+        // Başka belgeye geçince saklanan taslak taşınmaz.
+        await vm.YokSayAsync([vm.Bekleyenler[0]], true);
+        api.Veri = api.Veri with { Id = 2, YokSayilanlar = [] };
+        await vm.BelgeAcAsync(2);
+        Assert.Equal("Hareket 1", vm.Bekleyenler[0].Aciklama);
+    }
+
+    [Fact]
+    public async Task Yok_sayilan_dovizli_satir_tl_toplamina_girmez_tutarsiz_satir_soylenir()
+    {
+        var (vm, _, _) = await Hazir(new() { Veri = DurumBelgesi(YonSatiri(1, "Giris", 100m, "Gelir"), YonSatiri(2, "Giris", 1000m, "Atla") with { ParaBirimi = "USD" }, YonSatiri(3, "Cikis", null, "Gider")) });
+        const string beklenen = "Giriş +100,00 ₺ (1 satır) · Çıkış −0,00 ₺ (1 satır) · 1 satırın tutarı okunamadı, toplama girmedi";
+        Assert.Equal(beklenen, vm.YonOzeti);
+        await vm.YokSayAsync([vm.Satirlar[1]], true);
+        Assert.Equal(beklenen, vm.YonOzeti);
+    }
+
+    [Fact]
+    public async Task Iptalden_sonra_diger_taslaklar_korunur_kaydirma_satir_sonucunadir()
+    {
+        var api = new Sahte { Veri = DurumBelgesi(Satir(1), Satir(2)) with { Kayitlar = [Kayit(7, 1)] } };
+        var (vm, _, _) = await Hazir(api);
+        vm.Satirlar[1].Aciklama = "Taslak";
+        var taslak = vm.Satirlar[1];
+        api.Veri = api.Veri with { Surum = 3, Kayitlar = [Kayit(7, 1, iptal: true)] };
+        await vm.KayitIptalAsync(vm.Kayitlar[0], "Yanlış", vm.OturumNesli, 1);
+        Assert.Equal([1, 2], vm.Bekleyenler.Select(s => s.Kaynak.No));
+        Assert.Same(taslak, vm.Bekleyenler[1]);
+        Assert.Contains("Satır 1 kaydı iptal edildi", vm.SatirMesaji);
+        // Ön denetim hatası da satır sonucunda görünür.
+        EkstreSonucu? hedef = null;
+        vm.SonucGosterIstendi += (_, s) => hedef = s;
+        await vm.KayitIptalAsync(vm.Kayitlar[0], "Yanlış", vm.OturumNesli, 1);
+        Assert.Contains("yeniden onaylayın", vm.SatirHatasi);
+        Assert.Equal(EkstreSonucu.Satirlar, hedef);
+    }
+
+    [Fact]
+    public async Task Hata_gizli_sekmede_kalmaz_satir_hatasi_acik_onizlemeye_kaydirmaz()
+    {
+        var (vm, api, _) = await Hazir(new() { Veri = DurumBelgesi(Satir(1), Satir(2)) });
+        var hedefler = new List<EkstreSonucu>();
+        vm.SonucGosterIstendi += (_, s) => hedefler.Add(s);
+        Sec(vm.Satirlar[0]);
+        await vm.OnizleCommand.ExecuteAsync(null);
+        vm.Onay = true;
+        api.YokSayYaniti = _ => throw new KasaApiException(HttpStatusCode.Conflict, "Belge değişmiş.");
+        await vm.YokSayAsync([vm.Satirlar[1]], true);
+        Assert.True(vm.OnizlemeVar);
+        vm.SeciliSekme = EkstreSekmesi.Kapanan;
+        api.KayitYaniti = Task.FromException<EkstreBelgeDto>(new KasaApiException(HttpStatusCode.Conflict, "Bilgiler değişmiş."));
+        await vm.KaydetCommand.ExecuteAsync(null);
+        Assert.Equal(EkstreSekmesi.Bekleyen, vm.SeciliSekme);
+        Assert.True(vm.OnizlemeHataVar);
+        Assert.Equal([EkstreSonucu.Onizleme, EkstreSonucu.Satirlar, EkstreSonucu.Onizleme], hedefler);
+        // Yenileme başarılıysa eski hata iletileri kalkar.
+        Assert.NotNull(vm.SatirHatasi);
+        await vm.YukleAsync();
+        Assert.Null(vm.SatirHatasi);
+        Assert.False(vm.OnizlemeHataVar);
+    }
+
+    [Fact]
+    public async Task Kaydedilince_toplu_uygulama_iletisi_kalkar()
+    {
+        var api = new Sahte { Veri = DurumBelgesi(Satir(1), Satir(2)) };
+        var (vm, _, _) = await Hazir(api);
+        vm.Satirlar[0].Secili = true;
+        vm.TopluDagilim = vm.TopluDagilimlar.Single(d => d.Kod == "Genel");
+        vm.TopluUygulaCommand.Execute(null);
+        Assert.Contains("henüz kaydedilmedi", vm.TopluMesaji);
+        await vm.OnizleCommand.ExecuteAsync(null);
+        vm.Onay = true;
+        api.KayitYaniti = Task.FromResult(api.Veri with { Surum = 3, Kayitlar = [Kayit(7, 1)] });
+        await vm.KaydetCommand.ExecuteAsync(null);
+        Assert.Null(vm.TopluMesaji);
+        Assert.Contains("1 satır kaydedildi", vm.SatirMesaji);
+    }
+
+    [Fact]
+    public async Task Kaynagi_acilan_kayit_kapanan_sekmesinde_gosterilir()
+    {
+        var (vm, _, _) = await Hazir(new() { Veri = DurumBelgesi(Satir(1), Satir(2)) with { Kayitlar = [Kayit(7, 2)] } });
+        EkstreSatirEditor? gidilen = null;
+        vm.SatirGosterIstendi += (_, s) => gidilen = s;
+        await vm.KaynakAcAsync(7);
+        Assert.Equal(EkstreSekmesi.Kapanan, vm.SeciliSekme);
+        Assert.Same(vm.Kapananlar[0], gidilen);
+    }
+
+    [Fact]
+    public async Task Tek_satir_kapaninca_liste_yeniden_kurulmaz()
+    {
+        var (vm, _, _) = await Hazir(new() { Veri = DurumBelgesi(Satir(1), Satir(2), Satir(3)) });
+        var olaylar = new List<System.Collections.Specialized.NotifyCollectionChangedAction>();
+        vm.Bekleyenler.CollectionChanged += (_, e) => olaylar.Add(e.Action);
+        await vm.YokSayAsync([vm.Satirlar[1]], true);
+        Assert.Equal([System.Collections.Specialized.NotifyCollectionChangedAction.Remove], olaylar);
+        Assert.Equal([1, 3], vm.Bekleyenler.Select(s => s.Kaynak.No));
+        await vm.YokSayAsync([vm.Kapananlar[0]], false);
+        Assert.Equal([1, 2, 3], vm.Bekleyenler.Select(s => s.Kaynak.No));
+    }
+
+    [Fact]
     public async Task Yeniden_okuma_satirlari_bastan_getirir()
     {
         var (vm, api, _) = await Hazir(new() { Veri = DurumBelgesi(Satir(1), Satir(2)) });

@@ -218,6 +218,26 @@ public class EkstreSatirDurumuTests
         Assert.StartsWith("Satır 1:", kartHatasi);
     }
 
+    [Fact]
+    public async Task Onizlemeden_sonra_yok_sayilan_ya_da_yeniden_okunan_belge_eski_ozetle_kaydedilmez()
+    {
+        await using var f = new Fabrika();
+        f.Pdf.Metin = Metin("Hareket bir -100,00", "Hareket iki -200,00");
+        using var c = await Editor(f);
+        var once = await Kasa(c);
+        var d = await Yukle(c);
+        var istek = new EkstreKaydetYaz(Guid.NewGuid(), d.Surum, [Satir(1)]);
+        var ozet = (await Post<EkstreOnizlemeDto>(c, $"/api/ekstre-aktar/{d.Id}/onizleme", istek)).OnizlemeOzeti;
+        var yeni = await Post<EkstreBelgeDto>(c, $"/api/ekstre-aktar/{d.Id}/yeniden-oku", new EkstreYenidenOkuYaz(Guid.NewGuid(), d.Surum));
+        Assert.Equal(HttpStatusCode.Conflict, (await Reddet(c, $"/api/ekstre-aktar/{d.Id}/kaydet", istek with { OnizlemeOzeti = ozet, TekrarOnay = true })).Durum);
+
+        istek = istek with { IstekId = Guid.NewGuid(), Surum = yeni.Surum };
+        ozet = (await Post<EkstreOnizlemeDto>(c, $"/api/ekstre-aktar/{d.Id}/onizleme", istek)).OnizlemeOzeti;
+        await YokSay(c, yeni, true, 1);
+        Assert.Equal(HttpStatusCode.Conflict, (await Reddet(c, $"/api/ekstre-aktar/{d.Id}/kaydet", istek with { OnizlemeOzeti = ozet, TekrarOnay = true })).Durum);
+        Assert.Equal(once, await Kasa(c));
+    }
+
     [Theory]
     [InlineData("yok-say")]
     [InlineData("yeniden-oku")]

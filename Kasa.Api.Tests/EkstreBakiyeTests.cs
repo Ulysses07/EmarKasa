@@ -119,17 +119,150 @@ public class EkstreBakiyeTests
     }
 
     [Fact]
-    public void Esit_tutarli_iki_yonlu_belirsizlikte_sira_tarihten_bulunur()
+    public void Esit_tutarli_satirlarin_yonu_yalniz_sirasi_kanitli_komsuya_dayaniyorsa_okunur()
     {
-        var artan = Banka("01.09.2026 Hareket 100,00 900,00", "02.09.2026 Hareket 100,00 1.000,00", "03.09.2026 Hareket 100,00 1.100,00").Satirlar;
-        Assert.Equal((100m, "Giris", YonKaynaklari.Bakiye), Ozet(artan[1]));
-        Assert.Equal("Belirsiz", artan[0].Yon);
-        var azalan = Banka("03.09.2026 Hareket 100,00 1.100,00", "02.09.2026 Hareket 100,00 1.000,00", "01.09.2026 Hareket 100,00 900,00").Satirlar;
-        Assert.Equal((100m, "Giris", YonKaynaklari.Bakiye), Ozet(azalan[0]));
-        Assert.Equal("Belirsiz", azalan[2].Yon);
-        // Tarihler de aynıysa sıra bilinmez: hiçbir satır çözülmez.
-        var ayni = Banka("01.09.2026 Hareket 100,00 900,00", "01.09.2026 Hareket 100,00 1.000,00", "01.09.2026 Hareket 100,00 1.100,00").Satirlar;
-        Assert.All(ayni, r => Assert.Equal("Belirsiz", r.Yon));
+        // Bütün tutarlar eşit: artan da azalan da okunur, çözülmez.
+        var esit = Banka("01.09.2026 Hareket 100,00 900,00", "02.09.2026 Hareket 100,00 1.000,00", "03.09.2026 Hareket 100,00 1.100,00").Satirlar;
+        Assert.All(esit, r => Assert.Equal("Belirsiz", r.Yon));
+        // Devir satırı sırayı kanıtlar: zincir oradan başlar.
+        var devirli = Banka("DEVİR BAKİYESİ 800,00", "01.09.2026 Hareket 100,00 900,00", "02.09.2026 Hareket 100,00 1.000,00", "03.09.2026 Hareket 100,00 1.100,00").Satirlar;
+        Assert.All(devirli, r => Assert.Equal((100m, "Giris", YonKaynaklari.Bakiye), Ozet(r)));
+        // Günler yeniden eskiye, 2 Eylül'ün iki eşit çekimi gün içinde eskiden yeniye: o çiftin yönü tersine okunmaz.
+        var karisik = Banka(
+            "04.09.2026 Hareket 50,00 7.430,00", "03.09.2026 Hareket 300,00 7.480,00",
+            "02.09.2026 ATM cekim 1.000,00 8.780,00", "02.09.2026 ATM cekim 1.000,00 7.780,00",
+            "01.09.2026 Hareket 220,00 9.780,00", "31.08.2026 Hareket 400,00 10.000,00", "30.08.2026 Hareket 100,00 10.400,00", "29.08.2026 Hareket 60,00 10.500,00").Satirlar;
+        Assert.Equal((50m, "Cikis", YonKaynaklari.Bakiye), Ozet(karisik[0]));
+        Assert.Equal((300m, "Belirsiz", null), Ozet(karisik[1]));
+        Assert.DoesNotContain(karisik.Skip(2).Take(2), r => r.Yon == "Giris");
+        Assert.Equal((220m, "Cikis", YonKaynaklari.Bakiye), Ozet(karisik[4]));
+        Assert.Equal((400m, "Cikis", YonKaynaklari.Bakiye), Ozet(karisik[5]));
+    }
+
+    [Theory]
+    [InlineData("-₺500,00", "-₺300,00", "-₺400,00", "-₺550,00")]
+    [InlineData("- 500,00", "- 300,00", "- 400,00", "- 550,00")]
+    [InlineData("−500,00", "−300,00", "−400,00", "−550,00")]
+    [InlineData("(500,00)", "(300,00)", "(400,00)", "(550,00)")]
+    [InlineData("500,00 (B)", "300,00 (B)", "400,00 (B)", "550,00 (B)")]
+    [InlineData("500,00 B", "300,00 B", "400,00 B", "550,00 B")]
+    public void Isareti_okunamayan_ya_da_iki_anlamli_bakiyeden_ters_yon_okunmaz(string b1, string b2, string b3, string b4)
+    {
+        // Gerçek: eksi bakiyeli hesapta +200, −100, −150.
+        var rows = Banka($"01.09.2026 Hareket 100,00 {b1}", $"02.09.2026 Hareket 200,00 {b2}", $"03.09.2026 Hareket 100,00 {b3}", $"04.09.2026 Hareket 150,00 {b4}").Satirlar;
+        Assert.Equal(4, rows.Count);
+        Assert.DoesNotContain(rows, r => r.YonKaynagi == YonKaynaklari.Bakiye);
+    }
+
+    [Fact]
+    public void Islem_yonu_kolonundaki_B_bakiyenin_eksisi_sayilmaz()
+    {
+        // "Tutar Bakiye B/A": hepsi B ise iki anlam da tutar, çözülmez; karışıksa yalnız ek yok sayılınca tutar.
+        var hepsiB = Banka("01.09.2026 Hareket 1.000,00 9.000,00 B", "02.09.2026 Hareket 500,00 8.500,00 B", "03.09.2026 Hareket 250,00 8.250,00 B").Satirlar;
+        Assert.DoesNotContain(hepsiB, r => r.Yon == "Giris");
+        var karisik = Banka("01.09.2026 Hareket 1.000,00 9.000,00 B", "02.09.2026 Hareket 500,00 9.500,00 A", "03.09.2026 Hareket 250,00 9.250,00 B", "04.09.2026 Hareket 70,00 9.320,00 A").Satirlar;
+        Assert.Equal((500m, "Giris", YonKaynaklari.Bakiye), Ozet(karisik[1]));
+        Assert.Equal((250m, "Cikis", YonKaynaklari.Bakiye), Ozet(karisik[2]));
+        Assert.Equal((70m, "Giris", YonKaynaklari.Bakiye), Ozet(karisik[3]));
+        // Açıklamanın B ile başlayan sözcüğü ek değildir.
+        var blok = Banka("01.09.2026 100,00 9.000,00 B BLOK KIRA", "02.09.2026 500,00 8.500,00 B BLOK GIDER", "03.09.2026 250,00 8.250,00 B BLOK GIDER").Satirlar;
+        Assert.Equal((500m, "Cikis", YonKaynaklari.Bakiye), Ozet(blok[1]));
+        Assert.Equal((250m, "Cikis", YonKaynaklari.Bakiye), Ozet(blok[2]));
+    }
+
+    [Fact]
+    public void Atlanan_satir_ve_baska_hesap_zinciri_koparir()
+    {
+        var atlanan = Banka(
+            "01.09.2026 Hareket 100,00 10.100,00", "02.09.2026 Odeme 300,00 9.800,00", "Tahsilat 2.000,00 11.800,00", "03.09.2026 Odeme 1.000,00 10.800,00",
+            "04.09.2026 Odeme 50,00 10.750,00", "05.09.2026 Odeme 25,00 10.725,00").Satirlar;
+        Assert.Equal("Cikis", atlanan[1].Yon);
+        Assert.Equal((1000m, "Belirsiz", null), Ozet(atlanan[2]));
+        Assert.Equal((50m, "Cikis", YonKaynaklari.Bakiye), Ozet(atlanan[3]));
+
+        foreach (var baslik in new[] { ("Hesap No: 111-1", "Hesap No: 222-2"), ("IBAN: TR11 0001", "IBAN: TR22 0002"), ("HESAP 1", "HESAP 2") })
+        {
+            var iki = Banka(
+                baslik.Item1, "01.09.2026 Odeme 300,00 700,00", "02.09.2026 Odeme 250,00 450,00", "03.09.2026 Odeme 450,00 0,00",
+                baslik.Item2, "01.09.2026 Odeme 5.000,00 5.000,00", "02.09.2026 Odeme 1.000,00 4.000,00", "03.09.2026 Odeme 500,00 3.500,00").Satirlar;
+            Assert.Equal((5000m, "Belirsiz", null), Ozet(iki[3]));
+            Assert.Equal((1000m, "Cikis", YonKaynaklari.Bakiye), Ozet(iki[4]));
+        }
+        // Aynı hesabın sayfa başında yinelenen numarası zinciri koparmaz.
+        var sayfali = Banka("Hesap No: 111-1", "01.09.2026 Odeme 300,00 700,00", "02.09.2026 Odeme 250,00 450,00", "\fHesap No: 111-1", "03.09.2026 Odeme 150,00 300,00").Satirlar;
+        Assert.Equal((150m, "Cikis", YonKaynaklari.Bakiye), Ozet(sayfali[2]));
+    }
+
+    [Fact]
+    public void Sayfa_ortasinda_yeniden_baslayan_tablo_zinciri_koparir()
+    {
+        var header = $"{"Tarih",-14}{"Açıklama",-27}{"Tutar",12}{"Bakiye",16}";
+        static string Satir(string tarih, string tutar, string bakiye) => $"{tarih,-14}{"Odeme",-27}{tutar,12}{bakiye,16}";
+        var rows = Banka(header, Satir("01.09.2026", "300,00", "700,00"), Satir("02.09.2026", "700,00", "0,00"), "Vadeli", header,
+            Satir("01.09.2026", "5.000,00", "5.000,00"), Satir("02.09.2026", "1.000,00", "4.000,00")).Satirlar;
+        Assert.Equal((5000m, "Belirsiz", null), Ozet(rows[2]));
+        Assert.Equal((1000m, "Cikis", YonKaynaklari.Bakiye), Ozet(rows[3]));
+    }
+
+    [Fact]
+    public void Bakiye_kolonlu_belgede_baglarin_cogu_tutmuyorsa_tek_rastlanti_kullanilmaz()
+    {
+        // Her satırda gün sonu bakiyesi basan düzen: yürüyen bakiye değildir.
+        var header = $"{"Tarih",-14}{"Açıklama",-27}{"Tutar",12}{"Bakiye",16}";
+        static string Satir(string tarih, string ad, string tutar, string bakiye) => $"{tarih,-14}{ad,-27}{tutar,12}{bakiye,16}";
+        var rows = Banka(header, Satir("01.09.2026", "Odeme", "100,00", "10.000,00"), Satir("02.09.2026", "Tahsilat", "1.000,00", "9.000,00"),
+            Satir("02.09.2026", "Odeme", "2.000,00", "9.000,00"), Satir("03.09.2026", "Odeme", "40,00", "8.500,00"), Satir("03.09.2026", "Odeme", "460,00", "8.500,00")).Satirlar;
+        Assert.DoesNotContain(rows, r => r.YonKaynagi == YonKaynaklari.Bakiye);
+        Assert.Equal(1000m, rows[1].Tutar);
+    }
+
+    [Fact]
+    public void Bakiye_diger_kanitlarla_celisiyorsa_zincir_butunuyle_birakilir()
+    {
+        // İşareti yazılmayan borç bakiye (kredi hesabı): çekim bakiyeyi artırır. Yönler tersine okunmaz.
+        var read = Banka(
+            "01.09.2026 Hareket 100,00 1.000,00", "02.09.2026 GIDEN EFT 200,00 1.200,00", "03.09.2026 GELEN EFT 500,00 700,00", "04.09.2026 Hareket 50,00 750,00");
+        Assert.DoesNotContain(read.Satirlar, r => r.YonKaynagi == YonKaynaklari.Bakiye);
+        Assert.Equal(("Belirsiz", (decimal?)null), (read.Satirlar[3].Yon, read.Satirlar[3].Tutar));
+        Assert.Contains(read.Uyarilar, w => w.Contains("yönler bakiyeden alınmadı"));
+    }
+
+    [Theory]
+    [InlineData("GELEN HAVALE AHMET YILMAZ ÖNCEKİ BAKİYE ÖDEMESİ")]
+    [InlineData("AÇILIŞ BAKİYESİ DÜZELTME")]
+    public void Aciklamasinda_bakiye_gecen_hareket_devir_satiri_sayilmaz(string aciklama)
+    {
+        var rows = Banka("01.09.2026 Hareket 100,00 10.000,00", $"02.09.2026 {aciklama} 5.000,00 15.000,00", "03.09.2026 Hareket 250,00 15.250,00").Satirlar;
+        Assert.Equal(3, rows.Count);
+        Assert.Equal((5000m, "Giris", YonKaynaklari.Bakiye), Ozet(rows[1]));
+    }
+
+    [Fact]
+    public void Kart_ekstresinde_onceki_bakiye_odemesi_hareket_kalir()
+    {
+        var rows = EkstreMetinOkuyucu.Oku("Para Birimi: TL\n05.09.2026 ÖNCEKİ BAKİYE ÖDEMENİZ - TEŞEKKÜRLER -5.000,00\n06.09.2026 MARKET 100,00", "Kart", "Akbank").Satirlar;
+        Assert.Equal(2, rows.Count);
+        Assert.Equal(5000m, rows[0].Tutar);
+    }
+
+    [Fact]
+    public void Devir_satiri_onceki_hareketin_devami_sayilmaz()
+    {
+        var rows = Banka("30.08.2026 UZUN ACIKLAMA", "BAŞLANGIÇ BAKİYESİ 5.000,00", "01.09.2026 Hareket 100,00 5.100,00", "02.09.2026 Hareket 50,00 5.050,00").Satirlar;
+        Assert.Equal(3, rows.Count);
+        Assert.Null(rows[0].Tutar);
+        Assert.Equal((100m, "Giris", YonKaynaklari.Bakiye), Ozet(rows[1]));
+    }
+
+    [Fact]
+    public void Bakiye_kolonlu_belgede_sarili_satir_cozulur()
+    {
+        var header = $"{"Tarih",-14}{"Açıklama",-27}{"Tutar",12}{"Bakiye",16}";
+        static string Satir(string tarih, string ad, string tutar, string bakiye) => $"{tarih,-14}{ad,-27}{tutar,12}{bakiye,16}";
+        var rows = Banka(header, Satir("01.09.2026", "Hareket", "100,00", "1.000,00"), "02.09.2026    UZUN ACIKLAMA", Satir("", "DEVAMI", "50,00", "950,00"),
+            Satir("03.09.2026", "Hareket", "25,00", "975,00")).Satirlar;
+        Assert.Equal(3, rows.Count);
+        Assert.Equal((50m, "Cikis", YonKaynaklari.Bakiye), Ozet(rows[1]));
     }
 
     [Fact]
@@ -168,7 +301,7 @@ public class EkstreBakiyeTests
     [Fact]
     public void Aciklama_bakiyeyle_celisirse_bakiye_kazanir_ve_uyarir()
     {
-        var rows = Banka("01.09.2026 Hareket 100,00 10.000,00", "02.09.2026 GELEN EFT geri cekildi 1.500,00 8.500,00", "03.09.2026 GELEN EFT 250,00 8.750,00").Satirlar;
+        var rows = Banka("01.09.2026 Hareket 100,00 10.000,00", "02.09.2026 GELEN EFT geri cekildi 1.500,00 8.500,00", "03.09.2026 GELEN EFT 250,00 8.750,00", "04.09.2026 GIDEN EFT 50,00 8.700,00").Satirlar;
         Assert.Equal((1500m, "Cikis", YonKaynaklari.Bakiye), Ozet(rows[1]));
         Assert.Contains(rows[1].Uyarilar, w => w.Contains("Açıklama giriş"));
         Assert.Equal((250m, "Giris", YonKaynaklari.Bakiye), Ozet(rows[2]));
@@ -188,7 +321,7 @@ public class EkstreBakiyeTests
     [InlineData("Gelen FAST", "Giris")]
     [InlineData("ATM PARA YATIRMA", "Giris")]
     [InlineData("NAKİT YATIRMA", "Giris")]
-    [InlineData("POS SATIŞ TUTARI", "Giris")]
+    [InlineData("POS HAKEDİŞ", "Giris")]
     [InlineData("POS BLOKE ÇÖZÜM", "Giris")]
     [InlineData("ÜYE İŞYERİ ALACAĞI", "Giris")]
     [InlineData("MEVDUAT FAİZİ", "Giris")]
@@ -203,6 +336,11 @@ public class EkstreBakiyeTests
     [InlineData("KREDİ TAKSİT TAHSİLATI", "Cikis")]
     [InlineData("ÇEK ÖDEMESİ 123", "Cikis")]
     [InlineData("HAVALE KOMİSYONU", "Cikis")]
+    [InlineData("MEVDUAT FAİZİ STOPAJI", "Cikis")]
+    [InlineData("VADELİ MEVDUAT FAİZİ GELİR VERGİSİ KESİNTİSİ", "Cikis")]
+    [InlineData("MEVDUAT FAİZİ BSMV", "Cikis")]
+    [InlineData("POS SATIŞ KESİNTİ", "Cikis")]
+    [InlineData("GELEN EFT BAYRAM BEDELİ", "Giris")]
     public void Anahtar_kelime_baska_kanit_yokken_yonu_verir(string aciklama, string yon)
     {
         var row = Assert.Single(Banka($"01.09.2026 {aciklama}  100,00").Satirlar);
@@ -220,6 +358,15 @@ public class EkstreBakiyeTests
     [InlineData("REPOS HARCAMASIZ")]
     [InlineData("FATURA ÖDEMESİ ABC LTD")]
     [InlineData("GELEN EFT KOMİSYONU")]
+    [InlineData("KREDİLİ MEVDUAT FAİZİ")]
+    [InlineData("KREDİLİ MEVDUAT FAİZ TAHSİLATI")]
+    [InlineData("ÜYE İŞYERİ PAKET BEDELİ")]
+    [InlineData("ÜYE İŞYERİ KATKI PAYI")]
+    [InlineData("POS KİRA BEDELİ")]
+    [InlineData("POS SATIŞ MİGROS")]
+    [InlineData("HAVALE AHMET ELEKTRİK FATURASI")]
+    [InlineData("HAVALE AHMET VERGİ ÖDEMESİ")]
+    [InlineData("GELEN ÇEK ÖDEMESİ")]
     public void Iki_anlamli_aciklama_belirsiz_kalir(string aciklama)
     {
         var row = Assert.Single(Banka($"01.09.2026 {aciklama}  100,00").Satirlar);

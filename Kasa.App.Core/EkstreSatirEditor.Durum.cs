@@ -59,6 +59,34 @@ public partial class EkstreSatirEditor
     /// <summary>Toplamlarda kullanılan tutar: düzenlenen tutar geçerliyse o, değilse (ya da satır kapalıysa) kaydın/PDF'in tutarı.</summary>
     public decimal? EtkinTutar => Kayit?.Veri.Tutar ?? (ParaAyristirici.Coz(TutarMetni, out var tutar, out _) && tutar > 0 ? tutar : Kaynak.Tutar);
 
+    /// <summary>Belge toplamına girer: TL satırı ya da kaydı olan satır (dövizli satır yok sayılınca TL toplamına girmez).</summary>
+    public bool ToplamaGirer => Kayitli || TlMi;
+
+    /// <summary>Aynı satırın önceki modelindeki taslağı (alanlar ve işaret) alır; seçimler bu modelin güncel kanal ve kart listesinden
+    /// yapılır. Artık olmayan kanalın payı kanalsız kalır (önizlemede seçilmesi istenir), eşleşme adayı yeniden getirilir.</summary>
+    public void TaslagiAl(EkstreSatirEditor eski, bool isaret = true)
+    {
+        if (!Secilebilir && !YokSayilabilir || Kapali)
+            return;
+        _oneriUygulaniyor = true;
+        try
+        {
+            TarihMetni = eski.TarihMetni;
+            Aciklama = eski.Aciklama;
+            TutarMetni = eski.TutarMetni;
+            IslemTuru = IslemTurleri.FirstOrDefault(t => t.Kod == eski.IslemTuru?.Kod);
+            DagilimTuru = DagilimTurleri.FirstOrDefault(t => t.Kod == eski.DagilimTuru?.Kod);
+            Kart = Kartlar.FirstOrDefault(k => k.Id == eski.Kart?.Id);
+            KaynakHarcama = KaynakHarcamalar.FirstOrDefault(h => h.Veri.Id == eski.KaynakHarcama?.Veri.Id);
+            Paylar.Clear();
+            foreach (var pay in eski.Paylar)
+                Paylar.Add(new(Kanallar) { Kanal = Kanallar.FirstOrDefault(k => k.Id == pay.Kanal?.Id), Tutar = pay.Tutar });
+            Secili = isaret && Secilebilir && eski.Secili;
+        }
+        finally { _oneriUygulaniyor = false; }
+        ElleDegisti = eski.ElleDegisti;
+    }
+
     /// <summary>İşaretli satırlara toplu uygulama: tür (null: satırdaki tür kalır) ve dağılım. Dağılımı seçilmeyen tür (karta ödeme,
     /// iade, eşleştirme) ya da türü belli olmayan satır değişmez.</summary>
     /// <returns>Uygulandıysa true.</returns>
@@ -66,7 +94,9 @@ public partial class EkstreSatirEditor
     {
         var tur = turKodu is null ? IslemTuru : IslemTurleri.FirstOrDefault(t => t.Kod == turKodu);
         if (!Secilebilir || tur?.Kod is not (EkstreIslemTurleri.Gelir or EkstreIslemTurleri.Gider or EkstreIslemTurleri.KartHarcama)
-            || IslemTuru?.Kod is EkstreIslemTurleri.KartOdemesi or EkstreIslemTurleri.KartIade or EkstreIslemTurleri.Eslestir)
+            || IslemTuru?.Kod is EkstreIslemTurleri.KartOdemesi or EkstreIslemTurleri.KartIade or EkstreIslemTurleri.Eslestir
+            // Seçilen kanallardan biri artık yoksa pay sessizce kalanlara kaymaz.
+            || kanalIds.Any(id => !Kanallar.Any(k => k.Id == id)))
             return false;
         IslemTuru = tur;
         DagilimTuru = DagilimTurleri.Single(d => d.Kod == dagilimKodu);

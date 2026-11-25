@@ -24,6 +24,9 @@ public sealed record EkstreSatirHatasi(int? SatirNo, string Ileti)
     public bool SatirVar => SatirNo is not null;
 }
 
+/// <summary>Görünümün kaydırması istenen yer: etki gösteriminin sonucu/hataları ya da satır işlemlerinin iletisi (sekmelerin altı).</summary>
+public enum EkstreSonucu { Onizleme, Satirlar }
+
 // Bekleyen/Kapanan sekmeleri, yok sayma, yeniden okuma, toplu uygulama, toplamlar ve etki gösteriminin hataları
 // (docs/specs/2026-11-25-pdf-ekrani.md).
 public partial class EkstreAktarmaViewModel
@@ -32,6 +35,8 @@ public partial class EkstreAktarmaViewModel
     private static readonly EkstreSecenek TurKalsin = new("", "Satırdaki tür kalsın");
     private readonly TekrarAnahtari _yokSayKey = new(), _yenidenOkuKey = new();
     private bool _topluDegisiklik;
+    /// <summary>Bu belgede yok sayılan satırların kapanmadan önceki modelleri: geri alınınca taslak geri gelir.</summary>
+    private readonly Dictionary<int, EkstreSatirEditor> _yokSayilanTaslak = new();
 
     public ObservableCollection<EkstreSatirEditor> Bekleyenler { get; } = new();
     public ObservableCollection<EkstreSatirEditor> Kapananlar { get; } = new();
@@ -47,8 +52,9 @@ public partial class EkstreAktarmaViewModel
     /// <summary>Satır işlemlerinin (yok say, geri al, toplu uygula) sonucu ve hatası; sekmelerin altında görünür.</summary>
     [ObservableProperty] private string? _satirMesaji;
     [ObservableProperty] private string? _satirHatasi;
-    /// <summary>Önizleme bitti: görünüm sonuca ya da hatalara kaydırır.</summary>
-    public event EventHandler? SonucGosterIstendi;
+    /// <summary>İşlem bitti: görünüm sonucuna kaydırır (istenen yer görünür sekmededir).</summary>
+    public event EventHandler<EkstreSonucu>? SonucGosterIstendi;
+    private void SonucuGoster(EkstreSonucu sonuc) => SonucGosterIstendi?.Invoke(this, sonuc);
     /// <summary>Satıra gidilmesi istendi (hata listesinden): görünüm listeyi satıra kaydırır.</summary>
     public event EventHandler<EkstreSatirEditor>? SatirGosterIstendi;
 
@@ -75,7 +81,7 @@ public partial class EkstreAktarmaViewModel
     // ---- Toplamlar ----
 
     /// <summary>Belgenin TL satırlarının giriş, çıkış toplamı ve belirsiz sayısı (PDF'in toplamlarıyla karşılaştırmak için).</summary>
-    public string YonOzeti => BelgeVar ? Toplam(Satirlar.Where(s => s.Kapali || s.Secilebilir)) : "";
+    public string YonOzeti => BelgeVar ? Toplam(Satirlar.Where(s => s.ToplamaGirer)) : "";
     /// <summary>İşaretli satırların toplamı; hiçbiri işaretli değilse ne yapılacağı.</summary>
     public string SecimOzeti => Satirlar.Count(s => s.Secili) is var n and > 0 ? $"{n} satır işaretli · {Toplam(Satirlar.Where(s => s.Secili))}" : "Hiç satır işaretli değil.";
     private static string Toplam(IEnumerable<EkstreSatirEditor> satirlar)
@@ -87,7 +93,9 @@ public partial class EkstreAktarmaViewModel
             return $"{ad}{Bicim.Tl(s.Sum(x => x.EtkinTutar ?? 0))} ₺ ({s.Count} satır)";
         }
         var belirsiz = liste.Count(x => x.EtkinYon is not ("Giris" or "Cikis"));
-        return $"{Yon("Giris", "Giriş +")} · {Yon("Cikis", "Çıkış −")}" + (belirsiz > 0 ? $" · Belirsiz {belirsiz} satır" : "");
+        var tutarsiz = liste.Count(x => x.EtkinYon is "Giris" or "Cikis" && x.EtkinTutar is null);
+        return $"{Yon("Giris", "Giriş +")} · {Yon("Cikis", "Çıkış −")}" + (belirsiz > 0 ? $" · Belirsiz {belirsiz} satır" : "")
+            + (tutarsiz > 0 ? $" · {tutarsiz} satırın tutarı okunamadı, toplama girmedi" : "");
     }
 
     // ---- Toplu uygulama ----
@@ -115,6 +123,12 @@ public partial class EkstreAktarmaViewModel
         TakipMetni.Doldur(TopluKanallar, Kanallar.Select(k => new TakipKanalSecimi(k)));
         TopluTur = TopluTurler[0];
         TopluDagilim = kart ? TopluDagilimlar[0] : null;
+    }
+    /// <summary>Yenilemede kanallar değişmiş olabilir (pasif, silinmiş, yeni): işaretler kimlikle korunur.</summary>
+    private void TopluKanallariTazele()
+    {
+        var secili = TopluKanallar.Where(k => k.Secili).Select(k => k.Veri.Id).ToHashSet();
+        TakipMetni.Doldur(TopluKanallar, Kanallar.Select(k => new TakipKanalSecimi(k) { Secili = secili.Contains(k.Id) }));
     }
 
     /// <summary>Türü ve dağılımı işaretli satırlara yazar; kaydetmez, satır seçmez.</summary>
@@ -161,7 +175,7 @@ public partial class EkstreAktarmaViewModel
             if (satirlar.Count == 0)
             {
                 SatirHatasi = "Yok saymak için önce satırların kutularını işaretleyin.";
-                SonucGosterIstendi?.Invoke(this, EventArgs.Empty);
+                SonucuGoster(EkstreSonucu.Satirlar);
                 return;
             }
             if (satirlar.Any(s => !Satirlar.Contains(s) || s.Kayitli || s.YokSayildi == yokSay))
@@ -173,21 +187,29 @@ public partial class EkstreAktarmaViewModel
             if (!Gecerli(n))
                 return;
             _yokSayKey.Temizle();
+            if (yokSay)
+                foreach (var s in satirlar)
+                    _yokSayilanTaslak[s.Kaynak.No] = s;
             BelgeyiYansit(b, koru: true);
-            await KurallariAlAsync(n);
-            if (!Gecerli(n))
-                return;
             var ad = nolar.Length == 1 ? $"Satır {nolar[0]}" : $"{nolar.Length} satır";
             SatirMesaji = yokSay ? $"{ad} yok sayıldı; kasa değişmedi. Kapanan sekmesinden geri alabilirsiniz." : $"{ad} yeniden bekliyor.";
+            await KurallariAlAsync(n);
             // Tek satırda liste yerinde kalır; toplu işlem listenin altındaki düğmeden yapılır, sonuç listenin üstündedir.
-            if (nolar.Length > 1)
-                SonucGosterIstendi?.Invoke(this, EventArgs.Empty);
+            if (Gecerli(n) && nolar.Length > 1)
+                SonucuGoster(EkstreSonucu.Satirlar);
         }, hataIsle: SatirHatasiniYaz);
     }
+    /// <summary>Kapanan sekmesindeki yok sayılan satırların sayısı; birden çoksa hepsi tek düğmeyle geri alınır.</summary>
+    public int YokSayilanSayisi => Kapananlar.Count(s => s.YokSayildi);
+    public bool TopluGeriAlGorunur => YokSayilanSayisi > 1;
+    public string TopluGeriAlDugmesi => $"Yok sayılanların hepsini geri al ({YokSayilanSayisi})";
+    [RelayCommand]
+    private Task YokSayilanlariGeriAlAsync() => YokSayAsync(Kapananlar.Where(s => s.YokSayildi).ToArray(), false);
     private void SatirHatasiniYaz(Exception hata)
     {
+        SatirMesaji = null;
         SatirHatasi = HataMesaji(hata);
-        SonucGosterIstendi?.Invoke(this, EventArgs.Empty);
+        SonucuGoster(EkstreSonucu.Satirlar);
     }
 
     /// <summary>Hiç işlenmemiş belgenin saklanan PDF'ini yeniden okur; satırlar ve taslaklar baştan gelir.</summary>
@@ -206,9 +228,8 @@ public partial class EkstreAktarmaViewModel
                 return;
             _yenidenOkuKey.Temizle();
             BelgeyiYansit(b);
+            SatirMesaji = $"PDF yeniden okundu: {b.Satirlar.Count} satır.";
             await KurallariAlAsync(n);
-            if (Gecerli(n))
-                SatirMesaji = $"PDF yeniden okundu: {b.Satirlar.Count} satır.";
         }, hataIsle: SatirHatasiniYaz);
     }
 
@@ -221,7 +242,9 @@ public partial class EkstreAktarmaViewModel
     {
         TakipMetni.Doldur(OnizlemeHatalari, hatalar);
         OnPropertyChanged(nameof(OnizlemeHataVar));
-        SonucGosterIstendi?.Invoke(this, EventArgs.Empty);
+        // Hatalar Bekleyen bölümündedir; Kapanan açıkken kaydetme çakışırsa neden gizli kalmasın.
+        SeciliSekme = EkstreSekmesi.Bekleyen;
+        SonucuGoster(EkstreSonucu.Onizleme);
     }
     private void HatalariTemizle()
     {
@@ -265,32 +288,59 @@ public partial class EkstreAktarmaViewModel
 
     // ---- Sekmelerin doldurulması ----
 
-    /// <summary>Belgenin satır modelleri. <paramref name="koru"/>: aynı belgenin durumu değişmeyen bekleyen satırları taslağıyla
-    /// (doldurulan alanlar, işaret) korunur; <paramref name="yenile"/> korunmayacak satırlardır (az önce gönderilenler).</summary>
+    /// <summary>Belgenin satır modelleri. <paramref name="koru"/>: aynı belgenin bekleyen satırlarının taslağı (doldurulan alanlar,
+    /// işaret) korunur. Kanal ve kart listesi aynıysa model aynı kalır (açık düzenleyici ve liste yeri bozulmaz); yenilendiyse taslak
+    /// güncel listelere taşınır. <paramref name="yenile"/> korunmayacak satırlardır (az önce gönderilenler).</summary>
     private List<EkstreSatirEditor> SatirlariKur(EkstreBelgeDto b, bool koru, IReadOnlySet<int>? yenile)
     {
-        var eskiler = koru && Belge?.Id == b.Id ? Satirlar.Where(s => !s.Kapali && yenile?.Contains(s.Kaynak.No) != true).ToDictionary(s => s.Kaynak.No) : [];
+        var ayniBelge = koru && Belge?.Id == b.Id;
+        if (!ayniBelge)
+            _yokSayilanTaslak.Clear();
+        var eskiler = ayniBelge ? Satirlar.Where(s => !s.Kapali && yenile?.Contains(s.Kaynak.No) != true).ToDictionary(s => s.Kaynak.No) : [];
         var acikKayitlar = Kayitlar.Where(k => !k.Veri.Iptal).ToDictionary(k => k.Veri.SatirNo);
         var yokSayilan = b.YokSayilanlar?.ToHashSet() ?? [];
         var kanallar = Kanallar.ToArray();
         var kartlar = Kartlar.ToArray();
         return b.Satirlar.Select(s =>
         {
-            if (eskiler.TryGetValue(s.No, out var eski) && eski.Kaynak.KaynakSatir == s.KaynakSatir && !acikKayitlar.ContainsKey(s.No) && !yokSayilan.Contains(s.No))
+            var kapali = acikKayitlar.ContainsKey(s.No) || yokSayilan.Contains(s.No);
+            var eski = !kapali && eskiler.TryGetValue(s.No, out var e) && e.Kaynak.KaynakSatir == s.KaynakSatir ? e : null;
+            if (eski is not null && eski.Kanallar.SequenceEqual(kanallar) && eski.Kartlar.SequenceEqual(kartlar, ReferenceEqualityComparer.Instance))
                 return eski;
             EkstreSatirEditor yeni = null!;
             yeni = new(s, b, kanallar, kartlar, () => SatirDegisti(yeni)) { Kayit = acikKayitlar.GetValueOrDefault(s.No) };
+            if (eski is not null)
+                yeni.TaslagiAl(eski);
+            else if (!kapali && _yokSayilanTaslak.Remove(s.No, out var taslak) && taslak.Kaynak.KaynakSatir == s.KaynakSatir)
+                yeni.TaslagiAl(taslak, isaret: false);
+            if (acikKayitlar.ContainsKey(s.No))
+                _yokSayilanTaslak.Remove(s.No);
             return yeni;
         }).ToList();
     }
 
     private void SekmeleriDoldur()
     {
-        TakipMetni.Doldur(Bekleyenler, Satirlar.Where(s => !s.Kapali));
-        TakipMetni.Doldur(Kapananlar, Satirlar.Where(s => s.Kapali));
+        Esitle(Bekleyenler, Satirlar.Where(s => !s.Kapali).ToList());
+        Esitle(Kapananlar, Satirlar.Where(s => s.Kapali).ToList());
         TakipMetni.Doldur(IptalEdilenler, Kayitlar.Where(k => k.Veri.Iptal));
         Sekmeler[0].Ad = $"Bekleyen ({Bekleyenler.Count})";
         Sekmeler[1].Ad = $"Kapanan ({Kapananlar.Count})";
         OnPropertyChanged(nameof(IptalEdilenVar));
+        OnPropertyChanged(nameof(YokSayilanSayisi));
+        OnPropertyChanged(nameof(TopluGeriAlGorunur));
+        OnPropertyChanged(nameof(TopluGeriAlDugmesi));
+    }
+
+    /// <summary>Listeyi boşaltmadan eşitler: korunan satırların yeri (ve listenin kaydırması) değişmez.</summary>
+    private static void Esitle(ObservableCollection<EkstreSatirEditor> liste, List<EkstreSatirEditor> yeni)
+    {
+        var kalan = yeni.ToHashSet();
+        for (var i = liste.Count - 1; i >= 0; i--)
+            if (!kalan.Contains(liste[i]))
+                liste.RemoveAt(i);
+        for (var i = 0; i < yeni.Count; i++)
+            if (i >= liste.Count || !ReferenceEquals(liste[i], yeni[i]))
+                liste.Insert(i, yeni[i]);
     }
 }

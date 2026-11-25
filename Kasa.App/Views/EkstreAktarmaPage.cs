@@ -44,12 +44,17 @@ public sealed partial class EkstreAktarmaPage : TakipSayfasi<EkstreAktarmaViewMo
         Govde.Add(Editor(Kart("İçe aktarma geçmişi", Liste<EkstreGecmisSatiri>(nameof(vm.Gecmis), s => vm.BelgeAcAsync(s.Veri.Id), "Belgeyi incele"),
             Goster(Dugme("Daha eski belgeleri yükle", nameof(vm.EskiBelgeleriYukleCommand)), nameof(vm.EskiBelgeVar)))));
         KurallariKur();
-        vm.SonucGosterIstendi += (_, _) => Gorunur.Yap(vm.OnizlemeHataVar ? _hataKutusu : vm.OnizlemeVar ? _kontrolKarti : _satirSonucu, KaydirmaHesabi.FormKaydirmasi);
-        vm.SatirGosterIstendi += (_, s) => Gorunur.Yap(_bekleyenListe, KaydirmaHesabi.FormKaydirmasi, () => _bekleyenListe.ScrollTo(s, position: ScrollToPosition.Start, animate: false));
+        vm.SonucGosterIstendi += (_, sonuc) => Gorunur.Yap(sonuc == EkstreSonucu.Satirlar ? _satirSonucu : vm.OnizlemeHataVar ? _hataKutusu : _kontrolKarti,
+            KaydirmaHesabi.FormKaydirmasi);
+        vm.SatirGosterIstendi += (_, s) =>
+        {
+            var liste = s.Kapali ? _kapananListe : _bekleyenListe;
+            Gorunur.Yap(liste, KaydirmaHesabi.FormKaydirmasi, () => liste.ScrollTo(s, position: ScrollToPosition.Start, animate: false));
+        };
     }
     private readonly Border _kontrolKarti;
     // Aşağıdakiler BelgeKarti'nda kurulur (kurucudan bir kez).
-    private CollectionView _bekleyenListe = null!;
+    private CollectionView _bekleyenListe = null!, _kapananListe = null!;
     private Border _hataKutusu = null!;
     private VerticalStackLayout _satirSonucu = null!;
 
@@ -151,7 +156,7 @@ public sealed partial class EkstreAktarmaPage : TakipSayfasi<EkstreAktarmaViewMo
                     + "düzeltebilirsiniz; satırı açmak seçmek değildir. Kaydetmeyeceğiniz satırı yok sayarak kapatabilirsiniz."),
                 _bekleyenListe, secim, TopluBolum(vm),
                 Eylemler(Dugme("Seçilen satırların etkisini göster", nameof(vm.OnizleCommand)),
-                    Goster(Ikincil(Dugme("Seçilenleri yok say", nameof(vm.SeciliyiYokSayCommand))), nameof(vm.YokSayDestekleniyor))),
+                    Goster(Ikincil(Tikla("Seçilenleri yok say", SecilenleriYokSayAsync)), nameof(vm.YokSayDestekleniyor))),
                 _hataKutusu
             }
         };
@@ -179,9 +184,11 @@ public sealed partial class EkstreAktarmaPage : TakipSayfasi<EkstreAktarmaViewMo
 
     private View KapananBolumu(EkstreAktarmaViewModel vm)
     {
-        var liste = new CollectionView { AutomationId = "KapananSatirlar", HeightRequest = 420, SelectionMode = SelectionMode.None, EmptyView = "Kapanan satır yok." };
-        liste.SetBinding(ItemsView.ItemsSourceProperty, nameof(vm.Kapananlar));
-        liste.ItemTemplate = new DataTemplate(() =>
+        _kapananListe = new CollectionView { AutomationId = "KapananSatirlar", HeightRequest = 420, SelectionMode = SelectionMode.None, EmptyView = "Kapanan satır yok." };
+        _kapananListe.SetBinding(ItemsView.ItemsSourceProperty, nameof(vm.Kapananlar));
+        var hepsiniGeriAl = Ikincil(Dugme("", nameof(vm.YokSayilanlariGeriAlCommand)));
+        hepsiniGeriAl.SetBinding(Button.TextProperty, nameof(vm.TopluGeriAlDugmesi));
+        _kapananListe.ItemTemplate = new DataTemplate(() =>
         {
             var satir = new VerticalStackLayout { Spacing = 4, Padding = new Thickness(2, 8) };
             satir.Add(Bagli(nameof(EkstreSatirEditor.KapananBaslik)));
@@ -213,7 +220,8 @@ public sealed partial class EkstreAktarmaPage : TakipSayfasi<EkstreAktarmaViewMo
             Children =
             {
                 Metin("Kaydedilen, eşleştirilen ve yok sayılan satırlar. Kaydı iptal edilen ya da geri alınan satır yeniden bekler."),
-                liste,
+                _kapananListe,
+                Goster(hepsiniGeriAl, nameof(vm.TopluGeriAlGorunur)),
                 Goster(Metin("İptal edilen kayıtlar"), nameof(vm.IptalEdilenVar)),
                 Goster(Liste<EkstreKayitSatiri>(nameof(vm.IptalEdilenler), bosMetin: false), nameof(vm.IptalEdilenVar))
             }
@@ -307,6 +315,13 @@ public sealed partial class EkstreAktarmaPage : TakipSayfasi<EkstreAktarmaViewMo
         satir.Add(grid);
         satir.Add(form);
         return satir;
+    }
+    private async Task SecilenleriYokSayAsync()
+    {
+        var sayi = Vm.Satirlar.Count(s => s.Secili);
+        // Birden çok satır onayla kapanır: düğme "etkisini göster"in yanındadır.
+        if (sayi < 2 || await DisplayAlertAsync("Satırları yok say", $"{sayi} işaretli satır kaydedilmeden kapanacak; kasa değişmez. Kapanan sekmesinden geri alabilirsiniz.", "Yok say", "Vazgeç"))
+            await Vm.SeciliyiYokSayCommand.ExecuteAsync(null);
     }
     private async Task YenidenOkuAsync()
     {

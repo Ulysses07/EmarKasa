@@ -75,6 +75,9 @@ public partial class EkstreAktarmaViewModel(IEkstreAktarmaApi api, IKasaApi fina
         HatalariTemizle();
         SatirMesaji = null;
         SatirHatasi = null;
+        TopluMesaji = null;
+        TopluHatasi = null;
+        _yokSayilanTaslak.Clear();
         AtlananAcik = false;
         Belge = null;
         SeciliSatir = null;
@@ -126,8 +129,9 @@ public partial class EkstreAktarmaViewModel(IEkstreAktarmaApi api, IKasaApi fina
         var seciliBanka = Banka?.Kod;
         TakipMetni.Doldur(Bankalar, bankalar.Select(b => new EkstreSecenek(b.Kod, b.Ad)));
         Banka = Bankalar.FirstOrDefault(b => b.Kod == seciliBanka);
+        // Yenileme (ve bağlantı dönünce kendiliğinden yenileme) doldurulan satırları ve işaretleri silmez.
         if (belge is not null)
-            BelgeyiYansit(belge);
+            BelgeyiYansit(belge, koru: true);
         await KurallariAlAsync(n);
         if (!Gecerli(n))
             return;
@@ -205,7 +209,7 @@ public partial class EkstreAktarmaViewModel(IEkstreAktarmaApi api, IKasaApi fina
         var b = await api.EkstreBelgeAsync(id);
         if (!Gecerli(n))
             return;
-        BelgeyiYansit(b);
+        BelgeyiYansit(b, koru: true);
         await KurallariAlAsync(n);
     });
     public Task KaynakAcAsync(int kayitId) => YurutAsync(async n =>
@@ -216,8 +220,12 @@ public partial class EkstreAktarmaViewModel(IEkstreAktarmaApi api, IKasaApi fina
         var b = await api.EkstreKaynakBelgeAsync(kayitId);
         if (!Gecerli(n))
             return;
-        BelgeyiYansit(b);
+        BelgeyiYansit(b, koru: true);
+        // Aranan kayıt (ya da iptali) Kapanan sekmesindedir.
+        SeciliSekme = EkstreSekmesi.Kapanan;
         await KurallariAlAsync(n);
+        if (Gecerli(n) && Kapananlar.FirstOrDefault(s => s.Kayit?.Veri.Id == kayitId) is { } satir)
+            SatirGosterIstendi?.Invoke(this, satir);
     });
     [RelayCommand]
     private Task EskiBelgeleriYukleAsync() => YurutAsync(async n =>
@@ -238,23 +246,27 @@ public partial class EkstreAktarmaViewModel(IEkstreAktarmaApi api, IKasaApi fina
         var ayniBelge = Belge?.Id == b.Id;
         GirdiDegisti();
         HatalariTemizle();
+        SatirMesaji = null;
+        SatirHatasi = null;
+        TopluMesaji = null;
+        TopluHatasi = null;
         TakipMetni.Doldur(Kayitlar, b.Kayitlar.Select(k => new EkstreKayitSatiri(k)));
         var satirlar = SatirlariKur(b, koru, yenile);
+        // Açık düzenleyici aynı bekleyen satırda kalır (model yenilendiyse yenisinde).
         if (SeciliSatir is { } acik && !satirlar.Contains(acik))
-            SeciliSatir = null;
+            SeciliSatir = koru && ayniBelge && !acik.Kapali ? satirlar.FirstOrDefault(s => s.Kaynak.No == acik.Kaynak.No && !s.Kapali) : null;
         Belge = b;
         TakipMetni.Doldur(Satirlar, satirlar);
         SekmeleriDoldur();
+        if (!ayniBelge || TopluTurler.Count == 0)
+            TopluSecenekleriKur(b);
+        else
+            TopluKanallariTazele();
         if (!ayniBelge)
         {
             SeciliSekme = EkstreSekmesi.Bekleyen;
             AtlananAcik = false;
-            SatirMesaji = null;
-            SatirHatasi = null;
-            TopluSecenekleriKur(b);
         }
-        else if (TopluTurler.Count == 0)
-            TopluSecenekleriKur(b);
         var eski = Gecmis.FirstOrDefault(g => g.Veri.Id == b.Id);
         if (eski is not null)
             Gecmis.Remove(eski);
@@ -306,7 +318,7 @@ public partial class EkstreAktarmaViewModel(IEkstreAktarmaApi api, IKasaApi fina
         OnizlemeMetni = $"{p.Satirlar.Count} satır kaydedilecek. Genel kasa etkisi: {Bicim.Tl(p.KasaEtkisi)} ₺\n" + string.Join("\n", p.Uyarilar) + "\n\n" + string.Join("\n\n", p.Satirlar.Select(s => $"Satır {s.SatirNo} · {s.Tarih:dd.MM.yyyy} · {s.Aciklama} · {Bicim.Tl(s.Tutar)} ₺ · {TurAdi(s.IslemTuru)}\nKasa etkisi: {Bicim.Tl(s.KasaEtkisi)} ₺ · {Dagilim(g.Satirlar.Single(x => x.SatirNo == s.SatirNo), s)}\n{string.Join("\n", s.Uyarilar)}"));
         OnPropertyChanged(nameof(OnizlemeVar));
         OnPropertyChanged(nameof(TekrarOnayGerekli));
-        SonucGosterIstendi?.Invoke(this, EventArgs.Empty);
+        SonucuGoster(EkstreSonucu.Onizleme);
     }, hataIsle: OnizlemeHatasiniYaz);
     private string TurAdi(string kod) => Satirlar.SelectMany(s => s.IslemTurleri).FirstOrDefault(t => t.Kod == kod)?.Ad ?? kod;
     private static string Dagilim(EkstreSatirYaz girdi, EkstreSatirOnizleme satir) => girdi.IslemTuru == EkstreIslemTurleri.Eslestir
@@ -327,13 +339,11 @@ public partial class EkstreAktarmaViewModel(IEkstreAktarmaApi api, IKasaApi fina
                 return;
             BelgeyiYansit(b, koru: true, yenile: g.Satirlar.Select(s => s.SatirNo).ToHashSet());
             _kayitKey.Temizle();
-            await KurallariAlAsync(n);
-            if (!Gecerli(n))
-                return;
             Mesaj = "Seçilen satırlar kaydedildi. Diğer satırlar değişmedi.";
             SatirMesaji = $"{g.Satirlar.Count} satır kaydedildi ve Kapanan sekmesine geçti.";
-            SatirHatasi = null;
-            SonucGosterIstendi?.Invoke(this, EventArgs.Empty);
+            await KurallariAlAsync(n);
+            if (Gecerli(n))
+                SonucuGoster(EkstreSonucu.Satirlar);
         }
         catch (KasaApiException e) when (e.DurumKodu == HttpStatusCode.Conflict)
         {
@@ -371,25 +381,28 @@ public partial class EkstreAktarmaViewModel(IEkstreAktarmaApi api, IKasaApi fina
     public Task KayitIptalAsync(EkstreKayitSatiri satir, string aciklama, int onayOturumu, int belgeId) => YurutAsync(async n =>
     {
         if (!EditorMu || !VeriHazir || onayOturumu != n || Belge?.Id != belgeId || !Kayitlar.Any(k => ReferenceEquals(k, satir)) || satir.Veri.Iptal || string.IsNullOrWhiteSpace(aciklama))
-        { Hata = "Geçerli kaydı seçip gerekçeyi yeniden onaylayın."; return; }
+        {
+            Hata = "Geçerli kaydı seçip gerekçeyi yeniden onaylayın.";
+            SatirMesaji = null;
+            SatirHatasi = Hata;
+            SonucuGoster(EkstreSonucu.Satirlar);
+            return;
+        }
         var g = new EkstreIptalYaz(_iptalKey.Al(new { belgeId, satir.Veri.Id, Aciklama = aciklama.Trim() }), aciklama.Trim());
         var b = await api.EkstreKayitIptalAsync(belgeId, satir.Veri.Id, g);
         if (!Gecerli(n))
             return;
         BelgeyiYansit(b, koru: true);
         _iptalKey.Temizle();
-        await KurallariAlAsync(n);
-        if (!Gecerli(n))
-            return;
         Mesaj = "Kaydın iptali işlendi; kaynak ve geçmiş korundu.";
         SatirMesaji = $"Satır {satir.Veri.SatirNo} kaydı iptal edildi; satır yeniden bekliyor.";
-        SatirHatasi = null;
+        await KurallariAlAsync(n);
     }, hataIsle: e =>
     {
         Hata = HataMesaji(e);
         SatirMesaji = null;
         SatirHatasi = Hata;
-        SonucGosterIstendi?.Invoke(this, EventArgs.Empty);
+        SonucuGoster(EkstreSonucu.Satirlar);
     });
     /// <summary>Kaynak PDF'i <paramref name="hedef"/>'e yazar; hata, başka belge ya da eski oturumda null.</summary>
     public async Task<IndirmeBilgisi?> DosyaAsync(Stream hedef)
