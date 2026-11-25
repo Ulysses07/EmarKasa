@@ -561,6 +561,8 @@ public static partial class FinansTakipEndpoints
     }));
     internal static IResult Safe(Func<IResult> run) { try { return run(); } catch (TakipHatasi e) { return Results.Json(new { hata = e.Message }, statusCode: e.Status); } }
     private sealed class TakipHatasi(int status, string message) : Exception(message) { public int Status => status; }
+    /// <summary>İletisi kullanıcıya gösterilen takip hatasının HTTP durumu; başka istisnada null.</summary>
+    internal static int? Hata(Exception e) => (e as TakipHatasi)?.Status;
     internal static void Require([System.Diagnostics.CodeAnalysis.DoesNotReturnIf(false)] bool valid, string message, int status = 400) { if (!valid) throw new TakipHatasi(status, message); }
     private static void Money(decimal value, bool signed = false) => Require(value >= (signed ? -999_999_999_999.99m : 0) && value <= 999_999_999_999.99m && decimal.Round(value, 2) == value, "Tutar kuruş hassasiyetinde ve izin verilen sınırda olmalı.");
     private static void Date(DateOnly value) => Require(value != default && value.Year <= 9990, "Geçerli tarih seçin.");

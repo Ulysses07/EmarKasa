@@ -320,7 +320,7 @@ internal static class DenetimYakalayici
         {
             byte[] b => $"{b.Length} bayt",
             // Ekstre belgesinin ayrıştırılmış satırları büyük olabilir; kaynak dosya zaten saklanır.
-            string s when p.Name == nameof(EkstreBelgeEntity.SatirlarJson) && s.Length > 4000 => $"{s.Length} karakter",
+            string s when p.Name is nameof(EkstreBelgeEntity.SatirlarJson) or nameof(EkstreBelgeEntity.AtlananJson) && s.Length > 4000 => $"{s.Length} karakter",
             _ => deger,
         };
     }

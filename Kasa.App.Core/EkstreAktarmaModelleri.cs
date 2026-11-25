@@ -17,10 +17,11 @@ public partial class EkstreSatirEditor : ObservableObject
     public bool Kayitli { get; }
     /// <summary>Satırın iptal edilmemiş kaydı mevcut bir kayıtla eşleştirildiyse durumu ("Mevcut kayıtla eşleşti (#id)"); yoksa null.</summary>
     public string? EslesmeDurumu { get; }
-    public bool Secilebilir => !Kayitli && Kaynak.ParaBirimi is "TRY" or "TL" or "Belirsiz";
-    public string KaynakMetni => $"Sayfa {Kaynak.Sayfa} · satır {Kaynak.No} · {Kaynak.Yon} · {Kaynak.ParaBirimi}\n{Kaynak.KaynakSatir}";
-    public string Uyarilar => string.Join("\n", Kaynak.Uyarilar.Concat(Kayitli ? [EslesmeDurumu is { } durum ? $"{durum}. Bağı kaldırmak için kaydını iptal edin." : "Bu satır zaten kaydedildi. Yeniden kaydetmek için önce kaydını iptal edin."] : []).Concat(!Secilebilir && !Kayitli ? ["Yalnız TL hareketleri kaydedilebilir."] : []));
-    public string Ozet => $"#{Kaynak.No} · {TarihMetni} · {Aciklama} · {TutarMetni} {Kaynak.ParaBirimi}" + (EslesmeDurumu is { } durum ? $" · {durum}" : "");
+    private bool TlMi => Kaynak.ParaBirimi is "TRY" or "TL" or "Belirsiz";
+    public bool Secilebilir => !Kapali && TlMi;
+    public string KaynakMetni => $"Sayfa {Kaynak.Sayfa} · satır {Kaynak.No} · {YonAdi(Kaynak.Yon)} · {Kaynak.ParaBirimi}\n{Kaynak.KaynakSatir}";
+    public string Uyarilar => string.Join("\n", Kaynak.Uyarilar.Concat(Kayitli ? [EslesmeDurumu is { } durum ? $"{durum}. Bağı kaldırmak için kaydını iptal edin." : "Bu satır zaten kaydedildi. Yeniden kaydetmek için önce kaydını iptal edin."] : []).Concat(!TlMi && !Kapali ? ["Yalnız TL hareketleri kaydedilebilir."] : []));
+    public string Ozet => $"#{Kaynak.No} · {TarihYazisi} · {Aciklama} · {TutarYazisi}" + (EslesmeDurumu is { } durum ? $" · {durum}" : "");
     public IReadOnlyList<EkstreSecenek> IslemTurleri { get; }
     public IReadOnlyList<EkstreSecenek> DagilimTurleri { get; } = [new(DagilimBicimleri.Genel, "Yalnız genel kasa"), new(DagilimBicimleri.Esit, "Seçilen kanallara eşit"), new(DagilimBicimleri.Ozel, "Özel kanal tutarları"), new(DagilimBicimleri.Otomatik, "Kartın kayıtlı dağılımı")];
     public IReadOnlyList<KartTakipDto> Kartlar { get; }
@@ -50,6 +51,9 @@ public partial class EkstreSatirEditor : ObservableObject
         Kaynak = kaynak;
         var kayit = belge.Kayitlar.FirstOrDefault(k => k.SatirNo == kaynak.No && !k.Iptal);
         Kayitli = kayit is not null;
+        YokSayildi = !Kayitli && belge.YokSayilanlar?.Contains(kaynak.No) == true;
+        YokSayilabilir = belge.YokSayilanlar is not null && !Kapali;
+        _kartBelgesi = belge.Kaynak == EkstreKaynaklari.Kart;
         if (kayit is { IslemTuru: EkstreIslemTurleri.Eslestir })
             EslesmeDurumu = $"Mevcut kayıtla eşleşti ({EslesmeAdayiSatiri.TurAdi(kayit.EslesmeTuru)} #{kayit.EslesmeId})";
         Kanallar = kanallar;
@@ -114,54 +118,88 @@ public partial class EkstreSatirEditor : ObservableObject
             base.OnPropertyChanged(new PropertyChangedEventArgs(nameof(Ozet)));
         if (e.PropertyName is nameof(TarihMetni) or nameof(TutarMetni) && EslesmeAdaylari.Count > 0)
             AdaylariTemizle();
-        _degisti?.Invoke();
+        if (e.PropertyName == nameof(IslemTuru))
+        {
+            base.OnPropertyChanged(new PropertyChangedEventArgs(nameof(EtkinYon)));
+            base.OnPropertyChanged(new PropertyChangedEventArgs(nameof(YonMetni)));
+        }
+        // Öneri gelmesi gibi gösterim değişiklikleri önizlemeyi ve onayı geçersiz kılmaz; yalnız kaydedilecek alanlar ve seçim.
+        if (e.PropertyName is nameof(Secili) or nameof(TarihMetni) or nameof(Aciklama) or nameof(TutarMetni) or nameof(IslemTuru) or nameof(DagilimTuru) or nameof(Kart) or nameof(KaynakHarcama) or nameof(SeciliAday))
+            _degisti?.Invoke();
     }
     public EkstreSatirYaz Yaz()
     {
-        void Hata(string s) => throw new DogrulamaHatasi($"Satır {Kaynak.No}: {s}");
+        var (yaz, hatalar) = Hazirla();
+        return yaz ?? throw new DogrulamaHatasi($"Satır {Kaynak.No}: {hatalar[0]}");
+    }
+    /// <summary>Satırın gönderilecek biçimi ya da bütün eksikleri (ilk eksikte durmaz; kullanıcı hepsini bir kerede görür).</summary>
+    public (EkstreSatirYaz? Yaz, IReadOnlyList<string> Hatalar) Hazirla()
+    {
         if (!Secilebilir)
-            Hata(Kayitli ? "Bu satır zaten kayıtlı." : "Yalnız TL hareketleri kaydedilebilir.");
+            return (null, [Kayitli ? "Bu satır zaten kayıtlı." : YokSayildi ? "Bu satır yok sayıldı." : "Yalnız TL hareketleri kaydedilebilir."]);
+        var hatalar = new List<string>();
         if (!DateOnly.TryParseExact(TarihMetni.Trim(), "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var tarih))
-            Hata("Tarihi yıl-ay-gün biçiminde girin (2026-09-27).");
+            hatalar.Add("Tarihi yıl-ay-gün biçiminde girin (2026-09-27).");
         // Diğer para girişleriyle aynı kural: '1.500' 1,50 TL sayılmaz, hata verir.
         if (!ParaAyristirici.Coz(TutarMetni, out var tutar, out var paraHatasi))
-            Hata(paraHatasi!);
-        if (tutar <= 0 || decimal.Round(tutar, 2) != tutar)
-            Hata("Tutar pozitif ve kuruş hassasiyetinde olmalı.");
+            hatalar.Add(paraHatasi!);
+        else if (tutar <= 0 || decimal.Round(tutar, 2) != tutar)
+            hatalar.Add("Tutar pozitif ve kuruş hassasiyetinde olmalı.");
         if (string.IsNullOrWhiteSpace(Aciklama))
-            Hata("Açıklamayı doldurun.");
+            hatalar.Add("Açıklamayı doldurun.");
         if (IslemTuru is null || !IslemTurleri.Contains(IslemTuru))
-            Hata("İşlem türünü seçin.");
-        var tur = IslemTuru!.Kod;
+        {
+            hatalar.Add("İşlem türünü seçin.");
+            return (null, hatalar);
+        }
+        var tur = IslemTuru.Kod;
         var dagilim = DagilimTuru?.Kod;
         if (tur == EkstreIslemTurleri.Eslestir)
         {
             // Yalnız bağ: kanal dağılımı, kart ve iade kaynağı gönderilmez; kart eşleşen kayıttan okunur.
             if (SeciliAday is null || !EslesmeAdaylari.Contains(SeciliAday))
-                Hata("Eşleşme adaylarını getirip bağlanacak mevcut kaydı seçin.");
-            return new(Kaynak.No, tarih, Aciklama.Trim(), tutar, EkstreIslemTurleri.Eslestir, DagilimBicimleri.Eslesme, [], null, null, SeciliAday!.Veri.Tur, SeciliAday.Veri.Id);
+                hatalar.Add("Eşleşme adaylarını getirip bağlanacak mevcut kaydı seçin.");
+            return hatalar.Count > 0 ? (null, hatalar)
+                : (new(Kaynak.No, tarih, Aciklama.Trim(), tutar, EkstreIslemTurleri.Eslestir, DagilimBicimleri.Eslesme, [], null, null, SeciliAday!.Veri.Tur, SeciliAday.Veri.Id), []);
         }
         IReadOnlyList<KanalPayYaz> paylar = [];
         if (tur is EkstreIslemTurleri.KartOdemesi or EkstreIslemTurleri.KartIade)
             dagilim = DagilimBicimleri.Otomatik;
         else if (dagilim == DagilimBicimleri.Ozel)
-        { paylar = TakipMetni.Paylar(Paylar); if (paylar.Sum(x => x.Tutar) != tutar) Hata("Kanal tutarları hareket tutarına eşit olmalı."); }
+        {
+            try
+            {
+                paylar = TakipMetni.Paylar(Paylar);
+                if (paylar.Sum(x => x.Tutar) != tutar)
+                    hatalar.Add("Kanal tutarları hareket tutarına eşit olmalı.");
+            }
+            catch (DogrulamaHatasi e) { hatalar.Add(e.Message); }
+        }
         else if (dagilim == DagilimBicimleri.Esit)
-        { if (Paylar.Count == 0 || Paylar.Any(p => p.Kanal is null) || Paylar.Select(p => p.Kanal!.Id).Distinct().Count() != Paylar.Count) Hata("Dağıtılacak kanalları birer kez seçin."); paylar = Paylar.Select(p => new KanalPayYaz(p.Kanal!.Id, 0)).ToList(); }
+        {
+            if (Paylar.Count == 0 || Paylar.Any(p => p.Kanal is null) || Paylar.Select(p => p.Kanal!.Id).Distinct().Count() != Paylar.Count)
+                hatalar.Add("Dağıtılacak kanalları birer kez seçin.");
+            else
+                paylar = Paylar.Select(p => new KanalPayYaz(p.Kanal!.Id, 0)).ToList();
+        }
         else if (dagilim != DagilimBicimleri.Genel || tur == EkstreIslemTurleri.KartHarcama)
-            Hata("Bu hareket için kanal dağılımını seçin.");
+            hatalar.Add("Bu hareket için kanal dağılımını seçin.");
         if (tur is EkstreIslemTurleri.KartHarcama or EkstreIslemTurleri.KartIade or EkstreIslemTurleri.KartOdemesi && Kart is null)
-            Hata("Yeni takibe alınmış kartı seçin.");
+            hatalar.Add("Yeni takibe alınmış kartı seçin.");
         if (tur == EkstreIslemTurleri.KartIade && (KaynakHarcama is null || !KaynakHarcamalar.Contains(KaynakHarcama)))
-            Hata("İadenin kaynak harcamasını seçin.");
-        return new(Kaynak.No, tarih, Aciklama.Trim(), tutar, tur, dagilim!, paylar, tur is EkstreIslemTurleri.KartHarcama or EkstreIslemTurleri.KartIade or EkstreIslemTurleri.KartOdemesi ? Kart?.Id : null, tur == EkstreIslemTurleri.KartIade ? KaynakHarcama?.Veri.Id : null);
+            hatalar.Add("İadenin kaynak harcamasını seçin.");
+        return hatalar.Count > 0 ? (null, hatalar)
+            : (new(Kaynak.No, tarih, Aciklama.Trim(), tutar, tur, dagilim!, paylar, tur is EkstreIslemTurleri.KartHarcama or EkstreIslemTurleri.KartIade or EkstreIslemTurleri.KartOdemesi ? Kart?.Id : null, tur == EkstreIslemTurleri.KartIade ? KaynakHarcama?.Veri.Id : null), []);
     }
 }
 
 public record EkstreGecmisSatiri(EkstreBelgeOzetDto Veri)
 {
     public string Baslik => $"{Veri.Yuklendi.LocalDateTime:dd.MM.yyyy HH:mm} · {Veri.DosyaAdi}";
-    public string Ozet => $"{Veri.Banka} · {Veri.Kaynak} · {Veri.HesapAdi} · {Veri.SatirSayisi} satır · {Veri.KayitSayisi} kayıt";
+    /// <summary>Kapanan satır: iptal edilmemiş kaydı olan ya da yok sayılan (bir satır ikisi birden olamaz).</summary>
+    public int Kapanan => Veri.KayitSayisi + Veri.YokSayilanSayisi;
+    public string Ozet => $"{Veri.Banka} · {Veri.Kaynak} · {Veri.HesapAdi} · {Veri.SatirSayisi} satır · {Math.Max(0, Veri.SatirSayisi - Kapanan)} bekliyor · {Kapanan} kapandı"
+        + (Veri.YokSayilanSayisi > 0 ? $" ({Veri.KayitSayisi} kayıt, {Veri.YokSayilanSayisi} yok sayıldı)" : "");
 }
 public record EkstreKayitSatiri(EkstreKayitDto Veri)
 {

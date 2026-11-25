@@ -16,7 +16,13 @@ Tüm içe aktarma rotaları Editor-only. API path `/api/ekstre-aktar`.
 - POST `/{id}/kayitlar/{kayitId}/iptal` `EkstreIptalYaz(Guid IstekId,string Aciklama)` → güncel belge. Kilit ve diğer finance cancellation kuralları geçerli. Kaynak satırı yeniden import etmek için iptal tarihçesi korunur; yeni açık kayıt mümkündür. Eşleştirme satırının iptali yalnız bağı kaldırır (hiçbir kayıt, kasa ya da kart borcu değişmez). Kaydı alış ödemesine bağlanmış satır, ödeme alıştan ayrılmadan iptal edilemez (409, alış numarasıyla).
 - POST `/{id}/eslesme-adaylari` `EkstreEslesmeAdayiSorgu(DateOnly Tarih,decimal Tutar)` → `IReadOnlyList<EkstreEslesmeAdayiDto>`. Salt okunur (anlık görüntü, yazma kilidi yok). Satırın eşleştirilebileceği mevcut kayıtlar; kural ve kaynaklar aşağıda ("Mevcut kayıtla eşleştirme").
 
+- POST `/{id}/yok-say` `EkstreYokSayYaz(Guid IstekId,int Surum,IReadOnlyList<int> SatirNolar,bool YokSay)` → güncel belge (2026-11-25). Satırları kaydetmeden kapatır ya da geri açar; mali etkisi yok, ay kilidi aranmaz. Kayıtlı satır ve eski sürüm 409.
+- POST `/{id}/yeniden-oku` `EkstreYenidenOkuYaz(Guid IstekId,int Surum)` → saklanan PDF'i yeniden okur (2026-11-25). Yalnız hiç kaydı (iptal edilmiş dahil) ve yok sayılan satırı olmayan belge; değilse 409. Yükleme ile aynı hız sınırı.
+- Önizleme/kaydetme doğrulama hataları satır satır ve toplu döner: `hata` alanında her biri `Satır N: ileti` olan satırlar (2026-11-25). Ayrıntı: `2026-11-25-pdf-ekrani.md`.
+
 ## DTO (camelCase JSON; API root ortak DTO dosyasını yazacak)
+
+2026-11-25 ekleri (hepsi kaydın sonunda): `EkstreBelgeOzetDto.YokSayilanSayisi`, `EkstreBelgeDto.YokSayilanlar/Atlananlar/YenidenOkunabilir`, `EkstreOkunanSatir.YonKaynagi`, `EkstreAtlananSatir(int Sayfa,string Metin,string Neden)`.
 
 ```csharp
 public record EkstreBelgeOzetDto(int Id,int Surum,string Kaynak,string Banka,string HesapAdi,int? KartId,string DosyaAdi,DateTimeOffset Yuklendi,int SatirSayisi,int KayitSayisi);

@@ -3,9 +3,20 @@ namespace Kasa.Api;
 /// <summary>Ekstre yüklemede seçilebilen banka: <paramref name="Kod"/> yükleme formundaki 'banka' alanının ve belgenin Banka
 /// değeri, <paramref name="Ad"/> görünen adı. GET /api/ekstre-aktar/bankalar'ın öğesi (web ve masaüstü listeyi yalnız buradan alır).</summary>
 public record EkstreBankaDto(string Kod, string Ad);
-public record EkstreBelgeOzetDto(int Id, int Surum, string Kaynak, string Banka, string HesapAdi, int? KartId, string DosyaAdi, DateTimeOffset Yuklendi, int SatirSayisi, int KayitSayisi);
-public record EkstreBelgeDto(int Id, int Surum, string Kaynak, string Banka, string HesapAdi, int? KartId, string DosyaAdi, DateTimeOffset Yuklendi, IReadOnlyList<string> Uyarilar, IReadOnlyList<EkstreOkunanSatir> Satirlar, IReadOnlyList<EkstreKayitDto> Kayitlar);
-public record EkstreOkunanSatir(int No, int Sayfa, string KaynakSatir, DateOnly? Tarih, string Aciklama, decimal? Tutar, string Yon, string OnerilenIslem, string Sinif, string ParaBirimi, IReadOnlyList<string> Uyarilar);
+public record EkstreBelgeOzetDto(int Id, int Surum, string Kaynak, string Banka, string HesapAdi, int? KartId, string DosyaAdi, DateTimeOffset Yuklendi, int SatirSayisi, int KayitSayisi, int YokSayilanSayisi = 0);
+/// <summary><paramref name="YokSayilanlar"/>: kaydetmeden kapatılan satır numaraları. <paramref name="Atlananlar"/>: tutar içerdiği hâlde
+/// harekete alınmayan satırlar. <paramref name="YenidenOkunabilir"/>: hiç kaydı ve yok sayılan satırı yok, saklanan PDF yeniden okunabilir.</summary>
+public record EkstreBelgeDto(int Id, int Surum, string Kaynak, string Banka, string HesapAdi, int? KartId, string DosyaAdi, DateTimeOffset Yuklendi, IReadOnlyList<string> Uyarilar, IReadOnlyList<EkstreOkunanSatir> Satirlar, IReadOnlyList<EkstreKayitDto> Kayitlar,
+    IReadOnlyList<int> YokSayilanlar, IReadOnlyList<EkstreAtlananSatir> Atlananlar, bool YenidenOkunabilir);
+/// <summary>POST /api/ekstre-aktar/{id}/yok-say gövdesi: satırları kaydetmeden kapatır (<paramref name="YokSay"/> true) ya da geri açar.</summary>
+public record EkstreYokSayYaz(Guid IstekId, int Surum, IReadOnlyList<int> SatirNolar, bool YokSay);
+/// <summary>POST /api/ekstre-aktar/{id}/yeniden-oku gövdesi.</summary>
+public record EkstreYenidenOkuYaz(Guid IstekId, int Surum);
+/// <summary><paramref name="YonKaynagi"/>: yönün dayanağı (Kasa.Core.Kodlar.YonKaynaklari); yön belirsizse, kart harcaması varsayımıysa ya da satır bu
+/// alandan önce okunduysa null.</summary>
+public record EkstreOkunanSatir(int No, int Sayfa, string KaynakSatir, DateOnly? Tarih, string Aciklama, decimal? Tutar, string Yon, string OnerilenIslem, string Sinif, string ParaBirimi, IReadOnlyList<string> Uyarilar, string? YonKaynagi = null);
+/// <summary>PDF'de tutar içerdiği hâlde harekete alınmayan satır ve nedeni.</summary>
+public record EkstreAtlananSatir(int Sayfa, string Metin, string Neden);
 /// <summary><paramref name="IptalAciklamasi"/> ve <paramref name="IptalZamani"/> yalnız iptal edilmiş satırda doludur; iptal anı denetim izinden
 /// okunur, sürüm öncesi iptalde bilinmez (null). <paramref name="EslesmeTuru"/>/<paramref name="EslesmeId"/>: satırın bağlı olduğu mevcut
 /// kayıt ('Gider', 'KartHarcama', 'KartTaksidi', 'KartOdeme'). İşlem türü 'Eslestir' olan satır yalnız bağdır; kendi kaydını üretip
@@ -31,4 +42,4 @@ public record EkstreKaydetYaz(Guid IstekId, int Surum, IReadOnlyList<EkstreSatir
 public record EkstreSatirOnizleme(int SatirNo, DateOnly Tarih, string Aciklama, decimal Tutar, string IslemTuru, decimal KasaEtkisi, IReadOnlyList<TakipKanalPayi> Dagilimlar, IReadOnlyList<string> Uyarilar);
 public record EkstreOnizlemeDto(string OnizlemeOzeti, decimal KasaEtkisi, IReadOnlyList<EkstreSatirOnizleme> Satirlar, IReadOnlyList<string> Uyarilar, bool TekrarOnayGerekli);
 public record EkstreIptalYaz(Guid IstekId, string Aciklama);
-public record EkstreOkumaSonucu(IReadOnlyList<EkstreOkunanSatir> Satirlar, IReadOnlyList<string> Uyarilar);
+public record EkstreOkumaSonucu(IReadOnlyList<EkstreOkunanSatir> Satirlar, IReadOnlyList<string> Uyarilar, IReadOnlyList<EkstreAtlananSatir> Atlananlar);

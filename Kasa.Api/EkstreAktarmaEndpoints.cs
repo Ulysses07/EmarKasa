@@ -24,6 +24,7 @@ public static partial class EkstreAktarmaEndpoints
     {
         var api = app.MapGroup("/api/ekstre-aktar").RequireAuthorization("Editor");
         MapKurallar(api);
+        MapSatirDurumu(api);
         api.MapPost("/yukle", Upload).RequireRateLimiting("guvenlik")
             .WithMetadata(new Microsoft.AspNetCore.Mvc.RequestSizeLimitAttribute(FileLimit + 65536),
                 new Microsoft.AspNetCore.Mvc.RequestFormLimitsAttribute { MultipartBodyLengthLimit = FileLimit + 65536 });
@@ -33,7 +34,8 @@ public static partial class EkstreAktarmaEndpoints
             return Results.Ok(db.EkstreBelgeler.AsNoTracking().Where(d => beforeId == null || d.Id < beforeId).OrderByDescending(d => d.Id).Take(50)
             .Select(d => new { d.Id, d.Surum, d.Kaynak, d.Banka, d.HesapAdi, d.KartId, d.DosyaAdi, d.Yuklendi, d.SatirlarJson }).ToList()
             .Select(d => new EkstreBelgeOzetDto(d.Id, d.Surum, d.Kaynak, d.Banka, d.HesapAdi, d.KartId, d.DosyaAdi,
-                DateTimeOffset.FromUnixTimeMilliseconds(d.Yuklendi), Read<EkstreOkunanSatir>(d.SatirlarJson).Count, db.EkstreKayitlar.Count(k => k.BelgeId == d.Id && !k.Iptal))).ToList());
+                DateTimeOffset.FromUnixTimeMilliseconds(d.Yuklendi), Read<EkstreOkunanSatir>(d.SatirlarJson).Count, db.EkstreKayitlar.Count(k => k.BelgeId == d.Id && !k.Iptal),
+                db.EkstreYokSayilanlar.Count(y => y.BelgeId == d.Id))).ToList());
         }));
         api.MapGet("/{id:int}", (int id, KasaDbContext db) => Safe(() => Results.Ok(Document(db, id))));
         api.MapGet("/kayitlar/{kayitId:int}", (int kayitId, KasaDbContext db) => Safe(() =>
@@ -188,16 +190,9 @@ public static partial class EkstreAktarmaEndpoints
             ? Results.Ok(Document(db, d.Id)) : Error("Bu PDF farklı kaynak bilgileriyle yüklenmiş. İlk belgeden devam edin.", 409);
         if (existing is not null)
             return Existing(existing);
-        EkstreOkumaSonucu read;
-        try
-        { read = EkstreMetinOkuyucu.Oku(await pdf.OkuAsync(bytes, ct), source, bank); }
-        catch (PdfOkumaException e) { return Error(e.Message, e.StatusCode); }
-        if (read.Satirlar.Count > 1500)
-            return Error("PDF en fazla 1500 hareket içerebilir.", 422);
-        var rows = Json(read.Satirlar);
-        var warnings = Json(read.Uyarilar);
-        if (rows.Length > 4_000_000 || warnings.Length > 100_000)
-            return Error("PDF metni çok uzun; daha kısa tarih aralığı seçin.", 422);
+        var (read, hata) = await PdfOku(pdf, bytes, source, bank, ct);
+        if (read is null)
+            return hata!;
         var name = Path.GetFileName(file.FileName.Replace('\\', '/'));
         name = new string(name.Where(c => !char.IsControl(c)).Take(180).ToArray());
         if (string.IsNullOrWhiteSpace(name))
@@ -222,13 +217,30 @@ public static partial class EkstreAktarmaEndpoints
                 DosyaAdi = name,
                 DosyaOzeti = hash,
                 Yuklendi = saat.GetUtcNow().ToUnixTimeMilliseconds(),
-                SatirlarJson = rows,
-                UyarilarJson = warnings
+                SatirlarJson = read.Satirlar,
+                UyarilarJson = read.Uyarilar,
+                AtlananJson = read.Atlananlar
             };
             db.EkstreBelgeler.Add(d);
             db.SaveChanges();
             return Results.Ok(Document(db, d.Id));
         }));
+    }
+
+    /// <summary>Okunan belgenin saklanacak biçimi (Json).</summary>
+    private sealed record OkunanBelge(string Satirlar, string Uyarilar, string Atlananlar);
+    private static async Task<(OkunanBelge? Belge, IResult? Hata)> PdfOku(IPdfMetinOkuyucu pdf, byte[] bytes, string source, string bank, CancellationToken ct)
+    {
+        EkstreOkumaSonucu read;
+        try
+        { read = EkstreMetinOkuyucu.Oku(await pdf.OkuAsync(bytes, ct), source, bank); }
+        catch (PdfOkumaException e) { return (null, Error(e.Message, e.StatusCode)); }
+        if (read.Satirlar.Count > 1500)
+            return (null, Error("PDF en fazla 1500 hareket içerebilir.", 422));
+        var belge = new OkunanBelge(Json(read.Satirlar), Json(read.Uyarilar), Json(read.Atlananlar));
+        if (belge.Satirlar.Length > 4_000_000 || belge.Uyarilar.Length > 100_000)
+            return (null, Error("PDF metni çok uzun; daha kısa tarih aralığı seçin.", 422));
+        return (belge, null);
     }
 
     private sealed record KartSurumu(int KrediKartiId, int Surum);
@@ -263,10 +275,15 @@ public static partial class EkstreAktarmaEndpoints
             // Bu belgenin önceden kaydedilmiş ve bu önizlemede uygulanan satırları (EkstreKayit kimlikleri): benzerlikte yalnız aynı günde sayılır.
             var sameDocument = db.EkstreKayitlar.AsNoTracking().Where(k => k.BelgeId == id).Select(k => k.Id).ToHashSet();
             db.EkstreDegisikligi = true;
+            var errors = new List<SatirHatasi>();
             foreach (var row in dto.Satirlar)
             {
-                Require(sourceRows.TryGetValue(row.SatirNo, out var original), "Kaynak satır bu PDF'de bulunamadı.");
-                Validate(db, document, row, original);
+                if (RowError(row.SatirNo, () => Validate(db, document, row, sourceRows.GetValueOrDefault(row.SatirNo))) is { } invalid)
+                { errors.Add(invalid); continue; }
+                // Hatalı satır varken hiçbiri uygulanmaz; kalanlar yalnız doğrulanır ki eksikler bir kerede söylensin.
+                if (errors.Count > 0)
+                    continue;
+                var original = sourceRows[row.SatirNo];
                 var notices = original.Uyarilar.ToList();
                 if (original.ParaBirimi == "Belirsiz")
                     notices.Add("Para birimi okunamadı. Bu satırı TL olarak kaydettiğinizi doğrulayın.");
@@ -281,11 +298,15 @@ public static partial class EkstreAktarmaEndpoints
                         notices.Add("Kendi hesaplarınız arasındaki transfer genel kasayı değiştirmez; böyle bir satırı seçmeden bırakın. Gelir/gider olarak işlerseniz genel kasa değişir.");
                     notices.AddRange(Duplicates(db, similar, document, row, batch, sameDocument));
                 }
-                var applied = Apply(db, document, row);
+                EkstreKayitEntity applied = null!;
+                if (RowError(row.SatirNo, () => applied = Apply(db, document, row)) is { } failed)
+                    throw new ImportException(failed.Metin, failed.Durum);
                 batch[applied.Id] = row.SatirNo;
                 sameDocument.Add(applied.Id);
                 selected.Add((row, applied, notices));
             }
+            if (errors.Count > 0)
+                throw new ImportException(string.Join("\n", errors.Select(e => e.Metin)), errors[0].Durum);
             // A later selected charge may allocate an earlier payment's advance.
             // Present the final batch state, not the intermediate row order.
             RefreshPaymentSnapshots(db, selected.Select(s => s.Applied));
@@ -320,8 +341,24 @@ public static partial class EkstreAktarmaEndpoints
         return new(digest, output.Sum(r => r.KasaEtkisi), output, warnings, confirm);
     }
 
-    private static void Validate(KasaDbContext db, EkstreBelgeEntity doc, EkstreSatirYaz row, EkstreOkunanSatir original)
+    /// <summary>Bir satırın doğrulama/uygulama hatası; iletisi satır numarasıyla başlar (istemci satıra götürür).</summary>
+    private sealed record SatirHatasi(string Metin, int Durum);
+    private static SatirHatasi? RowError(int no, Action run)
     {
+        try
+        {
+            run();
+            return null;
+        }
+        catch (ImportException e) { return new($"Satır {no}: {e.Message}", e.Status); }
+        catch (KilitliDonemException e) { return new($"Satır {no}: {e.Message}", StatusCodes.Status409Conflict); }
+        catch (Exception e) when (FinansTakipEndpoints.Hata(e) is { } hata) { return new($"Satır {no}: {e.Message}", hata); }
+    }
+
+    private static void Validate(KasaDbContext db, EkstreBelgeEntity doc, EkstreSatirYaz row, EkstreOkunanSatir? original)
+    {
+        Require(original is not null, "Kaynak satır bu PDF'de bulunamadı.");
+        Require(!db.EkstreYokSayilanlar.Any(y => y.BelgeId == doc.Id && y.SatirNo == row.SatirNo), "Bu satır yok sayıldı. Kaydetmek için önce Kapanan sekmesinden geri alın.", 409);
         Require(original.ParaBirimi is "TRY" or "TL" or "Belirsiz", "Yalnız TL hareketleri kaydedilebilir.");
         Require(!db.EkstreKayitlar.Any(k => k.BelgeId == doc.Id && k.SatirNo == row.SatirNo && !k.Iptal), "Bu kaynak satır zaten kaydedilmiş; geçmişinden devam edin.", 409);
         Require(row.Tarih != default && row.Tarih >= db.Ayarlar.Select(a => a.TakipBaslangic).First() && row.Tarih <= Bugun, "Hareket tarihi takip başlangıcı ile bugün arasında olmalı.");
@@ -666,6 +703,7 @@ public static partial class EkstreAktarmaEndpoints
         // İptal gerekçesi satırda, iptal anı denetim izinde (sürüm öncesi iptalde bilinmez).
         var cancelTimes = DenetimOkuma.IptalAnlari<EkstreKayitEntity>(db, rows.Where(k => k.Iptal).Select(k => k.Id).ToList());
         var matched = MatchStates(db, rows.Where(k => !k.Iptal && k.EslesmeTuru != null).ToList());
+        var ignored = db.EkstreYokSayilanlar.AsNoTracking().Where(y => y.BelgeId == id).OrderBy(y => y.SatirNo).Select(y => y.SatirNo).ToList();
         return new(d.Id, d.Surum, d.Kaynak, d.Banka, d.HesapAdi, d.KartId, d.DosyaAdi, DateTimeOffset.FromUnixTimeMilliseconds(d.Yuklendi),
             Read<string>(d.UyarilarJson), Read<EkstreOkunanSatir>(d.SatirlarJson), rows
                 // İptal edilmiş ödemenin güncel etkisi yoktur (Kart() boş dağılım döner); geçmiş görünümde
@@ -675,7 +713,8 @@ public static partial class EkstreAktarmaEndpoints
                         .Select(p => p.KanalId is { } channel ? p with { Kanal = channelNames.GetValueOrDefault(channel, p.Kanal) } : p).ToList(),
                     k.KrediKartiId, k.IslemId, k.KartHarcamaId, k.KartOdemeId, k.Iptal,
                     k.Iptal ? k.IptalAciklamasi : null, cancelTimes.TryGetValue(k.Id, out var cancelledAt) ? cancelledAt : null,
-                    k.EslesmeTuru, k.EslesmeId, matched.TryGetValue(k.Id, out var state) ? state : null)).ToList());
+                    k.EslesmeTuru, k.EslesmeId, matched.TryGetValue(k.Id, out var state) ? state : null)).ToList(),
+            ignored, Read<EkstreAtlananSatir>(d.AtlananJson), rows.Count == 0 && ignored.Count == 0);
     }
     /// <summary>İptal edilmemiş eşleşmelerin durumu: hedef kayıt duruyorsa 'Eslesti', silinmiş ya da iptal edilmişse 'KayitYok'.
     /// Tür başına tek sorgu.</summary>

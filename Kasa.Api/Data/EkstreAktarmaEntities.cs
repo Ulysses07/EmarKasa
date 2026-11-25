@@ -16,6 +16,17 @@ public class EkstreBelgeEntity
     public long Yuklendi { get; set; }
     public string SatirlarJson { get; set; } = "[]";
     public string UyarilarJson { get; set; } = "[]";
+    /// <summary>Tutar içerdiği hâlde harekete alınmayan satırlar (EkstreAtlananSatir listesi).</summary>
+    public string AtlananJson { get; set; } = "[]";
+}
+
+/// <summary>Kullanıcının kaydetmeden kapattığı kaynak satır (docs/specs/2026-11-25-pdf-ekrani.md §2). Mali etkisi yoktur; geri alınınca
+/// silinir. İptal edilmemiş kaydı olan satır yok sayılamaz, yok sayılan satır kaydedilemez.</summary>
+public class EkstreYokSayilanEntity
+{
+    public int Id { get; set; }
+    public int BelgeId { get; set; }
+    public int SatirNo { get; set; }
 }
 
 public class EkstreKayitEntity
@@ -48,6 +59,7 @@ public partial class KasaDbContext
 {
     public DbSet<EkstreBelgeEntity> EkstreBelgeler => Set<EkstreBelgeEntity>();
     public DbSet<EkstreKayitEntity> EkstreKayitlar => Set<EkstreKayitEntity>();
+    public DbSet<EkstreYokSayilanEntity> EkstreYokSayilanlar => Set<EkstreYokSayilanEntity>();
     internal bool EkstreDegisikligi { get; set; }
 
     partial void ConfigureEkstreAktarma(ModelBuilder b)
@@ -65,5 +77,7 @@ public partial class KasaDbContext
         b.Entity<EkstreKayitEntity>().HasIndex(d => d.KartHarcamaId).IsUnique();
         b.Entity<EkstreKayitEntity>().HasIndex(d => d.KartOdemeId).IsUnique();
         b.Entity<EkstreKayitEntity>().HasIndex(d => new { d.EslesmeTuru, d.EslesmeId });
+        b.Entity<EkstreYokSayilanEntity>().HasOne<EkstreBelgeEntity>().WithMany().HasForeignKey(d => d.BelgeId).OnDelete(DeleteBehavior.Restrict);
+        b.Entity<EkstreYokSayilanEntity>().HasIndex(d => new { d.BelgeId, d.SatirNo }).IsUnique();
     }
 }

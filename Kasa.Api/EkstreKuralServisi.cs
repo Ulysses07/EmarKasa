@@ -34,11 +34,14 @@ public static class EkstreKuralServisi
             .OrderBy(k => k.Id).ToList().Select(k => (Kural: Dto(k), Kosul: " " + Normalize(k.AciklamaIcerir) + " ")).ToArray();
         var aktifKanallar = db.Kanallar.AsNoTracking().Where(k => k.Aktif).Select(k => k.Id).ToHashSet();
         var kayitli = db.EkstreKayitlar.AsNoTracking().Where(k => k.BelgeId == belge.Id && !k.Iptal).Select(k => k.SatirNo).ToHashSet();
+        var yokSayilan = db.EkstreYokSayilanlar.AsNoTracking().Where(y => y.BelgeId == belge.Id).Select(y => y.SatirNo).ToHashSet();
         return Read<EkstreOkunanSatir>(belge.SatirlarJson).Select(row =>
         {
             EkstreKuralOnerisi Durum(string durum, string ileti, string[]? adlar = null) => new(row.No, durum, adlar ?? [], null, null, [], ileti);
             if (kayitli.Contains(row.No))
                 return Durum("Kayitli", "Bu satır zaten kaydedildi.");
+            if (yokSayilan.Contains(row.No))
+                return Durum("YokSayildi", "Bu satır yok sayıldı.");
             var text = " " + Normalize(row.Aciklama) + " ";
             var matched = kurallar.Where(k => (k.Kural.Yon == null || k.Kural.Yon == row.Yon) && text.Contains(k.Kosul, StringComparison.Ordinal)).Select(k => k.Kural).ToArray();
             if (matched.Length == 0)

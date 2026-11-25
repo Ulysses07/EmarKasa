@@ -39,7 +39,7 @@ public sealed partial class EkstreAktarmaPage
             return;
         try
         { KuralFormunuKur(null, row.HatirlanacakKural(doc)); }
-        catch (DogrulamaHatasi error) { Vm.Hata = error.Message; }
+        catch (DogrulamaHatasi error) { row.FormMesaji = error.Message; }
     }
     private void KuralFormunuKur(EkstreKuralDto? rule, EkstreKuralYaz? remembered = null)
     {

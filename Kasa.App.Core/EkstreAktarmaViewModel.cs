@@ -33,6 +33,8 @@ public partial class EkstreAktarmaViewModel(IEkstreAktarmaApi api, IKasaApi fina
     [ObservableProperty] private string _onizlemeMetni = "";
     [ObservableProperty] private bool _onay;
     [ObservableProperty] private bool _tekrarOnay;
+    /// <summary>Kaydetme yapılamadıysa nedeni (kaydet düğmesinin altında).</summary>
+    [ObservableProperty] private string? _kayitHatasi;
     [ObservableProperty] private bool _eskiBelgeVar;
     public bool BankaMi => Kaynak?.Kod == EkstreKaynaklari.Banka;
     public bool KartMi => Kaynak?.Kod == EkstreKaynaklari.Kart;
@@ -41,22 +43,42 @@ public partial class EkstreAktarmaViewModel(IEkstreAktarmaApi api, IKasaApi fina
     public bool TekrarOnayGerekli => _onizleme?.TekrarOnayGerekli ?? false;
     public string BelgeOzeti => Belge is { } b ? $"{b.DosyaAdi} · {b.Banka} · {b.Kaynak} · {(b.KartId is { } id ? (Kartlar.FirstOrDefault(k => k.Id == id)?.Ad ?? "Kart") + $" (#{id})" : b.HesapAdi)}\n{b.Satirlar.Count} satır; {Satirlar.Count(s => s.Secili)} seçildi. Hiçbir satır kendiliğinden kaydedilmez.\n" + string.Join("\n", b.Uyarilar) : "";
     partial void OnKaynakChanged(EkstreSecenek? value) { OnPropertyChanged(nameof(BankaMi)); OnPropertyChanged(nameof(KartMi)); }
-    partial void OnBelgeChanged(EkstreBelgeDto? value) { OnPropertyChanged(nameof(BelgeVar)); OnPropertyChanged(nameof(BelgeOzeti)); }
+    partial void OnBelgeChanged(EkstreBelgeDto? value)
+    {
+        OnPropertyChanged(nameof(BelgeVar));
+        OnPropertyChanged(nameof(BelgeOzeti));
+        OnPropertyChanged(nameof(YokSayDestekleniyor));
+        OnPropertyChanged(nameof(YenidenOkunabilir));
+        OnPropertyChanged(nameof(Atlananlar));
+        OnPropertyChanged(nameof(AtlananVar));
+        OnPropertyChanged(nameof(AtlananDugmesi));
+        OnPropertyChanged(nameof(AtlananMetni));
+    }
     private void GirdiDegisti()
     {
         _formSurumu++;
         _onizleme = null;
         _onizlemeGirdi = null;
         OnizlemeMetni = "";
+        KayitHatasi = null;
         Onay = false;
         TekrarOnay = false;
         OnPropertyChanged(nameof(OnizlemeVar));
         OnPropertyChanged(nameof(TekrarOnayGerekli));
         OnPropertyChanged(nameof(BelgeOzeti));
+        OnPropertyChanged(nameof(YonOzeti));
+        OnPropertyChanged(nameof(SecimOzeti));
     }
     protected override void OturumTemizle()
     {
         GirdiDegisti();
+        HatalariTemizle();
+        SatirMesaji = null;
+        SatirHatasi = null;
+        TopluMesaji = null;
+        TopluHatasi = null;
+        _yokSayilanTaslak.Clear();
+        AtlananAcik = false;
         Belge = null;
         SeciliSatir = null;
         Kaynak = null;
@@ -65,6 +87,15 @@ public partial class EkstreAktarmaViewModel(IEkstreAktarmaApi api, IKasaApi fina
         HesapAdi = "";
         Satirlar.Clear();
         Kayitlar.Clear();
+        SekmeleriDoldur();
+        SeciliSekme = EkstreSekmesi.Bekleyen;
+        TopluTurler.Clear();
+        TopluDagilimlar.Clear();
+        TopluKanallar.Clear();
+        TopluTur = null;
+        TopluDagilim = null;
+        _yokSayKey.Temizle();
+        _yenidenOkuKey.Temizle();
         Gecmis.Clear();
         Kartlar.Clear();
         Kanallar.Clear();
@@ -98,8 +129,9 @@ public partial class EkstreAktarmaViewModel(IEkstreAktarmaApi api, IKasaApi fina
         var seciliBanka = Banka?.Kod;
         TakipMetni.Doldur(Bankalar, bankalar.Select(b => new EkstreSecenek(b.Kod, b.Ad)));
         Banka = Bankalar.FirstOrDefault(b => b.Kod == seciliBanka);
+        // Yenileme (ve bağlantı dönünce kendiliğinden yenileme) doldurulan satırları ve işaretleri silmez.
         if (belge is not null)
-            BelgeyiYansit(belge);
+            BelgeyiYansit(belge, koru: true);
         await KurallariAlAsync(n);
         if (!Gecerli(n))
             return;
@@ -177,7 +209,7 @@ public partial class EkstreAktarmaViewModel(IEkstreAktarmaApi api, IKasaApi fina
         var b = await api.EkstreBelgeAsync(id);
         if (!Gecerli(n))
             return;
-        BelgeyiYansit(b);
+        BelgeyiYansit(b, koru: true);
         await KurallariAlAsync(n);
     });
     public Task KaynakAcAsync(int kayitId) => YurutAsync(async n =>
@@ -188,8 +220,12 @@ public partial class EkstreAktarmaViewModel(IEkstreAktarmaApi api, IKasaApi fina
         var b = await api.EkstreKaynakBelgeAsync(kayitId);
         if (!Gecerli(n))
             return;
-        BelgeyiYansit(b);
+        BelgeyiYansit(b, koru: true);
+        // Aranan kayıt (ya da iptali) Kapanan sekmesindedir.
+        SeciliSekme = EkstreSekmesi.Kapanan;
         await KurallariAlAsync(n);
+        if (Gecerli(n) && Kapananlar.FirstOrDefault(s => s.Kayit?.Veri.Id == kayitId) is { } satir)
+            SatirGosterIstendi?.Invoke(this, satir);
     });
     [RelayCommand]
     private Task EskiBelgeleriYukleAsync() => YurutAsync(async n =>
@@ -205,60 +241,120 @@ public partial class EkstreAktarmaViewModel(IEkstreAktarmaApi api, IKasaApi fina
         _gecmisImleci = eski.Count > 0 ? eski.Min(g => g.Id) : null;
         EskiBelgeVar = eski.Count == 50;
     });
-    private void BelgeyiYansit(EkstreBelgeDto b)
+    private void BelgeyiYansit(EkstreBelgeDto b, bool koru = false, IReadOnlySet<int>? yenile = null)
     {
+        var ayniBelge = Belge?.Id == b.Id;
         GirdiDegisti();
-        SeciliSatir = null;
-        Belge = b;
-        TakipMetni.Doldur(Satirlar, b.Satirlar.Select(s => new EkstreSatirEditor(s, b, Kanallar.ToArray(), Kartlar.ToArray(), GirdiDegisti)));
+        HatalariTemizle();
+        SatirMesaji = null;
+        SatirHatasi = null;
+        TopluMesaji = null;
+        TopluHatasi = null;
         TakipMetni.Doldur(Kayitlar, b.Kayitlar.Select(k => new EkstreKayitSatiri(k)));
+        var satirlar = SatirlariKur(b, koru, yenile);
+        // Açık düzenleyici aynı bekleyen satırda kalır (model yenilendiyse yenisinde).
+        if (SeciliSatir is { } acik && !satirlar.Contains(acik))
+            SeciliSatir = koru && ayniBelge && !acik.Kapali ? satirlar.FirstOrDefault(s => s.Kaynak.No == acik.Kaynak.No && !s.Kapali) : null;
+        Belge = b;
+        TakipMetni.Doldur(Satirlar, satirlar);
+        SekmeleriDoldur();
+        if (!ayniBelge || TopluTurler.Count == 0)
+            TopluSecenekleriKur(b);
+        else
+            TopluKanallariTazele();
+        if (!ayniBelge)
+        {
+            SeciliSekme = EkstreSekmesi.Bekleyen;
+            AtlananAcik = false;
+        }
         var eski = Gecmis.FirstOrDefault(g => g.Veri.Id == b.Id);
         if (eski is not null)
             Gecmis.Remove(eski);
-        Gecmis.Insert(0, new(new(b.Id, b.Surum, b.Kaynak, b.Banka, b.HesapAdi, b.KartId, b.DosyaAdi, b.Yuklendi, b.Satirlar.Count, b.Kayitlar.Count(k => !k.Iptal))));
+        Gecmis.Insert(0, new(new(b.Id, b.Surum, b.Kaynak, b.Banka, b.HesapAdi, b.KartId, b.DosyaAdi, b.Yuklendi, b.Satirlar.Count, b.Kayitlar.Count(k => !k.Iptal), b.YokSayilanlar?.Count ?? 0)));
         OnPropertyChanged(nameof(BelgeOzeti));
+        OnPropertyChanged(nameof(YonOzeti));
+        OnPropertyChanged(nameof(SecimOzeti));
     }
-    private EkstreKaydetYaz Girdi()
+    /// <summary>Önizleme isteği; eksik varsa hepsini <see cref="OnizlemeHatalari"/>'na yazar ve null döner.</summary>
+    private EkstreKaydetYaz? Girdi(EkstreBelgeDto belge)
     {
-        if (Belge is null || !Satirlar.Any(s => s.Secili))
-            throw new DogrulamaHatasi("Kaydedilecek en az bir satırı seçin.");
-        var g = new EkstreKaydetYaz(Guid.Empty, Belge.Surum, Satirlar.Where(s => s.Secili).Select(s => s.Yaz()).ToArray());
-        return g with { IstekId = _kayitKey.Al(new { Belge.Id, g }) };
+        var secili = Satirlar.Where(s => s.Secili).ToList();
+        if (secili.Count == 0)
+        {
+            HatalariYaz([new(null, SeciliSatir is { Secilebilir: true } acik
+                ? $"Satır {acik.Kaynak.No} açık ama işaretli değil. Satırı açmak seçmek değildir; etkisini görmek için satırın başındaki kutuyu işaretleyin."
+                : "Kaydedilecek en az bir satırı seçin: satırın başındaki kutuyu işaretleyin.")]);
+            return null;
+        }
+        var satirlar = secili.Select(s => (s.Kaynak.No, Sonuc: s.Hazirla())).ToList();
+        var eksikler = satirlar.SelectMany(s => s.Sonuc.Hatalar.Select(h => new EkstreSatirHatasi(s.No, h))).ToList();
+        if (eksikler.Count > 0)
+        { HatalariYaz(eksikler); return null; }
+        var g = new EkstreKaydetYaz(Guid.Empty, belge.Surum, satirlar.Select(s => s.Sonuc.Yaz!).ToArray());
+        return g with { IstekId = _kayitKey.Al(new { belge.Id, g }) };
     }
     [RelayCommand]
     private Task OnizleAsync() => YurutAsync(async n =>
     {
-        if (!EditorMu || !VeriHazir || Belge is null)
+        HatalariTemizle();
+        if (!EditorMu)
             return;
-        var id = Belge.Id;
+        if (!VeriHazir || Belge is not { } belge)
+        { HatalariYaz([new(null, "Veriler henüz yüklenmedi. Yenileyip yeniden deneyin.")]); return; }
+        var id = belge.Id;
         var rev = _formSurumu;
-        var g = Girdi();
-        var p = await api.EkstreOnizlemeAsync(id, g);
-        if (!Gecerli(n) || rev != _formSurumu || Belge?.Id != id)
+        if (Girdi(belge) is not { } g)
             return;
+        var p = await api.EkstreOnizlemeAsync(id, g);
+        if (!Gecerli(n) || Belge?.Id != id)
+            return;
+        if (rev != _formSurumu)
+        { HatalariYaz([new(null, "Etki hesaplanırken satırlar değişti. \"Seçilen satırların etkisini göster\"e yeniden basın.")]); return; }
         _onizleme = p;
         _onizlemeGirdi = g;
         _onizlemeForm = rev;
         Onay = false;
         TekrarOnay = false;
-        OnizlemeMetni = $"{p.Satirlar.Count} satır kaydedilecek. Genel kasa etkisi: {Bicim.Tl(p.KasaEtkisi)} ₺\n" + string.Join("\n", p.Uyarilar) + "\n\n" + string.Join("\n\n", p.Satirlar.Select(s => $"Satır {s.SatirNo} · {s.Tarih:dd.MM.yyyy} · {s.Aciklama} · {Bicim.Tl(s.Tutar)} ₺ · {s.IslemTuru}\nKasa etkisi: {Bicim.Tl(s.KasaEtkisi)} ₺ · {Dagilim(g.Satirlar.Single(x => x.SatirNo == s.SatirNo), s)}\n{string.Join("\n", s.Uyarilar)}"));
+        OnizlemeMetni = $"{p.Satirlar.Count} satır kaydedilecek. Genel kasa etkisi: {Bicim.Tl(p.KasaEtkisi)} ₺\n" + string.Join("\n", p.Uyarilar) + "\n\n" + string.Join("\n\n", p.Satirlar.Select(s => $"Satır {s.SatirNo} · {s.Tarih:dd.MM.yyyy} · {s.Aciklama} · {Bicim.Tl(s.Tutar)} ₺ · {TurAdi(s.IslemTuru)}\nKasa etkisi: {Bicim.Tl(s.KasaEtkisi)} ₺ · {Dagilim(g.Satirlar.Single(x => x.SatirNo == s.SatirNo), s)}\n{string.Join("\n", s.Uyarilar)}"));
         OnPropertyChanged(nameof(OnizlemeVar));
         OnPropertyChanged(nameof(TekrarOnayGerekli));
-    });
+        SonucuGoster(EkstreSonucu.Onizleme);
+    }, hataIsle: OnizlemeHatasiniYaz);
+    private string TurAdi(string kod) => Satirlar.SelectMany(s => s.IslemTurleri).FirstOrDefault(t => t.Kod == kod)?.Ad ?? kod;
     private static string Dagilim(EkstreSatirYaz girdi, EkstreSatirOnizleme satir) => girdi.IslemTuru == EkstreIslemTurleri.Eslestir
         ? $"Mevcut kayıtla eşleşir ({EslesmeAdayiSatiri.TurAdi(girdi.EslesenKayitTuru)} #{girdi.EslesenKayitId}); kasa ve kart borcu değişmez"
         : girdi.DagilimTuru == DagilimBicimleri.Genel ? "Yalnız genel kasa" : TakipMetni.Paylar(satir.Dagilimlar);
     [RelayCommand]
     private Task KaydetAsync() => YurutAsync(async n =>
     {
+        KayitHatasi = null;
         if (!EditorMu || !VeriHazir || Belge is null || _onizleme is null || _onizlemeGirdi is null || _formSurumu != _onizlemeForm || !Onay || (TekrarOnayGerekli && !TekrarOnay))
-        { Hata = "Önizlemeyi kontrol edin ve gerekli onayları işaretleyin."; return; }
+        { KayitHatasi = "Önizlemeyi kontrol edin ve gerekli onayları işaretleyin."; return; }
         var id = Belge.Id;
         var g = _onizlemeGirdi with { OnizlemeOzeti = _onizleme.OnizlemeOzeti, TekrarOnay = TekrarOnay };
         try
-        { var b = await api.EkstreKaydetAsync(id, g); if (!Gecerli(n)) return; BelgeyiYansit(b); _kayitKey.Temizle(); await KurallariAlAsync(n); if (Gecerli(n)) Mesaj = "Seçilen satırlar kaydedildi. Diğer satırlar değişmedi."; }
-        catch (KasaApiException e) when (e.DurumKodu == HttpStatusCode.Conflict) { if (Gecerli(n)) GirdiDegisti(); throw; }
-    });
+        {
+            var b = await api.EkstreKaydetAsync(id, g);
+            if (!Gecerli(n))
+                return;
+            BelgeyiYansit(b, koru: true, yenile: g.Satirlar.Select(s => s.SatirNo).ToHashSet());
+            _kayitKey.Temizle();
+            Mesaj = "Seçilen satırlar kaydedildi. Diğer satırlar değişmedi.";
+            SatirMesaji = $"{g.Satirlar.Count} satır kaydedildi ve Kapanan sekmesine geçti.";
+            await KurallariAlAsync(n);
+            if (Gecerli(n))
+                SonucuGoster(EkstreSonucu.Satirlar);
+        }
+        catch (KasaApiException e) when (e.DurumKodu == HttpStatusCode.Conflict)
+        {
+            // Önizleme geçersizdir (onay kartı kapanır): nedeni "etkisini göster" düğmesinin altında kalır.
+            if (Gecerli(n))
+            {
+                GirdiDegisti();
+                OnizlemeHatasiniYaz(e);
+            }
+        }
+    }, hataIsle: e => KayitHatasi = e is HttpRequestException ? Yurutucu.KayitBaglantiIletisi : HataMesaji(e));
     /// <summary>Seçili satırın (tarih ve tutarıyla) eşleşebileceği mevcut kayıtları getirir; 'Mevcut kayıtla eşleştir' türünde
     /// satır bunlardan birine bağlanır.</summary>
     [RelayCommand]
@@ -266,28 +362,47 @@ public partial class EkstreAktarmaViewModel(IEkstreAktarmaApi api, IKasaApi fina
     {
         if (!EditorMu || !VeriHazir || Belge is null || SeciliSatir is not { EslesmeMi: true } satir)
             return;
+        satir.FormMesaji = null;
         if (!satir.AdaySorgusu(out var sorgu, out var hata))
-        { Hata = hata; return; }
+        { Hata = hata; satir.FormMesaji = hata; return; }
         var id = Belge.Id;
         var adaylar = await api.EkstreEslesmeAdaylariAsync(id, sorgu);
         if (!Gecerli(n) || Belge?.Id != id || !Satirlar.Contains(satir) || !satir.EslesmeMi)
             return;
         satir.AdaylariYansit(adaylar);
         Mesaj = adaylar.Count == 0 ? "Bu tutarda, en çok 3 gün farklı tarihte eşleştirilebilecek kayıt yok." : $"{adaylar.Count} aday bulundu; bağlanacak kaydı seçin.";
+        satir.FormMesaji = Mesaj;
+    }, hataIsle: e =>
+    {
+        Hata = HataMesaji(e);
+        if (SeciliSatir is { } satir)
+            satir.FormMesaji = Hata;
     });
     public Task KayitIptalAsync(EkstreKayitSatiri satir, string aciklama, int onayOturumu, int belgeId) => YurutAsync(async n =>
     {
         if (!EditorMu || !VeriHazir || onayOturumu != n || Belge?.Id != belgeId || !Kayitlar.Any(k => ReferenceEquals(k, satir)) || satir.Veri.Iptal || string.IsNullOrWhiteSpace(aciklama))
-        { Hata = "Geçerli kaydı seçip gerekçeyi yeniden onaylayın."; return; }
+        {
+            Hata = "Geçerli kaydı seçip gerekçeyi yeniden onaylayın.";
+            SatirMesaji = null;
+            SatirHatasi = Hata;
+            SonucuGoster(EkstreSonucu.Satirlar);
+            return;
+        }
         var g = new EkstreIptalYaz(_iptalKey.Al(new { belgeId, satir.Veri.Id, Aciklama = aciklama.Trim() }), aciklama.Trim());
         var b = await api.EkstreKayitIptalAsync(belgeId, satir.Veri.Id, g);
         if (!Gecerli(n))
             return;
-        BelgeyiYansit(b);
+        BelgeyiYansit(b, koru: true);
         _iptalKey.Temizle();
+        Mesaj = "Kaydın iptali işlendi; kaynak ve geçmiş korundu.";
+        SatirMesaji = $"Satır {satir.Veri.SatirNo} kaydı iptal edildi; satır yeniden bekliyor.";
         await KurallariAlAsync(n);
-        if (Gecerli(n))
-            Mesaj = "Kaydın iptali işlendi; kaynak ve geçmiş korundu.";
+    }, hataIsle: e =>
+    {
+        Hata = HataMesaji(e);
+        SatirMesaji = null;
+        SatirHatasi = Hata;
+        SonucuGoster(EkstreSonucu.Satirlar);
     });
     /// <summary>Kaynak PDF'i <paramref name="hedef"/>'e yazar; hata, başka belge ya da eski oturumda null.</summary>
     public async Task<IndirmeBilgisi?> DosyaAsync(Stream hedef)

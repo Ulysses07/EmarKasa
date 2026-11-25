@@ -72,14 +72,15 @@ public partial class EkstreAktarmaTests
         Assert.Empty(api.KaydetIstekleri);
         Assert.All(vm.Satirlar, s => Assert.False(s.Secili));
     }
-    /// <summary>Seçimsiz önizleme yerel doğrulamadır (DogrulamaHatasi): istek gitmez, ileti eskisi gibi Hata'da görünür.</summary>
+    /// <summary>Seçimsiz önizleme yerel doğrulamadır: istek gitmez, ileti düğmenin altındaki hatalardadır (sayfa başındaki Hata'da değil).</summary>
     [Fact]
     public async Task Secimsiz_onizleme_istek_gondermez_yerel_dogrulama_iletisini_gosterir()
     {
         var (vm, api, _) = await Hazir();
         await vm.OnizleCommand.ExecuteAsync(null);
         Assert.Equal(0, api.OnizlemeSayisi);
-        Assert.Equal("Kaydedilecek en az bir satırı seçin.", vm.Hata);
+        Assert.StartsWith("Kaydedilecek en az bir satırı seçin", Assert.Single(vm.OnizlemeHatalari).Metin);
+        Assert.Null(vm.Hata);
     }
     [Fact]
     public async Task Yalniz_secilen_duzeltilen_satirlar_onaydan_sonra_kaydedilir()
@@ -169,6 +170,8 @@ public partial class EkstreAktarmaTests
         bekle.SetResult(new("eski", -100, [], [], false));
         await islem;
         Assert.False(vm.OnizlemeVar);
+        // Sessizce dönülmez: düğmenin altında nedeni yazar.
+        Assert.Contains("satırlar değişti", Assert.Single(vm.OnizlemeHatalari).Metin);
     }
     [Fact]
     public async Task Geciken_kayit_sonucu_yeni_oturuma_tasinmaz()
@@ -210,7 +213,7 @@ public partial class EkstreAktarmaTests
         Sec(vm.Satirlar[0]);
         await vm.OnizleCommand.ExecuteAsync(null);
         Assert.Equal(0, api.OnizlemeSayisi);
-        Assert.Contains("TL", vm.Hata);
+        Assert.Contains("TL", Assert.Single(vm.OnizlemeHatalari).Metin);
     }
     [Theory]
     [InlineData("", "10")]
@@ -228,7 +231,8 @@ public partial class EkstreAktarmaTests
         s.TutarMetni = tutar;
         await vm.OnizleCommand.ExecuteAsync(null);
         Assert.Equal(0, api.OnizlemeSayisi);
-        Assert.Contains("Satır 1", vm.Hata);
+        Assert.All(vm.OnizlemeHatalari, h => Assert.StartsWith("Satır 1:", h.Metin));
+        Assert.NotEmpty(vm.OnizlemeHatalari);
     }
     [Theory]
     [InlineData("1.500")]
@@ -388,7 +392,7 @@ public partial class EkstreAktarmaTests
         s.Secili = true;
         await vm.OnizleCommand.ExecuteAsync(null);
         Assert.Equal(0, api.OnizlemeSayisi);
-        Assert.Contains("dağılım", vm.Hata);
+        Assert.Contains("dağılım", Assert.Single(vm.OnizlemeHatalari).Ileti);
         s.DagilimTuru = s.DagilimTurleri.Single(x => x.Kod == "Genel");
         await vm.OnizleCommand.ExecuteAsync(null);
         Assert.Contains("Yalnız genel kasa", vm.OnizlemeMetni);
@@ -456,6 +460,18 @@ public partial class EkstreAktarmaTests
         public async Task<IndirmeBilgisi> EkstreDosyaAsync(int id, Stream hedef, CancellationToken ct = default) { await hedef.WriteAsync(new byte[] { 1 }, ct); return new("belge.pdf", "application/pdf", 1); }
         public Task<EkstreOnizlemeDto> EkstreOnizlemeAsync(int id, EkstreKaydetYaz g) { OnizlemeSayisi++; return OnizlemeYaniti ?? Task.FromResult(new EkstreOnizlemeDto("ozet", -g.Satirlar.Sum(s => s.Tutar), g.Satirlar.Select(s => new EkstreSatirOnizleme(s.SatirNo, s.Tarih, s.Aciklama, s.Tutar, s.IslemTuru, -s.Tutar, [], [])).ToArray(), [], TekrarGerekli)); }
         public Task<EkstreBelgeDto> EkstreKaydetAsync(int id, EkstreKaydetYaz g) { KaydetIstekleri.Add(g); if (KaydetHata) throw new HttpRequestException(); return KayitYaniti ?? Task.FromResult(Veri with { Surum = Veri.Surum + 1 }); }
+        public List<EkstreYokSayYaz> YokSayIstekleri { get; } = [];
+        public Func<EkstreYokSayYaz, EkstreBelgeDto>? YokSayYaniti;
+        public int YenidenOkumaSayisi;
+        public Task<EkstreBelgeDto> EkstreYokSayAsync(int id, EkstreYokSayYaz g)
+        {
+            YokSayIstekleri.Add(g);
+            if (YokSayYaniti is not null)
+                return Task.FromResult(Veri = YokSayYaniti(g));
+            var kapali = Veri.YokSayilanlar ?? [];
+            return Task.FromResult(Veri = Veri with { Surum = Veri.Surum + 1, YokSayilanlar = g.YokSay ? [.. kapali.Union(g.SatirNolar).Order()] : [.. kapali.Except(g.SatirNolar)] });
+        }
+        public Task<EkstreBelgeDto> EkstreYenidenOkuAsync(int id, EkstreYenidenOkuYaz g, CancellationToken ct = default) { YenidenOkumaSayisi++; return Task.FromResult(Veri = Veri with { Surum = Veri.Surum + 1 }); }
         public Task<EkstreBelgeDto> EkstreKayitIptalAsync(int id, int kayitId, EkstreIptalYaz g) { IptalSayisi++; return Task.FromResult(Veri); }
         public IReadOnlyList<EkstreEslesmeAdayiDto> Adaylar = []; public List<(int Id, EkstreEslesmeAdayiSorgu Sorgu)> AdaySorgulari = [];
         public Task<IReadOnlyList<EkstreEslesmeAdayiDto>> EkstreEslesmeAdaylariAsync(int id, EkstreEslesmeAdayiSorgu g) { AdaySorgulari.Add((id, g)); return Task.FromResult(Adaylar); }
