@@ -326,17 +326,21 @@ internal static class TakipUi
             BindableLayout.SetEmptyView(l, bos);
         }
         // Tablo satırı (docs/specs/2026-11-26-slop-temizligi.md §6): solda başlık ve gri özet, sağda işaretli tutar sütunu (ITutarliSatir) ve
-        // en çok bir hafif eylem bağlantısı; satırda ağır düğme yok.
+        // en çok bir hafif eylem bağlantısı; satırda ağır düğme yok. Dar ekranda (telefon) eylem başlığın altına iner, başlık ve özet
+        // tutarla aynı satırda genişçe kalır.
         BindableLayout.SetItemTemplate(l, new DataTemplate(() =>
         {
-            var satir = new Grid
+            var satir = new Controls.UyumluIzgara
             {
                 ColumnSpacing = 16,
+                RowSpacing = 2,
                 Padding = new Thickness(0, 8),
                 ColumnDefinitions = { new(GridLength.Star), new(GridLength.Auto), new(GridLength.Auto) },
+                DarSutunlar = [new(GridLength.Star), new(GridLength.Auto)],
+                DarEsik = SatirDarEsigi,
             };
             if (vurgu is { } v)
-                satir.Triggers.Add(new DataTrigger(typeof(Grid))
+                satir.Triggers.Add(new DataTrigger(typeof(Controls.UyumluIzgara))
                 {
                     Binding = new MultiBinding
                     {
@@ -348,14 +352,28 @@ internal static class TakipUi
                 });
             var baslik = Bagli("Baslik");
             baslik.FontAttributes = FontAttributes.Bold;
-            satir.Add(new VerticalStackLayout { Spacing = 2, VerticalOptions = LayoutOptions.Center, Children = { baslik, BagliMetin("Ozet") } });
-            satir.Add(SatirTutari(), 1);
+            var metin = new VerticalStackLayout { Spacing = 2, VerticalOptions = LayoutOptions.Center, Children = { baslik, BagliMetin("Ozet") } };
+            satir.Add(metin);
+            Controls.UyumluIzgara.SetDarSatir(metin, 0);
+            var tutar = SatirTutari();
+            satir.Add(tutar, 1);
+            Controls.UyumluIzgara.SetDarSatir(tutar, 0);
+            Controls.UyumluIzgara.SetDarSutun(tutar, 1);
             if (ac is not null)
-                satir.Add(ListeDugmesi(ac, action, gorunur, actionText, aciklama), 2);
+            {
+                var eylem = ListeDugmesi(ac, action, gorunur, actionText, aciklama);
+                eylem.HorizontalOptions = LayoutOptions.Start;
+                satir.Add(eylem, 2);
+                Controls.UyumluIzgara.SetDarSatir(eylem, 1);
+                Controls.UyumluIzgara.SetDarSutunAraligi(eylem, 2);
+            }
             return new VerticalStackLayout { Spacing = 0, Children = { satir, new BoxView { Style = (Style)Application.Current!.Resources["TakipAyirici"] } } };
         }));
         return l;
     }
+
+    /// <summary>Liste satırının dar düzene geçtiği genişlik: telefonda kart içi yaklaşık 330 px, masaüstü penceresi bunun çok üstünde.</summary>
+    public const double SatirDarEsigi = 480;
 
     /// <summary>Satırın tutar sütunu: ITutarliSatir satırında işaretli ve renkli (gider eksi kırmızı, gelir artı yeşil, sıfır gri).</summary>
     private static Label SatirTutari()
