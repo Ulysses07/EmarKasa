@@ -277,7 +277,8 @@ public sealed partial class EkstreAktarmaPage : TakipSayfasi<EkstreAktarmaViewMo
             }
         };
         var tiklama = new TapGestureRecognizer();
-        tiklama.Tapped += (_, _) => { if (satir.BindingContext is EkstreSatirEditor s) vm.SeciliSatir = s; };
+        // Satıra ya da düğmeye ikinci dokunuş düzenleyiciyi kapatır.
+        tiklama.Tapped += (_, _) => { if (satir.BindingContext is EkstreSatirEditor s) vm.SatiriAcKapat(s); };
         metin.GestureRecognizers.Add(tiklama);
         grid.Add(metin, 1);
         var duzenle = new Button
@@ -289,7 +290,7 @@ public sealed partial class EkstreAktarmaPage : TakipSayfasi<EkstreAktarmaViewMo
             Padding = new Thickness(12, 6),
             HorizontalOptions = LayoutOptions.End
         };
-        duzenle.Clicked += (_, _) => { if (duzenle.BindingContext is EkstreSatirEditor s) vm.SeciliSatir = s; };
+        duzenle.Clicked += (_, _) => { if (duzenle.BindingContext is EkstreSatirEditor s) vm.SatiriAcKapat(s); };
         grid.Add(duzenle, 1, 1);
         grid.SizeChanged += (_, _) =>
         {
@@ -314,6 +315,9 @@ public sealed partial class EkstreAktarmaPage : TakipSayfasi<EkstreAktarmaViewMo
         // taslak değerler zaten satır modelindedir, aç/kapa mali seçime veya önizlemeye dokunmaz.
         void FormuYansit()
         {
+            duzenle.Text = form.IsVisible ? "Kapat" : "İncele / düzenle";
+            SemanticProperties.SetDescription(duzenle, form.BindingContext is EkstreSatirEditor satirModeli
+                ? $"Satır {satirModeli.Kaynak.No} düzenleyicisini {(form.IsVisible ? "kapat" : "aç")}" : null);
             if (form.IsVisible && form.BindingContext is EkstreSatirEditor s && ReferenceEquals(vm.SeciliSatir, s))
             {
                 if (!ReferenceEquals(form.Content?.BindingContext, s))
@@ -347,16 +351,9 @@ public sealed partial class EkstreAktarmaPage : TakipSayfasi<EkstreAktarmaViewMo
     }
     private View SatirFormunuKur(EkstreSatirEditor s)
     {
-        var baslik = new Grid { ColumnDefinitions = { new(GridLength.Star), new(GridLength.Auto) } };
-        var baslikMetni = Metin($"Satır {s.Kaynak.No}");
-        baslikMetni.SetDynamicResource(StyleProperty, "LblTakipKartBaslik");
-        baslik.Add(baslikMetni);
-        var kapat = Tikla("Kapat", () => { if (ReferenceEquals(Vm.SeciliSatir, s)) Vm.SeciliSatir = null; return Task.CompletedTask; });
-        kapat.MinimumWidthRequest = 0;
-        kapat.MinimumHeightRequest = 44;
-        kapat.Padding = new Thickness(12, 6);
-        SemanticProperties.SetDescription(kapat, $"Satır {s.Kaynak.No} düzenleyicisini kapat");
-        baslik.Add(kapat, 1);
+        // Kapatmak için satıra ya da satırın "Kapat" düğmesine dokunulur; formda ayrıca düğme yok.
+        var baslik = Metin($"Satır {s.Kaynak.No}");
+        baslik.SetDynamicResource(StyleProperty, "LblTakipKartBaslik");
         var eylemler = new FlexLayout { Direction = Microsoft.Maui.Layouts.FlexDirection.Row, Wrap = Microsoft.Maui.Layouts.FlexWrap.Wrap };
         eylemler.Add(Goster(Tikla("Öneriyi uygula", () =>
         {

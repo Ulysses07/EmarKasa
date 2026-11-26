@@ -63,6 +63,8 @@ public partial class EkstreAktarmaViewModel
     public bool YenidenOkunabilir => Belge?.YenidenOkunabilir == true;
     public IReadOnlyList<EkstreAtlananSatir> Atlananlar => Belge?.Atlananlar ?? [];
     public bool AtlananVar => Atlananlar.Count > 0;
+    /// <summary>Satırın düzenleyicisini açar; açıksa kapatır (satıra ikinci dokunuş). Mali seçimi değiştirmez.</summary>
+    public void SatiriAcKapat(EkstreSatirEditor satir) => SeciliSatir = ReferenceEquals(SeciliSatir, satir) ? null : satir;
     [ObservableProperty] private bool _atlananAcik;
     public string AtlananDugmesi => $"Atlanan satırlar ({Atlananlar.Count}) {(AtlananAcik ? "gizle" : "göster")}";
     public string AtlananMetni => AtlananAcik ? string.Join("\n", Atlananlar.Select(a => $"Sayfa {a.Sayfa} · {a.Neden}: {a.Metin}")) : "";
