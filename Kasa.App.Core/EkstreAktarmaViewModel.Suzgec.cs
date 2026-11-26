@@ -16,7 +16,12 @@ public partial class EkstreAktarmaViewModel
     private readonly Dictionary<EkstreSatirEditor, EkstreSuzgec> _uyelik = new(ReferenceEqualityComparer.Instance);
     [ObservableProperty] private EkstreSuzgec _suzgec;
     [ObservableProperty] private string _arama = "";
-    public ObservableCollection<EkstreSatirEditor> Gorunenler { get; } = new();
+    /// <summary>Süzgeç ve aramadan geçen satırlar. Küçük değişiklik yerinde yapılır (kaydırma korunur); büyük değişiklikte liste bir kerede değişir.</summary>
+    [ObservableProperty] private ObservableCollection<EkstreSatirEditor> _gorunenler = new();
+    private const int EnCokYerindeDegisiklik = 100;
+    /// <summary>Toplu tür/kanal ve alt çubuğun "Yok say"ı yalnız bunlara uygulanır: süzgecin ya da aramanın gizlediği işaretli satır değişmez.</summary>
+    private List<EkstreSatirEditor> GorunenIsaretliler => [.. Gorunenler.Where(s => s.Secili)];
+    public string TopluHedefMetni => $"Bu listede işaretli {GorunenIsaretliler.Count} satıra uygulanır.";
     public int HazirSayisi => _uyelik.Values.Count(u => u == EkstreSuzgec.Hazir);
     public int KontrolSayisi => _uyelik.Values.Count(u => u == EkstreSuzgec.Kontrol);
     public int KapananSayisi => _uyelik.Values.Count(u => u == EkstreSuzgec.Kapanan);
@@ -52,6 +57,8 @@ public partial class EkstreAktarmaViewModel
         base.OnPropertyChanged(e);
         if (e.PropertyName is nameof(OnizlemeVar) or nameof(OnizlemeHataVar))
             base.OnPropertyChanged(new System.ComponentModel.PropertyChangedEventArgs(nameof(OnizlemeYenilenmeli)));
+        if (e.PropertyName == nameof(SecimOzeti))
+            base.OnPropertyChanged(new System.ComponentModel.PropertyChangedEventArgs(nameof(TopluHedefMetni)));
     }
 
     partial void OnSuzgecChanged(EkstreSuzgec value)
@@ -80,12 +87,14 @@ public partial class EkstreAktarmaViewModel
 
     private void GorunenleriDoldur()
     {
-        var aranan = Sade(Arama.Trim());
-        Esitle(Gorunenler, [.. Satirlar.Where(s => (Suzgec == EkstreSuzgec.Tumu || _uyelik.TryGetValue(s, out var u) && u == Suzgec)
-            && (aranan.Length == 0 || Sade(s.Aciklama).Contains(aranan, StringComparison.Ordinal) || Sade(s.Kaynak.Aciklama).Contains(aranan, StringComparison.Ordinal)))]);
+        var aranan = EkstreSatirEditor.Sade(Arama.Trim());
+        List<EkstreSatirEditor> yeni = [.. Satirlar.Where(s => (Suzgec == EkstreSuzgec.Tumu || _uyelik.TryGetValue(s, out var u) && u == Suzgec)
+            && (aranan.Length == 0 || s.AramaMetni.Contains(aranan, StringComparison.Ordinal)))];
+        var eski = Gorunenler.ToHashSet();
+        if (Gorunenler.Count + yeni.Count - 2 * yeni.Count(eski.Contains) > EnCokYerindeDegisiklik)
+            Gorunenler = new(yeni);
+        else
+            Esitle(Gorunenler, yeni);
+        OnPropertyChanged(nameof(TopluHedefMetni));
     }
-
-    /// <summary>Karşılaştırma biçimi: Türkçe i/ı ve aksanlar sadeleşir, büyük harf.</summary>
-    private static string Sade(string metin) => new string(metin.Replace('ı', 'i').Replace('İ', 'I').Normalize(NormalizationForm.FormD)
-        .Where(c => CharUnicodeInfo.GetUnicodeCategory(c) != UnicodeCategory.NonSpacingMark).ToArray()).ToUpperInvariant();
 }

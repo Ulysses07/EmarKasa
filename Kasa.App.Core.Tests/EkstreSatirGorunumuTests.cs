@@ -50,6 +50,55 @@ public partial class EkstreAktarmaTests
         Assert.Equal(0, api.OnizlemeSayisi);
     }
 
+    private static int BirincilDugmeSayisi(Page pencere)
+    {
+        var ikincil = (Style)Application.Current!.Resources["BtnSecondary"];
+        var cip = (Style)Application.Current!.Resources["ChipButton"];
+        return pencere.GetVisualTreeDescendants().OfType<Button>().Count(b => Gorunur(b) && !ReferenceEquals(b.Style, ikincil) && !ReferenceEquals(b.Style, cip));
+    }
+
+    /// <summary>Ekranda tek birincil düğme: satır ve toplu panelde alt çubuğun "Etkisini göster ve kaydet"i, kayıt özetinde "Kaydet".</summary>
+    [Fact]
+    public async Task Pencerede_tek_birincil_dugme_vardir()
+    {
+        GorunumOrtami.Kur();
+        var (vm, _, _) = await Hazir();
+        var pencere = Pencere(vm);
+        vm.SeciliSatir = vm.Satirlar[0];
+        Assert.Equal(1, BirincilDugmeSayisi(pencere));
+        ((IButtonController)PanelDugmesi(pencere, "Toplu tür / kanal")).SendClicked();
+        Assert.Equal(1, BirincilDugmeSayisi(pencere));
+    }
+
+    /// <summary>Kapanan pencere görünüm modelini dinlemeyi bırakır (uzun ömürlü modelde birikmez).</summary>
+    [Fact]
+    public async Task Kapanan_pencere_modeli_dinlemez()
+    {
+        GorunumOrtami.Kur();
+        var (vm, _, _) = await Hazir();
+        var pencere = Pencere(vm);
+        vm.SeciliSatir = vm.Satirlar[1];
+        Assert.NotEmpty(PanelGirdileri(pencere));
+        await pencere.KapatAsync();
+        Assert.Null(vm.SeciliSatir);
+        vm.SeciliSatir = vm.Satirlar[0];
+        Assert.Empty(PanelGirdileri(pencere));
+    }
+
+    /// <summary>Pencerede işlemlerin iletisi ve elle "yeniden sor"un sonucu görünür.</summary>
+    [Fact]
+    public async Task Pencerede_ileti_ve_yapay_zeka_sonucu_gorunur()
+    {
+        GorunumOrtami.Kur();
+        var (vm, _, _) = await Hazir();
+        var pencere = Pencere(vm);
+        vm.Mesaj = "Hafızadan çıkarıldı.";
+        vm.YapayZekaMesaji = "1 satır soruldu, 1 satıra öneri geldi (0,0025 $).";
+        var etiketler = pencere.GetVisualTreeDescendants().OfType<Label>().Where(Gorunur).Select(l => l.Text).ToList();
+        Assert.Contains("Hafızadan çıkarıldı.", etiketler);
+        Assert.Contains("1 satır soruldu, 1 satıra öneri geldi (0,0025 $).", etiketler);
+    }
+
     [Fact]
     public async Task Panelin_satir_alanlari_genis_ekranda_yanyana_dar_ekranda_altalta_yerlesir()
     {

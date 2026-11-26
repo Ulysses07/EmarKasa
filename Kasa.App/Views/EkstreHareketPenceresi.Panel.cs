@@ -42,12 +42,17 @@ public sealed partial class EkstreHareketPenceresi
             Content = yerlesim,
         };
         _panel.SetDynamicResource(StyleProperty, "Card");
-        _vm.PropertyChanged += SeciliSatirDegisti;
         return _panel;
     }
 
-    private void SeciliSatirDegisti(object? sender, PropertyChangedEventArgs e)
+    private void ModelDegisti(object? sender, PropertyChangedEventArgs e)
     {
+        // Oturum kapandı ya da belge silindi: pencere boş belgeyle açık kalmaz.
+        if (e.PropertyName == nameof(_vm.Belge) && _vm.Belge is null)
+        {
+            _ = KapatAsync();
+            return;
+        }
         if (e.PropertyName != nameof(_vm.SeciliSatir))
             return;
         if (_vm.SeciliSatir is { } satir)
@@ -184,12 +189,12 @@ public sealed partial class EkstreHareketPenceresi
     private View SatirFormu(EkstreSatirEditor s)
     {
         var eylemler = new FlexLayout { Direction = Microsoft.Maui.Layouts.FlexDirection.Row, Wrap = Microsoft.Maui.Layouts.FlexWrap.Wrap };
-        eylemler.Add(Goster(Tikla("Öneriyi uygula", () =>
+        eylemler.Add(Goster(Ikincil(Tikla("Öneriyi uygula", () =>
         {
             if (_vm.EditorMu && !_vm.Mesgul && _vm.Satirlar.Contains(s))
                 s.OneriyiUygula(false);
             return Task.CompletedTask;
-        }), nameof(s.OneriUygulanabilir)));
+        })), nameof(s.OneriUygulanabilir)));
         eylemler.Add(Ikincil(Tikla("Bu seçimi hatırla", async () => { await KapatAsync(); _sayfa.KuralHatirla(s); })));
         eylemler.Add(Goster(Ikincil(Tikla("Bu hafızayı unut", () => SatirHafizasiniUnutAsync(s))), nameof(s.HafizaVar)));
         eylemler.Add(Goster(Ikincil(Tikla("Yok say", () => _vm.YokSayAsync([s], true))), nameof(s.YokSayilabilir)));
@@ -216,7 +221,7 @@ public sealed partial class EkstreHareketPenceresi
                     Spacing = 8,
                     Children = {
                     Metin("Bu satır yeni kayıt oluşturmaz; aynı tutarda, en çok 3 gün farklı tarihli mevcut bir kayda bağlanır. Kasa ve kart borcu değişmez."),
-                    Tikla("Eşleşme adaylarını getir", () => _vm.EslesmeAdaylariniGetirCommand.ExecuteAsync(null)),
+                    Ikincil(Tikla("Eşleşme adaylarını getir", () => _vm.EslesmeAdaylariniGetirCommand.ExecuteAsync(null))),
                     Alan("Bağlanacak mevcut kayıt", Secim(nameof(s.EslesmeAdaylari), nameof(s.SeciliAday), "Baslik")) }
                 }, nameof(s.EslesmeMi)),
                 Goster(new VerticalStackLayout
@@ -224,7 +229,7 @@ public sealed partial class EkstreHareketPenceresi
                     Spacing = 8,
                     Children = {
                     Metin("Eşit: kanalları seçin. Özel: payların toplamı hareket tutarı olmalı."),
-                    Paylar(s.Paylar, s.PayEkle) }
+                    IkincilDugmeler(Paylar(s.Paylar, s.PayEkle)) }
                 }, nameof(s.DagilimGorunur)),
             }
         };
@@ -238,14 +243,23 @@ public sealed partial class EkstreHareketPenceresi
         Spacing = 8,
         Children =
         {
-            Metin("İşaretli satırların türünü ve kanal dağılımını doldurur; kaydetmez."),
+            Metin("İşaretli satırların türünü ve kanal dağılımını doldurur; kaydetmez. Süzgecin ya da aramanın gizlediği satırlar değişmez."),
+            Bagli(nameof(_vm.TopluHedefMetni)),
             Alan("Toplu işlem türü", Secim(nameof(_vm.TopluTurler), nameof(_vm.TopluTur))),
             Alan("Toplu kanal dağılımı", Secim(nameof(_vm.TopluDagilimlar), nameof(_vm.TopluDagilim))),
             Goster(KanalSecimleri(nameof(_vm.TopluKanallar)), nameof(_vm.TopluKanalGorunur)),
-            Dugme("Seçilenlere uygula", nameof(_vm.TopluUygulaCommand)),
+            Ikincil(Dugme("Seçilenlere uygula", nameof(_vm.TopluUygulaCommand))),
             Dolu(Etiket("LblTakipMesaj"), nameof(_vm.TopluMesaji)), Dolu(Etiket("LblTakipHata"), nameof(_vm.TopluHatasi)),
         }
     };
+
+    /// <summary>Paneldeki yardımcı düğmeler ikincildir: ekranda tek birincil düğme olur.</summary>
+    private static View IkincilDugmeler(View gorunum)
+    {
+        foreach (var dugme in gorunum.GetVisualTreeDescendants().OfType<Button>())
+            dugme.Style = Stil("BtnSecondary");
+        return gorunum;
+    }
 
     /// <summary>İki alan: panel genişse yan yana, darsa alt alta.</summary>
     private static Grid SatirAlanlari(View sol, View sag)

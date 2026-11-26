@@ -38,6 +38,17 @@ public partial class EkstreSatirEditor
 
     /// <summary>Satır bir kez kendiliğinden işaretlendi: kullanıcı işareti kaldırırsa bir daha konmaz.</summary>
     public bool KendiligindenIsaretlendi { get; internal set; }
+    /// <summary>Kullanıcı satırın kutusuna dokundu: işaret bundan sonra kendiliğinden değişmez.</summary>
+    public bool IsaretElleDegisti { get; private set; }
+    private bool _sistemIsaretliyor;
+    /// <summary>Kendiliğinden işaret koyar ya da kaldırır; kullanıcının dokunuşu sayılmaz.</summary>
+    internal void SistemIsaretle(bool secili)
+    {
+        _sistemIsaretliyor = true;
+        try
+        { Secili = secili; }
+        finally { _sistemIsaretliyor = false; }
+    }
 
     /// <summary>Bekleyen satırın "Kontrol edin" nedeni (canlı); hazır, kapalı ya da kullanıcının eksiksiz tamamladığı satırda null.</summary>
     public string? KontrolNedeni => Kapali || HazirOneri || ElleDegisti && Hazirla().Yaz is not null ? null
@@ -102,6 +113,7 @@ public partial class EkstreSatirEditor
     {
         _hafizadan = eski._hafizadan;
         KendiligindenIsaretlendi = eski.KendiligindenIsaretlendi;
+        IsaretElleDegisti = eski.IsaretElleDegisti;
         _erpden = eski._erpden;
         _ilkTur = eski._ilkTur is { } tur ? IslemTurleri.FirstOrDefault(t => t.Kod == tur.Kod) : null;
     }

@@ -119,6 +119,10 @@ public partial class EkstreSatirEditor : ObservableObject
         base.OnPropertyChanged(e);
         if (e.PropertyName is nameof(TarihMetni) or nameof(Aciklama) or nameof(TutarMetni))
             base.OnPropertyChanged(new PropertyChangedEventArgs(nameof(Ozet)));
+        if (e.PropertyName == nameof(Aciklama))
+            AramaMetniniUnut();
+        if (e.PropertyName == nameof(Secili) && !_sistemIsaretliyor && !_oneriUygulaniyor)
+            IsaretElleDegisti = true;
         if (e.PropertyName is nameof(TarihMetni) or nameof(TutarMetni) && EslesmeAdaylari.Count > 0)
             AdaylariTemizle();
         if (e.PropertyName == nameof(IslemTuru))

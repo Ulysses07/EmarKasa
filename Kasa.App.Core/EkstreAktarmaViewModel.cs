@@ -328,6 +328,7 @@ public partial class EkstreAktarmaViewModel(IEkstreAktarmaApi api, IKasaApi fina
         {
             SeciliSekme = EkstreSekmesi.Bekleyen;
             AtlananAcik = false;
+            YapayZekaBelgeDurumunuTemizle();
         }
         var eski = Gecmis.FirstOrDefault(g => g.Veri.Id == b.Id);
         if (eski is not null)

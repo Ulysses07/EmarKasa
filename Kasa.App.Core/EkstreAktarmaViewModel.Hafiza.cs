@@ -73,7 +73,14 @@ public partial class EkstreAktarmaViewModel
                 if (s.OneriUygulanabilir && !s.OneriyiUygula(toplu: true))
                     continue;
                 s.KendiligindenIsaretlendi = true;
-                s.Secili = s.Hazirla().Yaz is not null;
+                s.SistemIsaretle(s.Hazirla().Yaz is not null);
+                degisti = true;
+            }
+            // Kendiliğinden işaretlenip artık hazır olmayan satır (hafıza unutuldu, öneri kalktı) kayıt kümesinde kalmaz; kullanıcının dokunduğu ya da
+            // düzenlediği satır korunur.
+            foreach (var s in Satirlar.Where(s => s.KendiligindenIsaretlendi && s.Secili && !s.IsaretElleDegisti && !s.ElleDegisti && !s.HazirOneri).ToList())
+            {
+                s.SistemIsaretle(false);
                 degisti = true;
             }
         }

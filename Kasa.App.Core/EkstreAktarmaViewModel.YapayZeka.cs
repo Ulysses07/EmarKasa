@@ -35,6 +35,18 @@ public partial class EkstreAktarmaViewModel
     /// <summary>Bu oturumda kendiliğinden doldurmanın gönderdiği maskeli satırlar.</summary>
     public ObservableCollection<string> SonGonderilenler { get; } = new();
     private const int EnCokYapayZekaTuru = 10;
+    private bool _yapayZekaDurdur;
+    /// <summary>Pencere kapanınca: kendiliğinden doldurma sonraki tura geçmez (sürmekte olan soru biter, sonucu yazılır).</summary>
+    public void YapayZekaDurdur() => _yapayZekaDurdur = true;
+    /// <summary>Başka belge açıldı: önceki belgenin ilerlemesi, hatası ve gönderilen metni görünmez.</summary>
+    private void YapayZekaBelgeDurumunuTemizle()
+    {
+        YapayZekaIlerleme = null;
+        YapayZekaHatasi = null;
+        YapayZekaMesaji = null;
+        SonGonderilenler.Clear();
+        GonderilecekAcik = false;
+    }
     /// <summary>Gönder onayının metni: gönderilecek ve gönderilmeyecek satırlar, en yüksek maliyet.</summary>
     public string YapayZekaOnayi(YapayZekaOnizlemeDto o)
     {
@@ -113,6 +125,7 @@ public partial class EkstreAktarmaViewModel
     /// gelmeyene ya da hataya kadar, en çok <see cref="EnCokYapayZekaTuru"/> tur. Aynı yürütmenin içindedir (pencere bu sürede meşguldür).</summary>
     private async Task YapayZekaDoldurAsync(int n)
     {
+        _yapayZekaDurdur = false;
         if (!EditorMu || !Gecerli(n) || !YapayZekaAcik || Belge is not { Kaynak: not EkstreKaynaklari.Erp } belge || TaninmayanSayisi == 0)
             return;
         YapayZekaHatasi = null;
@@ -123,11 +136,9 @@ public partial class EkstreAktarmaViewModel
             for (var tur = 1; tur <= EnCokYapayZekaTuru; tur++)
             {
                 var onizleme = await api.YapayZekaOnizlemeAsync(belge.Id, yalnizSorulmamis: true);
-                if (!Gecerli(n) || Belge?.Id != belge.Id || onizleme.SatirSayisi == 0)
+                if (!Gecerli(n) || _yapayZekaDurdur || Belge?.Id != belge.Id || onizleme.SatirSayisi == 0)
                     break;
                 YapayZekaIlerleme = $"Yapay zekâ {onizleme.SatirSayisi + onizleme.KalanSatir} satırı dolduruyor… {tur}";
-                foreach (var satir in onizleme.Satirlar)
-                    SonGonderilenler.Add(satir);
                 YapayZekaSonucDto sonuc;
                 try
                 { sonuc = await api.YapayZekaSorAsync(belge.Id, new(_yapayZekaKey.Al(new { belge.Id, belge.Surum, tur }), YalnizSorulmamis: true)); }
@@ -137,9 +148,12 @@ public partial class EkstreAktarmaViewModel
                 _yapayZekaKey.Temizle();
                 if (!Gecerli(n) || Belge?.Id != belge.Id)
                     break;
+                // Gönderilen metin yalnız gerçekten gönderilen (yanıtı alınan) sorudandır.
+                foreach (var satir in onizleme.Satirlar)
+                    SonGonderilenler.Add(satir);
                 doldurulan += sonuc.Onerilen;
                 await KurallariAlAsync(n);
-                if (!Gecerli(n) || sonuc.KalanSatir == 0 || sonuc.Onerilen == 0)
+                if (!Gecerli(n) || _yapayZekaDurdur || sonuc.KalanSatir == 0 || sonuc.Onerilen == 0)
                     break;
             }
         }

@@ -139,7 +139,7 @@ public partial class EkstreAktarmaViewModel
     {
         if (!EditorMu || Mesgul || !VeriHazir || Belge is null)
             return;
-        var secili = Satirlar.Where(s => s.Secili).ToList();
+        var secili = GorunenIsaretliler;
         var kanallar = TopluKanallar.Where(k => k.Secili).Select(k => k.Veri.Id).ToList();
         TopluMesaji = null;
         TopluHatasi = secili.Count == 0 ? "Toplu uygulamak için önce satırların kutularını işaretleyin."
@@ -162,7 +162,7 @@ public partial class EkstreAktarmaViewModel
     // ---- Yok say / yeniden oku ----
 
     [RelayCommand]
-    private Task SeciliyiYokSayAsync() => YokSayAsync(Satirlar.Where(s => s.Secili).ToArray(), true);
+    private Task SeciliyiYokSayAsync() => YokSayAsync([.. GorunenIsaretliler], true);
 
     /// <summary>Satırları kaydetmeden kapatır (Kapanan) ya da geri açar (Bekleyen). Kasa ve kart borcu değişmez; diğer satırların
     /// taslakları korunur.</summary>

@@ -27,6 +27,15 @@ public partial class EkstreSatirEditor
         : Oneri is { Durum: "Oneri" } o && IslemTuru?.Kod == o.IslemTuru ? "kural"
         : "";
 
+    private string? _aramaMetni;
+    /// <summary>Aramanın karşılaştırdığı metin (açıklama ve PDF açıklaması, sadeleşmiş); açıklama değişince yeniden hesaplanır.</summary>
+    internal string AramaMetni => _aramaMetni ??= Sade(Aciklama) + "\n" + Sade(Kaynak.Aciklama);
+    private void AramaMetniniUnut() => _aramaMetni = null;
+
+    /// <summary>Karşılaştırma biçimi: Türkçe i/ı ve aksanlar sadeleşir, büyük harf.</summary>
+    internal static string Sade(string metin) => new string(metin.Replace('ı', 'i').Replace('İ', 'I').Normalize(System.Text.NormalizationForm.FormD)
+        .Where(c => CharUnicodeInfo.GetUnicodeCategory(c) != UnicodeCategory.NonSpacingMark).ToArray()).ToUpperInvariant();
+
     /// <summary>Tablo hücrelerini yeniden okutur: doldurmanın kaynağı (hafıza, yapay zekâ, ERP12) alanlardan sonra belli olur, hücre bildirimleri
     /// o anda eski değeri verir.</summary>
     public void GosterimiYenile()

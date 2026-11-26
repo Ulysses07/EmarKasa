@@ -45,8 +45,40 @@ public sealed partial class EkstreHareketPenceresi : ContentPage
         for (var i = 0; i < cocuklar.Count; i++)
             Grid.SetRow(cocuklar[i], i);
         SizeChanged += (_, _) => DarDuzeniUygula();
-        vm.SatirGosterIstendi += SatiraGit;
-        vm.SonucGosterIstendi += SonucuGoster;
+        Dinle(true);
+    }
+
+    private bool _dinliyor;
+    /// <summary>Görünüm modeli sayfadan uzun yaşar: pencere yalnız görünürken dinler (kapanan pencere bellekte birikmez).</summary>
+    private void Dinle(bool dinle)
+    {
+        if (_dinliyor == dinle)
+            return;
+        _dinliyor = dinle;
+        if (dinle)
+        {
+            _vm.SatirGosterIstendi += SatiraGit;
+            _vm.SonucGosterIstendi += SonucuGoster;
+            _vm.PropertyChanged += ModelDegisti;
+        }
+        else
+        {
+            _vm.SatirGosterIstendi -= SatiraGit;
+            _vm.SonucGosterIstendi -= SonucuGoster;
+            _vm.PropertyChanged -= ModelDegisti;
+        }
+    }
+
+    protected override void OnAppearing()
+    {
+        base.OnAppearing();
+        Dinle(true);
+    }
+
+    protected override void OnDisappearing()
+    {
+        Dinle(false);
+        base.OnDisappearing();
     }
 
     /// <summary>Pencereyi açar; zaten açıksa yeniden açmaz.</summary>
@@ -59,9 +91,9 @@ public sealed partial class EkstreHareketPenceresi : ContentPage
 
     public Task KapatAsync()
     {
-        _vm.SatirGosterIstendi -= SatiraGit;
-        _vm.SonucGosterIstendi -= SonucuGoster;
+        _vm.YapayZekaDurdur();
         _vm.SeciliSatir = null;
+        Dinle(false);
         return Navigation.ModalStack.Contains(this) ? Navigation.PopModalAsync(animated: false) : Task.CompletedTask;
     }
 
@@ -117,6 +149,7 @@ public sealed partial class EkstreHareketPenceresi : ContentPage
         Children =
         {
             Dolu(Etiket("LblTakipKucuk"), nameof(_vm.YapayZekaIlerleme)), Dolu(Etiket("LblTakipHata"), nameof(_vm.YapayZekaHatasi)),
+            Dolu(Etiket("LblTakipMesaj"), nameof(_vm.YapayZekaMesaji)), Dolu(Etiket("LblTakipMesaj"), nameof(_vm.Mesaj)),
             Dolu(Etiket("LblTakipMesaj"), nameof(_vm.SatirMesaji)), Dolu(Etiket("LblTakipHata"), nameof(_vm.SatirHatasi)),
             Dolu(Etiket("LblTakipHata"), nameof(_vm.Hata)),
         }
@@ -163,6 +196,8 @@ public sealed partial class EkstreHareketPenceresi : ContentPage
             secenekler.Add(("Yanıtsız satırları yeniden sor", YanitsizlariSorAsync));
         if (_vm.YokSayOneriVar)
             secenekler.Add((_vm.YokSayOneriDugmesi, YokSayOnerileriniUygulaAsync));
+        if (_vm.TopluGeriAlGorunur)
+            secenekler.Add((_vm.TopluGeriAlDugmesi, () => _vm.YokSayilanlariGeriAlCommand.ExecuteAsync(null)));
         var secim = await DisplayActionSheetAsync("Belge işlemleri", "Vazgeç", null, [.. secenekler.Select(s => s.Ad)]);
         if (secenekler.FirstOrDefault(s => s.Ad == secim) is { Is: { } calistir })
             await calistir();
