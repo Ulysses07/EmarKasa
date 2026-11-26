@@ -18,10 +18,13 @@ public interface IKisayolHedefi
 public static class Kisayollar
 {
     /// <summary>Kısayolu sayfaya uygular; uygulandıysa true (tuş basımı yutulur). Sayfa üstü pencere (silme onayı, güncellemeler)
-    /// açıkken hiçbir şey yapılmaz. F5, sayfanın kendi komutu yoksa başlık satırının Yenile'sidir (düğmeyle aynı yol).</summary>
+    /// açıkken ya da sayfa meşgulken (kayıt ya da yükleme sürerken gövde kapalıdır; düğmeler de basılamaz) hiçbir şey yapılmaz; arama
+    /// yalnız odak taşıdığı için meşgulken de çalışır. F5, sayfanın kendi komutu yoksa başlık satırının Yenile'sidir (düğmeyle aynı yol).</summary>
     public static bool Uygula(Page? sayfa, Kisayol kisayol)
     {
         if (sayfa is null || (sayfa is ContentPage icerik && SayfaUstuPencere.Acik(icerik)))
+            return false;
+        if (kisayol != Kisayol.Ara && sayfa.BindingContext is Kasa.App.Core.IYurutmeYuzeyi { Mesgul: true })
             return false;
         if (sayfa is IKisayolHedefi hedef && hedef.KisayolKomutu(kisayol) is { } komut)
         {

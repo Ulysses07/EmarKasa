@@ -202,6 +202,25 @@ public class YerlesimVeKisayolTests
         Assert.Null(hedef.KisayolKomutu(Kisayol.Ara));
     }
 
+    /// <summary>Sayfa meşgulken (kayıt ya da yükleme sürerken gövde kapalıdır) Ctrl+N / Ctrl+S / F5 çalışmaz: yoksa bekleyen yanıt
+    /// döndüğünde yeni açılan formu ezerdi (Codex incelemesi, #76).</summary>
+    [Fact]
+    public async Task Sayfa_mesgulken_kisayol_calismaz()
+    {
+        GorunumOrtami.Kur();
+        var sayfa = await DugmeVeRenkKurallariTests.SayfaKur("Krediler");
+        var vm = (KrediTakipViewModel)sayfa.BindingContext;
+        vm.Mesgul = true;
+        Assert.False(Kisayollar.Uygula(sayfa, Kisayol.Yeni));
+        Assert.False(Kisayollar.Uygula(sayfa, Kisayol.Yenile));
+        await Task.Delay(50);
+        Assert.False(vm.YeniKredi);
+
+        vm.Mesgul = false;
+        Assert.True(Kisayollar.Uygula(sayfa, Kisayol.Yeni));
+        await Bekle(() => vm.YeniKredi);
+    }
+
     [Fact]
     public async Task Sayfa_ustu_pencere_acikken_kisayol_alttaki_sayfaya_gitmez()
     {
