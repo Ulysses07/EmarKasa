@@ -2,6 +2,24 @@
 
 Kaynak: 25 Kasım 2026 "KASA DÜZENLEMELER" notları ve Ekim'de birleşen ekran işleri. 2.4.1'den bu yana EmarKasa#52–#65.
 
+## Canlı yayın durumu (26 Kasım 2026)
+
+`v2.5.0` etiketi `95b5f9ad5852a738a0fd6df3cd47a68f07112daa` commit'ini gösterir (kaynak arşivi SHA-256 `51edb100adf01a7397a7735df9610dfe8dafb87c205a98422f32155681885203`).
+Canlı `/health` başarılıdır; `/api/surum` yanıtında `surum` **2.5.0**, `minimumIstemci` **2.4.1**'dir. Çalışan imaj `sha256:d25c9bd4007194720c8a2e7edc282d09d60c6b24c5bad48dabd58015c5bb2acd`;
+yayın manifesti `/opt/kasa/releases/20261126-2.5.0/kasa-2.5.0-published.json` içindedir.
+
+- **Prova:** canlı verinin ayrı kopyasında 2.5.0 açıldı; 25 → 31 migration, mevcut 51 tablonun kayıt sayıları aynı, 6 yeni tablo boş, göç öncesi yedek alındı, günlükte hata yok.
+- **Canlı:** eski konteyner durduruldu, veri dizini ve güvenlik günlüğü dosya özetleriyle `/opt/kasa/releases/20261126-2.5.0/pre-upgrade` altına kopyalandı ve SQLite bütünlüğü
+  doğrulandı; yeni imajla başlatıldı (kesinti 17 saniye). Aynı denetimler canlıda tekrarlandı; `/data` ve `/yedekler` bağlamaları, güvenlik günlüğünün kontrol dosyası değişmedi.
+  Uygulamanın göç öncesi yedeği: `kasa-goc-oncesi-20261126-110600-b575bb64.zip`.
+- **Geri dönüş imajı:** 2.4.1 imajı `kasa:geri-donus-2.5.0` etiketiyle saklandı (`sha256:b08a048f…f830c3`); `imaj-geri-donus-etiketi.txt` yayın dizinindedir.
+- **Windows:** [v2.5.0-windows](https://github.com/Ulysses07/EmarKasa/releases/tag/v2.5.0-windows) kararlı sürüm olarak yayımlandı (aynı commit; açılış, kurulum ve 2.5.0 → 2.5.1 güncelleme
+  denemeleri geçti; imzasız). SHA-256: Setup `15afcd94a4586ff78e4bd550a1051cfe169908a6e53e1be67eed6f2a8058d9be`, full paket
+  `3690f6dacb108fecb0670f9bd4056ed3353a7ed5205f503b69d29054c56d49a0`, ZIP `7c08de7c11352bfc4701e583ef69889d43d0e389cc3cc5a16ce45e69e0681328`. Kurulu uygulama güncellemeyi buradan görür.
+- **Yapay zekâ:** yayından sonra kullanıcının anahtarıyla açıldı (`deploy/.env`, aylık sınır 2 $); anahtar gizli girişle yazıldı, önceki ayar dosyası yayın dizininde değil
+  `deploy/.env.yedek-yapay-zeka-*` olarak saklı. Sunucunun `api.anthropic.com` erişimi doğrulandı; doğruluk henüz ölçülmedi.
+- **Doğrulanmayan:** gerçek kullanıcı girişi ve kayıt akışı (canlı şifreyle giriş yapılmadı), gerçek banka/ERP12 dosyaları, iPhone. Sunucu dışı yedek hâlâ yapılandırılmadı.
+
 ## Değişiklikler
 
 - **Ekstre ekranı:** satırın giriş/çıkış yönü ve dayanağı görünür; **Bekleyen / Kapanan** sekmeleri; "Yok say"; seçili satırların etkisi önizlenir. [Tasarım](../specs/2026-11-25-pdf-ekrani.md)
