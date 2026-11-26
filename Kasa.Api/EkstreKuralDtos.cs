@@ -12,7 +12,7 @@ public record EkstreKuralOnerisi(int SatirNo, string Durum, IReadOnlyList<string
     string? DagilimTuru, IReadOnlyList<int> KanalIds, string Aciklama, EkstreHafizaOnerisi? Hafiza = null, IReadOnlyList<EkstreEslesmeAdayiDto>? Adaylar = null,
     EkstreYapayZekaOnerisi? YapayZeka = null);
 /// <summary>Yapay zekâ önerisinin güveni, kategorisi ve düzenlenmiş açıklaması (yoksa null).</summary>
-public record EkstreYapayZekaOnerisi(string Guven, string Kategori, string? Aciklama);
+public record EkstreYapayZekaOnerisi(string Guven, string Kategori, string? Aciklama, bool Hazir = false, string? KontrolNedeni = null);
 /// <summary>Hafıza önerisinin dayanağı: anahtar, son kararın art arda kaç kez aynı verildiği ve tarihi; karta ödemede kart;
 /// <paramref name="Aciklama"/> yeniden kullanılabilir düzeltilmiş açıklama (yoksa null).</summary>
 public record EkstreHafizaOnerisi(string Anahtar, int Adet, DateOnly SonTarih, int? KrediKartiId, string? Aciklama);

@@ -14,7 +14,10 @@ maskeli metin gönderilir.
 
 Kişisel kuralın ve işlem hafızasının tanımadığı, bekleyen TL satırları (para birimi okunamayan satır dahil; uygulama onu TL sayıp seçtirir; dövizli satır
 sorulmaz; tutarı okunamayan satırın aralığı `?` gider) için tür (gelir, gider, kart harcaması, iade, karta ödeme, "kasa hareketi değil"),
-kanal dağılımı, kısa kategori ve düzenlenmiş açıklama önerir. Öneri satırı doldurur; **satırı seçmez, "hazır" saymaz, toplu işaretlemeye girmez, kaydetmez.**
+kanal dağılımı, kısa kategori ve düzenlenmiş açıklama önerir. Öneri satırı doldurur ve **kaydetmez**. 26.11.2026 kullanıcı kararıyla
+([hareket penceresi](2026-11-26-ekstre-hareket-penceresi.md) §3): hafızanın "kontrol edin" ölçüsünden geçen, güveni yüksek ya da orta öneri **hazırdır** ve
+kendiliğinden işaretlenir; geçmeyenin tek nedeni (`EkstreYapayZekaOnerisi.KontrolNedeni`: kasa hareketi olmayabilir, yön belirsiz, emin değil, hafızanın ilk nedeni
+— okuma uyarısı "uyarı var" olarak —, kanal seçin) yazılır.
 Kullanıcı satırı tek tek işaretler, önizler ve onaylar. Kaydedilen satır hafızaya geçer; aynı hareket bir daha yapay zekâya sorulmaz.
 
 - Öncelik: kişisel kural → hafıza → yapay zekâ → okuyucunun önerisi. Elle değiştirilen satır ezilmez.

@@ -2,8 +2,9 @@ using System.Net.Http.Json;
 
 namespace Kasa.ApiClient;
 
-/// <summary>Yapay zekâ önerisinin güveni (YapayZekaGuvenleri), kategorisi ve düzenlenmiş açıklaması.</summary>
-public record EkstreYapayZekaOnerisi(string Guven, string Kategori, string? Aciklama);
+/// <summary>Yapay zekâ önerisinin güveni (YapayZekaGuvenleri), kategorisi ve düzenlenmiş açıklaması. <paramref name="Hazir"/>: hafızanın ölçüsüyle kendiliğinden
+/// işaretlenebilir; değilse <paramref name="KontrolNedeni"/> tek nedeni söyler.</summary>
+public record EkstreYapayZekaOnerisi(string Guven, string Kategori, string? Aciklama, bool Hazir = false, string? KontrolNedeni = null);
 /// <summary>Yapay zekânın durumu: açık mı (değilse nedeni), ayın harcaması ve sınırı, önerisi sonuçlanan satırlardan türü aynı kaydedilenler, son ölçümler.</summary>
 public record YapayZekaDurumDto(bool Acik, string? KapaliNedeni, string Model, decimal AyHarcamasiUsd, decimal AylikSinirUsd, int AyCagri, int Sonuclanan, int AyniTur,
     IReadOnlyList<YapayZekaOlcumDto> Olcumler);

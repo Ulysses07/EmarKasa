@@ -256,8 +256,10 @@ public sealed partial class YapayZekaServisi(YapayZekaAyarlari ayarlar, IYapayZe
         return cozulen is null ? null : sayi;
     }
 
-    /// <summary>Kural ve hafızanın tanımadığı satırın saklı önerisi; yoksa null.</summary>
-    internal static EkstreKuralOnerisi? SatirOnerisi(EkstreOkunanSatir row, IReadOnlyDictionary<int, YapayZekaOneriEntity> oneriler, IReadOnlySet<int> kanallar)
+    /// <summary>Kural ve hafızanın tanımadığı satırın saklı önerisi; yoksa null. Hafızanın "kontrol edin" ölçüsü (<see cref="EkstreHafizaServisi.Okuma.Nedenler"/>)
+    /// burada da geçerlidir: nedeni olmayan öneri hazırdır ve kendiliğinden işaretlenebilir (docs/specs/2026-11-26-ekstre-hareket-penceresi.md §3).</summary>
+    internal static EkstreKuralOnerisi? SatirOnerisi(EkstreOkunanSatir row, IReadOnlyDictionary<int, YapayZekaOneriEntity> oneriler, IReadOnlySet<int> kanallar,
+        EkstreHafizaServisi.Okuma hafiza)
     {
         if (!oneriler.TryGetValue(row.No, out var o) || o.IslemTuru.Length == 0)
             return null;
@@ -265,12 +267,23 @@ public sealed partial class YapayZekaServisi(YapayZekaAyarlari ayarlar, IYapayZe
         var kanalVar = ids.All(kanallar.Contains);
         // Kasa hareketi olmadığı ve yönü okunamayan satırın türü yalnız yazıdır.
         var doldur = o.IslemTuru != EkstreIslemTurleri.Atla && row.Yon is "Giris" or "Cikis";
+        var neden = KontrolNedeni(row, o, ids, hafiza);
         var bas = $"Yapay zekâ ({o.Guven switch { YapayZekaGuvenleri.Yuksek => "yüksek", YapayZekaGuvenleri.Orta => "orta", _ => "düşük" }} güven){(o.Kategori.Length > 0 ? ": " + o.Kategori : "")}.";
-        var son = o.IslemTuru == EkstreIslemTurleri.Atla ? "Kasa hareketi olmayabilir; öyleyse yok sayın."
-            : doldur ? "Kontrol edip kendiniz işaretleyin." : $"Olası tür: {TurAdi(o.IslemTuru)}; yönü belgeden kontrol edip kendiniz seçin.";
+        var son = o.IslemTuru == EkstreIslemTurleri.Atla ? " Kasa hareketi olmayabilir; öyleyse yok sayın."
+            : !doldur ? $" Olası tür: {TurAdi(o.IslemTuru)}; yönü belgeden kontrol edip kendiniz seçin."
+            : neden is null ? "" : $" Kontrol edin: {neden}.";
         return new(row.No, YapayZekaDurumlari.Oneri, [], doldur || o.IslemTuru == EkstreIslemTurleri.Atla ? o.IslemTuru : null, doldur && kanalVar ? o.DagilimTuru : null, doldur && kanalVar ? ids : [],
-            $"{bas} {son}", YapayZeka: new(o.Guven, o.Kategori, doldur ? o.Aciklama : null));
+            bas + son, YapayZeka: new(o.Guven, o.Kategori, doldur ? o.Aciklama : null, neden is null, neden));
     }
+
+    /// <summary>Önerinin kendiliğinden işaretlenmesini engelleyen ilk neden; yoksa null.</summary>
+    private static string? KontrolNedeni(EkstreOkunanSatir row, YapayZekaOneriEntity o, IReadOnlyList<int> ids, EkstreHafizaServisi.Okuma hafiza) =>
+        o.IslemTuru == EkstreIslemTurleri.Atla ? "kasa hareketi olmayabilir"
+        : row.Yon is not ("Giris" or "Cikis") ? "yön belirsiz"
+        : o.Guven is not (YapayZekaGuvenleri.Yuksek or YapayZekaGuvenleri.Orta) ? "emin değil"
+        : hafiza.Nedenler(row, o.IslemTuru, o.DagilimTuru, ids, null) is [var ilk, ..] ? ilk == "satırda okuma uyarısı var" ? "uyarı var" : ilk
+        : o.IslemTuru is EkstreIslemTurleri.Gelir or EkstreIslemTurleri.Gider or EkstreIslemTurleri.KartHarcama && o.DagilimTuru is null ? "kanal seçin"
+        : null;
 
     private static string TurAdi(string tur) => tur switch
     {
