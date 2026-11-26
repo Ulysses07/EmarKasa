@@ -8,8 +8,13 @@ namespace Kasa.App.Views;
 /// Ekstre hareketlerinin tam pencere açılan inceleme sayfası (docs/specs/2026-11-26-ekstre-hareket-penceresi.md §2): başlık ve ⋯ menüsü, süzgeç
 /// çipleri ve arama, tek kaydırıcılı tablo, sağda ayrıntı paneli, altta hep görünen kaydet çubuğu. Görünüm modeli Ekstre İçe Aktar sayfasınınkidir.
 /// </summary>
-public sealed partial class EkstreHareketPenceresi : ContentPage
+public sealed partial class EkstreHareketPenceresi : ContentPage, Controls.IKisayolHedefi
 {
+    /// <summary>Ctrl+F açıklama aramasına gider.</summary>
+    public System.Windows.Input.ICommand? KisayolKomutu(Controls.Kisayol kisayol)
+        => kisayol == Controls.Kisayol.Ara && _arama is { } ara ? new Command(() => ara.Focus()) : null;
+    private Entry? _arama;
+
     private readonly EkstreAktarmaViewModel _vm;
     private readonly EkstreAktarmaPage _sayfa;
     /// <summary>Alt çubuğun birincil düğmesi; kayıt özeti açıkken ikincil görünür (ekranda tek birincil düğme: özetin "Kaydet"i).</summary>
@@ -132,7 +137,7 @@ public sealed partial class EkstreHareketPenceresi : ContentPage
         var cipler = new Controls.CipGrubu { CipKenari = new Thickness(0, 0, 8, 0) };
         cipler.SetBinding(BindableLayout.ItemsSourceProperty, nameof(_vm.SuzgecCipleri));
         cipler.SetBinding(Controls.CipGrubu.SecCommandProperty, nameof(_vm.SuzgecSecCommand));
-        var ara = Girdi(nameof(_vm.Arama));
+        var ara = _arama = Girdi(nameof(_vm.Arama));
         ara.Placeholder = "Açıklamada ara";
         ara.WidthRequest = 240;
         SemanticProperties.SetDescription(ara, "Açıklamada ara");

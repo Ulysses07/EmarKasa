@@ -13,9 +13,9 @@ public sealed partial class EkstreAktarmaPage
         var picker = new Picker { Title = "Düzenlenecek kural", ItemDisplayBinding = new Binding(nameof(EkstreKuralDto.Ad)) };
         picker.SetBinding(Picker.ItemsSourceProperty, nameof(Vm.Kurallar));
         Govde.Add(Editor(Kart("Kişisel sınıflandırma kuralları", Bagli(nameof(Vm.KuralDurumu)),
-            Tikla("Kuralları yenile", Vm.KurallariYenileAsync),
-            Tikla("Önerileri uygula", () => { Vm.OnerileriUygula(); return Task.CompletedTask; }),
-            Goster(Tikla("Kural ekle", () => { KuralFormunuKur(null); return Task.CompletedTask; }), nameof(Vm.KurallarDestekleniyor)),
+            DugmeSatiri(Tikla("Kuralları yenile", Vm.KurallariYenileAsync),
+                Tikla("Önerileri uygula", () => { Vm.OnerileriUygula(); return Task.CompletedTask; }),
+                Goster(Tikla("Kural ekle", () => { KuralFormunuKur(null); return Task.CompletedTask; }), nameof(Vm.KurallarDestekleniyor))),
             Cerceve(picker),
             Tikla("Seçili kuralı düzenle", () => { if (picker.SelectedItem is EkstreKuralDto rule) KuralFormunuKur(rule); return Task.CompletedTask; }),
             Tehlikeli(Tikla("Seçili kuralı sil", async () =>

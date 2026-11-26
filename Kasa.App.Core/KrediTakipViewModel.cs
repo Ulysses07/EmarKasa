@@ -63,14 +63,41 @@ public partial class KrediTakipViewModel(IFinansTakipApi api, IKasaApi finans, A
     [ObservableProperty] private string _gecisAciklama = "";
     [ObservableProperty] private string? _gecisOnizleme;
     [ObservableProperty] private bool _gecisOnay;
-    public bool YeniKredi => Secili is null;
+    /// <summary>Yeni kredi formu yalnız "Kredi ekle" ile açılır (docs/specs/2026-11-26-slop-temizligi.md §8); kredi seçilince kapanır.</summary>
+    public bool YeniKredi => Secili is null && YeniFormAcik;
+    [ObservableProperty][NotifyPropertyChangedFor(nameof(YeniKredi))] private bool _yeniFormAcik;
+    /// <summary>Erken kapama formu yalnız "Erken kapama" ile açılır.</summary>
+    [ObservableProperty][NotifyPropertyChangedFor(nameof(KapamaGorunur), nameof(KapamaAcilabilir))] private bool _kapamaAcik;
+    public bool KapamaGorunur => YeniTakip && KapamaAcik;
+    public bool KapamaAcilabilir => YeniTakip && !KapamaAcik;
     public bool KrediSecili => Secili is not null;
     public bool YeniTakip => Secili?.YeniTakip == true;
     public bool EskiTakip => Secili is { YeniTakip: false };
     public bool TaksitDuzenlenebilir => DuzenlenenTaksit?.Veri.Durum == TaksitDurumlari.Bekliyor;
     public string KrediOzeti => Secili is { } k ? new KrediTakipSatiri(k).Ozet + "\n" + TakipMetni.Paylar(k.KanalPaylari) : "Yeni kredi bilgilerini girin.";
     public string KapatmaOzeti => !ParaAyristirici.GecerliMi(KapatmaTutari) ? $"{ParaAyristirici.GecersizGosterim}: {ParaAyristirici.BicimHatasi}" : $"{KapatmaTarihi:dd.MM.yyyy} tarihinde {Bicim.Tl(KapatmaTutari)} ₺ kasa çıkışı kaydedilir; yerine geçen ileri taksitler iptal edilir. Bankanın bildirdiği kapama tutarını kullanın.";
-    partial void OnSeciliChanged(KrediTakipDto? value) { foreach (var p in new[] { nameof(YeniKredi), nameof(KrediSecili), nameof(YeniTakip), nameof(EskiTakip), nameof(KrediOzeti) }) OnPropertyChanged(p); }
+    partial void OnSeciliChanged(KrediTakipDto? value)
+    {
+        KapamaAcik = false;
+        foreach (var p in new[] { nameof(YeniKredi), nameof(KrediSecili), nameof(YeniTakip), nameof(EskiTakip), nameof(KrediOzeti), nameof(KapamaGorunur), nameof(KapamaAcilabilir) })
+            OnPropertyChanged(p);
+    }
+    /// <summary>Yeni kredi formunun "Vazgeç"i: form temizlenip kapanır (gizli formda kaydedilmemiş değişiklik kalmaz).</summary>
+    [RelayCommand]
+    private void YeniKapat()
+    {
+        YeniForm();
+        YeniFormAcik = false;
+    }
+    [RelayCommand] private void KapamaAc() => KapamaAcik = true;
+    /// <summary>Erken kapama formunun "Vazgeç"i: tutar ve onay temizlenip form kapanır.</summary>
+    [RelayCommand]
+    private void KapamaKapat()
+    {
+        KapatmaTutari = 0;
+        KapatmaOnay = false;
+        KapamaAcik = false;
+    }
     partial void OnDuzenlenenTaksitChanged(TaksitSatiri? value) => OnPropertyChanged(nameof(TaksitDuzenlenebilir));
     partial void OnKapatmaTutariChanged(decimal value) { KapatmaOnay = false; OnPropertyChanged(nameof(KapatmaOzeti)); }
     partial void OnKapatmaTarihiChanged(DateTime value) { KapatmaOnay = false; OnPropertyChanged(nameof(KapatmaOzeti)); }
@@ -145,7 +172,10 @@ public partial class KrediTakipViewModel(IFinansTakipApi api, IKasaApi finans, A
     private async Task YeniAsync()
     {
         if (Secili is not null || await BirakilabilirAsync(FormIzi))
+        {
             YeniForm();
+            YeniFormAcik = true;
+        }
     }
 
     /// <summary>Boş yeni kredi formu; formun hataları kalkar.</summary>
@@ -209,7 +239,7 @@ public partial class KrediTakipViewModel(IFinansTakipApi api, IKasaApi finans, A
         var g = new KrediTakipYaz(Guid.Empty, Ad.Trim(), CekilenTutar, DateOnly.FromDateTime(CekimTarihi), DateOnly.FromDateTime(IlkTaksitTarihi), TaksitSayisi, AylikOdeme, kanallar, MevcutKredi);
         g = g with { IstekId = _kayit.Al(g) };
         if (Uygula(await api.TakipKrediKaydetAsync(g), n))
-        { _kayit.Temizle(); Mesaj = g.MevcutKredi ? "Mevcut kredi takibe alındı; ikinci kredi girişi oluşturulmadı." : "Kredi kaydedildi; genel kasa ve seçilen kanal payları aynı hareketi gösterir."; }
+        { _kayit.Temizle(); YeniFormAcik = false; Mesaj = g.MevcutKredi ? "Mevcut kredi takibe alındı; ikinci kredi girişi oluşturulmadı." : "Kredi kaydedildi; genel kasa ve seçilen kanal payları aynı hareketi gösterir."; }
     });
     [RelayCommand]
     private void TaksitSec(TaksitSatiri satir)
@@ -248,7 +278,7 @@ public partial class KrediTakipViewModel(IFinansTakipApi api, IKasaApi finans, A
         var g = new KrediKapatYaz(Guid.Empty, kredi.Surum, DateOnly.FromDateTime(KapatmaTarihi), KapatmaTutari, Gerekce.Trim());
         g = g with { IstekId = _kapat.Al(new { kredi.Id, g }) };
         if (Uygula(await api.TakipKrediKapatAsync(kredi.Id, g), n))
-        { _kapat.Temizle(); KapatmaOnay = false; Mesaj = "Erken kapama kaydedildi; ileri taksitler geçmişiyle korundu."; }
+        { _kapat.Temizle(); KapatmaOnay = false; KapamaAcik = false; Mesaj = "Erken kapama kaydedildi; ileri taksitler geçmişiyle korundu."; }
     });
     public Task DurumDegistirAsync() => YurutAsync(async n =>
     {

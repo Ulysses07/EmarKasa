@@ -16,7 +16,8 @@ public partial class AyarlarPage : ContentPage, Controls.IYenilenebilir
         _guvenlik = guvenlik;
         _esik = esik;
         AyarlarAlani.Children.Add(KasaKontrolAlanlari.Esikler(esik));
-        AyarlarAlani.Children.Add(new GuvenlikAlani(guvenlik, this));
+        // "Sürüm ve yedek" bölümünde el ile güncelleme denetimi (menüdeki düğme yalnız yeni sürüm varken görünür).
+        AyarlarAlani.Children.Add(new GuvenlikAlani(guvenlik, this, () => (Shell.Current as AppShell)?.GuncellemeleriAcAsync() ?? Task.CompletedTask));
         var gorunur = new Controls.GorunurYapici(AyarlarKaydirici);
         vm.KanalHatalari.GosterIstendi += (_, _) => gorunur.HatayaGit(KanalFormu, vm.KanalHatalari, KanalHataKutusu);
     }

@@ -93,13 +93,24 @@ Eşdeğerlik testleri yapıyı korumaya devam eder; görünüm beklentileri yeni
 
 ## §8 Yerleşim ve kısayollar (PR 6)
 
-- Kasalar yalnız özet; alt limit, gerçek bakiye karşılaştırması ve hareket dökümü "Kasa kontrolü"ne taşınır; 7/30 gün çipe döner.
-- Formlar yalnız "Yeni …" ile açılır (Krediler'in yeni kredi formu, Aylık giderler'in şablon formu, Krediler'in erken kapama formu).
-- Ay gezinmesi her yerde "‹ Ay Yıl ›" bileşeni. Kısa alanlar içerik genişliğinde ve yan yana.
-- Rapor: tarih aralığı yan yana, kanal seçici ("Tüm kanallar" ilk seçenek), biçim seçimi ve tek "Dışa aktar".
-- Ekstre kayıt özeti: toplamlar, kanal bazında etki ve uyarılar; "yapay zekâ" kaynak etiketi yalnız varsayılandan farklıysa.
-- "Uygulama güncellemeleri" Ayarlar'a; güncelleme varken menüde rozet.
-- Kısayollar: Ctrl+N yeni kayıt, Ctrl+F arama, Ctrl+S kaydet, F5 yenile.
+- Masaüstünde Shell gezinme çubuğu yalnız bağlantı koptuğunda (bağlantı şeridi için) görünür; sayfa başlığı sayfanın içinde olduğundan
+  üstteki boş 48 px bant kalkar. iOS'ta menü düğmesi için çubuk kalır.
+- Formlar yalnız istenince açılır: Krediler'in yeni kredi formu ("Kredi ekle") ve erken kapama formu ("Erken kapama"), Aylık giderler'in
+  şablon formu ("Yeni şablon", "Şablonu düzenle"). Kayıt formu kapatır; "Vazgeç" formu temizleyip kapatır (gizli formda kaydedilmemiş
+  değişiklik kalmaz). Krediler'in ayrıntı kartı yalnız kredi seçiliyken görünür.
+- İçi gizli sarmalayıcı da gizlidir (`TakipUi.Editor(görünüm, yol)`): içi gizli ama kendisi görünür sarmalayıcı kartlar arasında fazladan
+  boşluk bırakıyordu.
+- Aylık giderler'de ay gezinmesi Aylık sayfasıyla aynı "‹ Kasım 2026 ›" satırı; ok basınca ay hemen yüklenir. Ay özeti yalnız toplamları
+  yazar (ay adı gezginde).
+- Kasalar'da 7 / 30 gün seçimi seçili durumu olan çip. Yan yana duran düğmeler `TakipUi.DugmeSatiri` ile içerik genişliğinde dizilir
+  (kurallar, Kasalar, Bildirimler, çek ve kredi formları, Ayarlar'daki hesap güvenliği).
+- Rapor: tarih aralığı yan yana, kanal seçici ("Tüm kanallar" ilk seçenek), biçim seçimi (Excel, CSV, PDF) ve tek "Dışa aktar".
+- Menüdeki güncelleme düğmesi yalnız yeni sürüm bulununca görünür ("Güncelleme var"); el ile denetim Ayarlar → "Sürüm ve yedek"te.
+- Kısayollar (Windows): F5 yenile (başlık satırının Yenile'siyle aynı yol), Ctrl+N yeni kayıt, Ctrl+S kaydet, Ctrl+F arama (ekstre
+  penceresi). Sayfa `Controls.IKisayolHedefi` ile komutunu verir; Ctrl+S yalnız ilgili form açıkken vardır. Sayfa üstü pencere (silme
+  onayı, güncellemeler) açıkken kısayol alttaki sayfaya gitmez. Tuş dinleyicisi `Platforms/Windows/KlavyeKisayollari.cs`.
+- Sonraya kalan (ayrı iş): Kasalar'daki kasa kontrolünün (alt limit, gerçek bakiye karşılaştırması, hareket dökümü) ayrı "Kasa kontrolü"
+  sayfasına taşınması ve ekstre kayıt özetinin yeniden düzeni. İkisi de yeni sayfa ve akış ister; bu PR yalnız yerleşimi sadeleştirir.
 
 ## Korunacaklar
 

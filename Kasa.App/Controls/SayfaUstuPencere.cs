@@ -6,7 +6,11 @@ public sealed class SayfaUstuPencere : IDisposable
     private readonly ContentPage _sayfa;
     private readonly View _icerik;
     private readonly ContentView _alt;
-    private readonly Grid _katman;
+    private readonly Katman _katman;
+    /// <summary>Pencerenin katmanı; açık olup olmadığı sayfanın içeriğinden anlaşılır (<see cref="Acik"/>).</summary>
+    private sealed class Katman : Grid;
+    /// <summary>Sayfanın üstünde pencere açık mı (açıkken klavye kısayolları alttaki sayfaya gitmez).</summary>
+    public static bool Acik(ContentPage sayfa) => sayfa.Content is Katman;
     private bool _kapandi;
     public event EventHandler? Kapandi;
 
@@ -16,7 +20,7 @@ public sealed class SayfaUstuPencere : IDisposable
         _icerik = sayfa.Content ?? throw new InvalidOperationException("Açık sayfanın içeriği bulunamadı.");
         _alt = new ContentView { IsEnabled = false };
         AutomationProperties.SetExcludedWithChildren(_alt, true);
-        _katman = new Grid();
+        _katman = new Katman();
         // Devralınan bağlamı aynı sayfaya bağla: reparent sırasında null bağlam para taslağını sıfırlamasın.
         // Kaynağın kendi BindingContext değeri/bindingi varsa aynen kalır.
         if (!_icerik.IsSet(BindableObject.BindingContextProperty))

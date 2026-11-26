@@ -97,7 +97,18 @@ public partial class AylikGiderViewModel(IAylikGiderApi api, IKasaApi finans, Au
     partial void OnSeciliOdemeChanged(AylikGiderSatiri? value) { OdemeOnay = false; OnPropertyChanged(nameof(OdemeEtkisi)); OnPropertyChanged(nameof(OdemeSecili)); }
     partial void OnOdemeTarihiChanged(DateTime value) => OdemeOnay = false;
     partial void OnOdemeNotuChanged(string value) => OdemeOnay = false;
-    partial void OnAyTarihiChanged(DateTime value) { SeciliOdeme = null; OnPropertyChanged(nameof(AySecimiDegisti)); }
+    partial void OnAyTarihiChanged(DateTime value) { SeciliOdeme = null; OnPropertyChanged(nameof(AySecimiDegisti)); OnPropertyChanged(nameof(AyBasligi)); }
+    /// <summary>Ay gezgininin başlığı ("Kasım 2026"; docs/specs/2026-11-26-slop-temizligi.md §8).</summary>
+    public string AyBasligi => AyTarihi.ToString("MMMM yyyy", System.Globalization.CultureInfo.GetCultureInfo("tr-TR"));
+    /// <summary>Şablon formu yalnız "Yeni şablon" ya da "Şablonu düzenle" ile açılır; kayıt ve Vazgeç kapatır.</summary>
+    [ObservableProperty] private bool _sablonFormuAcik;
+    /// <summary>Şablon formunun "Vazgeç"i: form temizlenip kapanır (gizli formda kaydedilmemiş değişiklik kalmaz).</summary>
+    [RelayCommand]
+    private void SablonKapat()
+    {
+        YeniForm();
+        SablonFormuAcik = false;
+    }
     public bool AySecimiDegisti => _ayVerisi is null || _ayVerisi.Yil != AyTarihi.Year || _ayVerisi.Ay != AyTarihi.Month;
     /// <summary>Ayın giderleri, şablonlar ve kanallar; hata son başarılı veriyi silmez, eski işaretler (tasarım 2026-10-02 §3).</summary>
     public Task YukleAsync()
@@ -138,7 +149,8 @@ public partial class AylikGiderViewModel(IAylikGiderApi api, IKasaApi finans, Au
         TakipMetni.Doldur(Kayitlar, a.Kayitlar.Select(x => new AylikGiderSatiri(x)));
         TakipMetni.Doldur(Iptaller, (a.Iptaller ?? []).Select(x => new AylikGiderIptalSatiri(x)));
         OnPropertyChanged(nameof(IptalVar));
-        AyOzeti = $"{a.Ay:00}.{a.Yil} · Planlanan {Bicim.Tl(a.PlanlananToplam)} ₺ · Ödenen {Bicim.Tl(a.OdenenToplam)} ₺";
+        // Ay adı gezginde yazar (AyBasligi); özet yalnız toplamlar.
+        AyOzeti = $"Planlanan {Bicim.Tl(a.PlanlananToplam)} ₺ · Ödenen {Bicim.Tl(a.OdenenToplam)} ₺";
         OnPropertyChanged(nameof(AySecimiDegisti));
         OdemeyiYenidenEsle();
     }
@@ -161,7 +173,10 @@ public partial class AylikGiderViewModel(IAylikGiderApi api, IKasaApi finans, Au
     private async Task YeniAsync()
     {
         if (await BirakilabilirAsync(FormIzi))
+        {
             YeniForm();
+            SablonFormuAcik = true;
+        }
     }
 
     /// <summary>Boş yeni şablon formu; formun hataları kalkar.</summary>
@@ -187,7 +202,10 @@ public partial class AylikGiderViewModel(IAylikGiderApi api, IKasaApi finans, Au
     public async Task SablonSecAsync(AylikSablonSatiri satir)
     {
         if (await BirakilabilirAsync(FormIzi))
+        {
             SablonSec(satir);
+            SablonFormuAcik = EditorMu;
+        }
     }
 
     public void SablonSec(AylikSablonSatiri satir)
@@ -251,6 +269,7 @@ public partial class AylikGiderViewModel(IAylikGiderApi api, IKasaApi finans, Au
         else
             Sablonlar.Add(new(sonuc));
         YeniForm();
+        SablonFormuAcik = false;
         Mesaj = "Şablon kaydedildi; ödeme ve kasa hareketi oluşturulmadı.";
         VeriHazir = false;
         var ay = AyTarihi;

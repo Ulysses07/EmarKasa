@@ -99,8 +99,8 @@ public sealed class KartTakipPage : TakipSayfasi<KartTakipViewModel>, IQueryAttr
                 Children =
                 {
                     Goster(Ozet(vm), nameof(vm.KartSecili)),
-                    Editor(Goster(Dugmeler(vm), nameof(vm.KartSecili))),
-                    Editor(Goster(_formAlani, nameof(vm.FormAcik))),
+                    Editor(Dugmeler(vm), nameof(vm.KartSecili)),
+                    Editor(_formAlani, nameof(vm.FormAcik)),
                     Goster(Sekmeler(vm), nameof(vm.KartSecili)),
                 },
             },

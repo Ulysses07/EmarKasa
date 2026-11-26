@@ -5,7 +5,8 @@ namespace Kasa.App.Views;
 public sealed class GuvenlikAlani : ContentView
 {
     private readonly GuvenlikViewModel _vm;
-    public GuvenlikAlani(GuvenlikViewModel vm, Page sayfa)
+    /// <param name="guncellemeleriAc">"Uygulama güncellemeleri" düğmesi (kabuğun güncelleme penceresi); verilmezse düğme yoktur.</param>
+    public GuvenlikAlani(GuvenlikViewModel vm, Page sayfa, Func<Task>? guncellemeleriAc = null)
     {
         _vm = vm;
         BindingContext = vm;
@@ -18,17 +19,20 @@ public sealed class GuvenlikAlani : ContentView
         stack.Add(TakipUi.Cerceve(yeni));
         stack.Add(TakipUi.Cerceve(tekrar));
         stack.Add(SifreyiGoster(nameof(vm.YeniSifreyiGoster), yeni, tekrar));
-        stack.Add(Dugme("Şifremi değiştir", nameof(vm.SifreDegistirCommand)));
-        stack.Add(Dugme("Kurtarma kodu oluştur", nameof(vm.KurtarmaKoduOlusturCommand)));
+        // Düğmeler yan yana ve içerik genişliğinde (sadeleştirme §8); boş etiketler yer tutmaz.
+        stack.Add(TakipUi.DugmeSatiri(Dugme("Şifremi değiştir", nameof(vm.SifreDegistirCommand)),
+            Dugme("Kurtarma kodu oluştur", nameof(vm.KurtarmaKoduOlusturCommand))));
         var kod = new Label { FontSize = 22, FontAttributes = FontAttributes.Bold };
         kod.SetBinding(Label.TextProperty, nameof(vm.KurtarmaKodu));
+        kod.SetBinding(IsVisibleProperty, nameof(vm.KurtarmaKodu), converter: new Converters.DoluIseConverter());
         stack.Add(kod);
-        var kopyala = new Button { Text = "Kurtarma kodunu kopyala" };
+        var kopyala = new Button { Text = "Kurtarma kodunu kopyala", HorizontalOptions = LayoutOptions.Start };
         kopyala.SetBinding(IsVisibleProperty, nameof(vm.KurtarmaKodu), converter: new Converters.DoluIseConverter());
         kopyala.Clicked += async (_, _) => { if (!string.IsNullOrEmpty(vm.KurtarmaKodu)) await Clipboard.Default.SetTextAsync(vm.KurtarmaKodu); };
         stack.Add(kopyala);
         var mesaj = Yazi("");
         mesaj.SetBinding(Label.TextProperty, nameof(vm.Mesaj));
+        mesaj.SetBinding(IsVisibleProperty, nameof(vm.Mesaj), converter: new Converters.DoluIseConverter());
         stack.Add(mesaj);
         stack.Add(Baslik("Sürüm ve yedek"));
         var surum = Yazi("");
@@ -38,7 +42,8 @@ public sealed class GuvenlikAlani : ContentView
         indir.SetBinding(Button.TextProperty, nameof(vm.IndirmeMetni));
         indir.SetBinding(IsVisibleProperty, nameof(vm.IndirmeAdresi), converter: new Converters.DoluIseConverter());
         indir.Clicked += async (_, _) => { if (vm.IndirmeAdresi is { } adres) await Launcher.Default.OpenAsync(adres); };
-        stack.Add(indir);
+        // El ile güncelleme denetimi burada; menüdeki düğme yalnız yeni sürüm bulununca görünür.
+        stack.Add(guncellemeleriAc is null ? TakipUi.DugmeSatiri(indir) : TakipUi.DugmeSatiri(TakipUi.Tikla("Uygulama güncellemeleri", guncellemeleriAc), indir));
         var yedek = Yazi("");
         yedek.SetBinding(Label.TextProperty, nameof(vm.YedekBilgisi));
         stack.Add(yedek);
@@ -47,7 +52,7 @@ public sealed class GuvenlikAlani : ContentView
         yedekUyarisi.SetBinding(Label.TextProperty, nameof(vm.YedekUyarisi));
         yedekUyarisi.SetBinding(IsVisibleProperty, nameof(vm.YedekUyarisi), converter: new Converters.DoluIseConverter());
         stack.Add(yedekUyarisi);
-        var yedekDugmesi = new Button { Text = OperatingSystem.IsIOS() ? "Yedeği Dosyalar'a kaydet" : "Yedeği bilgisayara kaydet" };
+        var yedekDugmesi = new Button { Text = OperatingSystem.IsIOS() ? "Yedeği Dosyalar'a kaydet" : "Yedeği bilgisayara kaydet", HorizontalOptions = LayoutOptions.Start };
         yedekDugmesi.Clicked += async (_, _) => { if (vm.Mesgul) return; await DosyaIslemleri.IndirVeKaydetAsync(sayfa, vm.YedekIndirAsync); };
         yedekDugmesi.SetBinding(IsEnabledProperty, nameof(vm.YedekIndiriliyor), converter: new Converters.TersIseConverter());
         stack.Add(yedekDugmesi);
@@ -60,6 +65,7 @@ public sealed class GuvenlikAlani : ContentView
         stack.Add(yedekIptal);
         var hata = new Label { TextColor = (Color)Application.Current!.Resources["Neg"] };
         hata.SetBinding(Label.TextProperty, nameof(vm.Hata));
+        hata.SetBinding(IsVisibleProperty, nameof(vm.Hata), converter: new Converters.DoluIseConverter());
         stack.Add(hata);
         Content = new Border { Style = (Style)Application.Current!.Resources["CardForm"], Content = stack };
     }
@@ -70,11 +76,10 @@ public sealed class GuvenlikAlani : ContentView
     /// modelindedir (<see cref="GuvenlikViewModel.YeniSifreyiGoster"/>): başarıda, ekrandan ayrılınca ve oturum sonunda kapanır.</summary>
     private static View SifreyiGoster(string ozellik, params Entry[] alanlar)
     {
-        var kutu = new CheckBox();
-        kutu.SetBinding(CheckBox.IsCheckedProperty, ozellik, BindingMode.TwoWay);
         foreach (var alan in alanlar)
             alan.SetBinding(Entry.IsPasswordProperty, ozellik, converter: new Converters.TersIseConverter());
-        return new HorizontalStackLayout { Spacing = 6, Children = { kutu, new Label { Text = "Yeni şifreyi göster", VerticalOptions = LayoutOptions.Center } } };
+        // Sayfaların onay kutusuyla aynı (etiket kutunun hemen yanında).
+        return TakipUi.Onay("Yeni şifreyi göster", ozellik);
     }
-    private static Button Dugme(string text, string command) { var b = new Button { Text = text }; b.SetBinding(Button.CommandProperty, command); return b; }
+    private static Button Dugme(string text, string command) { var b = new Button { Text = text, HorizontalOptions = LayoutOptions.Start }; b.SetBinding(Button.CommandProperty, command); return b; }
 }
