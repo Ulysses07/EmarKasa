@@ -25,6 +25,19 @@ public class SayfaBasligiTests
         Assert.Contains("Son güncelleme: 27.11.2026 10:00", GorunenMetinler(b));
     }
 
+    /// <summary>Dar ekranda (telefon) uzun "Son güncelleme … güncel olmayabilir" düğmelerin yanında başlığı ezmez: başlık satırının altında
+    /// kendi satırındadır, sağdaki yatay yığında değildir.</summary>
+    [Fact]
+    public void Son_guncelleme_baslik_satirinin_altinda_kendi_satirinda()
+    {
+        GorunumOrtami.Kur();
+        const string metin = "Son güncelleme: 27.11.2026 10:00 · güncel olmayabilir";
+        var b = new SayfaBasligi { Baslik = "Kasalar", SonGuncellemeMetni = metin, VeriEski = true };
+        var etiket = b.GetVisualTreeDescendants().OfType<Label>().Single(l => l.Text == metin);
+        Assert.IsNotType<HorizontalStackLayout>(etiket.Parent);
+        Assert.Equal((1, 2), (Grid.GetRow(etiket), Grid.GetColumnSpan(etiket)));
+    }
+
     [Fact]
     public void Gosterge_yalniz_mesgulken_doner_ve_yenile_kapanir()
     {
