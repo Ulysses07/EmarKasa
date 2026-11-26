@@ -219,6 +219,15 @@ public sealed partial class EkstreHareketPenceresi : ContentPage
 
     private async Task MenuAsync()
     {
+        var secenekler = MenuSecenekleri();
+        var secim = await DisplayActionSheetAsync("Belge işlemleri", "Vazgeç", null, [.. secenekler.Select(s => s.Ad)]);
+        if (secenekler.FirstOrDefault(s => s.Ad == secim) is { Is: { } calistir })
+            await calistir();
+    }
+
+    /// <summary>"⋯" menüsünün o anki seçenekleri: belgede olmayan iş listelenmez.</summary>
+    internal List<(string Ad, Func<Task> Is)> MenuSecenekleri()
+    {
         var secenekler = new List<(string Ad, Func<Task> Is)> { ("Kaynak dosyayı indir", () => DosyaIslemleri.IndirVeKaydetAsync(this, _vm.DosyaAsync)) };
         if (_vm.YenidenOkunabilir)
             secenekler.Add(("Dosyayı yeniden oku", YenidenOkuAsync));
@@ -237,9 +246,9 @@ public sealed partial class EkstreHareketPenceresi : ContentPage
             secenekler.Add((_vm.YokSayOneriDugmesi, YokSayOnerileriniUygulaAsync));
         if (_vm.TopluGeriAlGorunur)
             secenekler.Add((_vm.TopluGeriAlDugmesi, () => _vm.YokSayilanlariGeriAlCommand.ExecuteAsync(null)));
-        var secim = await DisplayActionSheetAsync("Belge işlemleri", "Vazgeç", null, [.. secenekler.Select(s => s.Ad)]);
-        if (secenekler.FirstOrDefault(s => s.Ad == secim) is { Is: { } calistir })
-            await calistir();
+        if (_vm.IptalEdilenVar)
+            secenekler.Add(($"İptal edilen kayıtlar ({_vm.IptalEdilenler.Count})", () => DisplayAlertAsync("İptal edilen kayıtlar", _vm.IptalEdilenlerMetni, "Kapat")));
+        return secenekler;
     }
 
     private async Task YenidenOkuAsync()

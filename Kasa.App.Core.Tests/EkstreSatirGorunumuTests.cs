@@ -146,6 +146,22 @@ public partial class EkstreAktarmaTests
         Assert.Equal((1, 0, 240d, 2), Yer());
     }
 
+    /// <summary>İptal edilen kayıtlar (satır yeniden bekliyor ya da yeniden kaydedildi) "⋯" menüsünden görülür: kaydedilen değerler, gerekçe, zaman.</summary>
+    [Fact]
+    public async Task Iptal_edilen_kayitlar_menuden_gorulur()
+    {
+        GorunumOrtami.Kur();
+        var belge = DurumBelgesi(Satir(1), Satir(2)) with { Kayitlar = [Kayit(7, 1), Kayit(8, 2, iptal: true) with { Aciklama = "İptal edilen kira" }] };
+        var (vm, _, _) = await Hazir(new() { Veri = belge });
+        Assert.Contains("İptal edilen kayıtlar (1)", Pencere(vm).MenuSecenekleri().Select(s => s.Ad));
+        Assert.Contains("İptal edilen kira", vm.IptalEdilenlerMetni);
+        Assert.Contains("İptal gerekçesi: Yanlış", vm.IptalEdilenlerMetni);
+        Assert.DoesNotContain("Satır 1 ", vm.IptalEdilenlerMetni);
+
+        var (bos, _, _) = await Hazir(new() { Veri = DurumBelgesi(Satir(1)) });
+        Assert.DoesNotContain(Pencere(bos).MenuSecenekleri(), s => s.Ad.StartsWith("İptal edilen", StringComparison.Ordinal));
+    }
+
     /// <summary>"Bu seçimi hatırla" kural olamayan seçimde pencereyi kapatmaz; nedeni panelde görünür.</summary>
     [Fact]
     public async Task Hatirlanamayan_secimde_pencere_acik_kalir_nedeni_gorunur()

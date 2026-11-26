@@ -45,6 +45,8 @@ public partial class EkstreAktarmaViewModel
     public IReadOnlyList<EkstreSekmeCipi> Sekmeler { get; } = [new() { Secili = true }, new()];
     [ObservableProperty] private EkstreSekmesi _seciliSekme;
     public bool IptalEdilenVar => IptalEdilenler.Count > 0;
+    /// <summary>Hareket penceresinin "⋯ > İptal edilen kayıtlar"ı: her kaydın kaydedilen değerleri, gerekçesi ve zamanı (satır yeniden kaydedilse de).</summary>
+    public string IptalEdilenlerMetni => string.Join("\n\n", IptalEdilenler.Select(k => $"{k.Baslik}\n{k.Ozet}"));
 
     /// <summary>"Etkisini göster" yapılamadıysa nedenleri (düğmenin altında); satır değişince o satırınki kalkar.</summary>
     public ObservableCollection<EkstreSatirHatasi> OnizlemeHatalari { get; } = new();
