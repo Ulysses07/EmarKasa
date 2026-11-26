@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.Globalization;
 using System.Text;
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 
 namespace Kasa.App.Core;
 
@@ -20,7 +21,34 @@ public partial class EkstreAktarmaViewModel
     public int KontrolSayisi => _uyelik.Values.Count(u => u == EkstreSuzgec.Kontrol);
     public int KapananSayisi => _uyelik.Values.Count(u => u == EkstreSuzgec.Kapanan);
 
-    partial void OnSuzgecChanged(EkstreSuzgec value) => GorunenleriDoldur();
+    private static readonly (EkstreSuzgec Suzgec, string Ad)[] SuzgecAdlari =
+        [(EkstreSuzgec.Tumu, "Tümü"), (EkstreSuzgec.Hazir, "Hazır"), (EkstreSuzgec.Kontrol, "Kontrol edin"), (EkstreSuzgec.Kapanan, "Kapanan")];
+    /// <summary>Pencerenin süzgeç çipleri, sayılarıyla ("Hazır 462").</summary>
+    public ObservableCollection<EkstreSekmeCipi> SuzgecCipleri { get; } = [new(), new(), new(), new()];
+
+    [RelayCommand]
+    private void SuzgecSec(EkstreSekmeCipi cip)
+    {
+        if (SuzgecCipleri.IndexOf(cip) is var i and >= 0)
+            Suzgec = SuzgecAdlari[i].Suzgec;
+    }
+
+    private void CipleriYaz()
+    {
+        for (var i = 0; i < SuzgecAdlari.Length; i++)
+        {
+            var (suzgec, ad) = SuzgecAdlari[i];
+            var sayi = suzgec switch { EkstreSuzgec.Hazir => HazirSayisi, EkstreSuzgec.Kontrol => KontrolSayisi, EkstreSuzgec.Kapanan => KapananSayisi, _ => Satirlar.Count };
+            SuzgecCipleri[i].Ad = $"{ad} {sayi}";
+            SuzgecCipleri[i].Secili = suzgec == Suzgec;
+        }
+    }
+
+    partial void OnSuzgecChanged(EkstreSuzgec value)
+    {
+        CipleriYaz();
+        GorunenleriDoldur();
+    }
     partial void OnAramaChanged(string value) => GorunenleriDoldur();
 
     /// <summary>Hazırları kendiliğinden işaretler ve her satırın süzgecini yeniden belirler: belge açılınca, öneriler gelince, yapay zekâ turundan
@@ -33,6 +61,7 @@ public partial class EkstreAktarmaViewModel
             _uyelik[s] = s.Kapali ? EkstreSuzgec.Kapanan : s.KontrolNedeni is null ? EkstreSuzgec.Hazir : EkstreSuzgec.Kontrol;
         foreach (var ad in new[] { nameof(HazirSayisi), nameof(KontrolSayisi), nameof(KapananSayisi) })
             OnPropertyChanged(ad);
+        CipleriYaz();
         GorunenleriDoldur();
     }
 

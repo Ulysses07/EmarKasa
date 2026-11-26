@@ -35,7 +35,7 @@ public sealed partial class EkstreAktarmaPage
                 _kuralFormu.Content = null;
         };
     }
-    private void KuralHatirla(EkstreSatirEditor row)
+    internal void KuralHatirla(EkstreSatirEditor row)
     {
         if (!Vm.EditorMu || Vm.Mesgul || !Vm.KurallarDestekleniyor || Vm.Belge is not { } doc || !Vm.Satirlar.Contains(row))
             return;

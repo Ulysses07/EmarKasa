@@ -170,7 +170,7 @@ public sealed partial class EkstreAktarmaPage : TakipSayfasi<EkstreAktarmaViewMo
         };
     }
 
-    private static View TopluBolum(EkstreAktarmaViewModel vm)
+    internal static View TopluBolum(EkstreAktarmaViewModel vm)
     {
         var uygula = Ikincil(Dugme("Seçilenlere uygula", nameof(vm.TopluUygulaCommand)));
         var icerik = new VerticalStackLayout
@@ -401,7 +401,7 @@ public sealed partial class EkstreAktarmaPage : TakipSayfasi<EkstreAktarmaViewMo
         form.BindingContext = s;
         return form;
     }
-    private static Grid SatirAlanlari(View sol, View sag)
+    internal static Grid SatirAlanlari(View sol, View sag)
     {
         var grid = new Grid
         {

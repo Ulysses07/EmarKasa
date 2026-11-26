@@ -47,6 +47,13 @@ public partial class EkstreAktarmaViewModel(IEkstreAktarmaApi api, IKasaApi fina
     public bool OnizlemeVar => _onizleme is not null;
     public bool TekrarOnayGerekli => _onizleme?.TekrarOnayGerekli ?? false;
     public string BelgeOzeti => Belge is { } b ? $"{b.DosyaAdi} · {EkstreGecmisSatiri.Kimlik(b.Banka, b.Kaynak, b.KartId is { } id ? (Kartlar.FirstOrDefault(k => k.Id == id)?.Ad ?? "Kart") + $" (#{id})" : b.HesapAdi)}\n{b.Satirlar.Count} satır; {Satirlar.Count(s => s.Secili)} seçildi. Hiçbir satır kendiliğinden kaydedilmez.\n" + string.Join("\n", b.Uyarilar) : "";
+    /// <summary>Hareket penceresinin başlığı (dosya adı) ve tek satırlık alt bilgisi; belge uyarıları ⋯ menüsündedir.</summary>
+    public string PencereBasligi => Belge?.DosyaAdi ?? "";
+    public string PencereAltBilgisi => Belge is { } b ? $"{BelgeKimligi(b)} · {b.Satirlar.Count} hareket" : "";
+    public string BelgeUyarilariBasligi => $"Belge uyarıları ({Belge?.Uyarilar.Count ?? 0})";
+    public string BelgeUyarilariMetni => string.Join("\n", Belge?.Uyarilar ?? []);
+    private string BelgeKimligi(EkstreBelgeDto b) => EkstreGecmisSatiri.Kimlik(b.Banka, b.Kaynak,
+        b.KartId is { } id ? (Kartlar.FirstOrDefault(k => k.Id == id)?.Ad ?? "Kart") + $" (#{id})" : b.HesapAdi);
     partial void OnKaynakChanged(EkstreSecenek? value)
     {
         foreach (var ad in new[] { nameof(BankaMi), nameof(KartMi), nameof(ErpMi), nameof(BankaSecilir) })
@@ -322,6 +329,8 @@ public partial class EkstreAktarmaViewModel(IEkstreAktarmaApi api, IKasaApi fina
             Gecmis.Remove(eski);
         Gecmis.Insert(0, new(new(b.Id, b.Surum, b.Kaynak, b.Banka, b.HesapAdi, b.KartId, b.DosyaAdi, b.Yuklendi, b.Satirlar.Count, b.Kayitlar.Count(k => !k.Iptal), b.YokSayilanlar?.Count ?? 0)));
         OnPropertyChanged(nameof(BelgeOzeti));
+        foreach (var ad in new[] { nameof(PencereBasligi), nameof(PencereAltBilgisi), nameof(BelgeUyarilariBasligi), nameof(BelgeUyarilariMetni) })
+            OnPropertyChanged(ad);
         OnPropertyChanged(nameof(YonOzeti));
         OnPropertyChanged(nameof(SecimOzeti));
         SuzgecleriHesapla();
