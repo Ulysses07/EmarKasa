@@ -13,7 +13,7 @@ public class PlatformSurumTests
     {
         var dto = new SurumDto("9.0.0", "2.4.1", IstemciPlatformlari.WindowsYayinAdresi, "Windows eski not",
             new("2.5.0", "2.4.1", IstemciPlatformlari.WindowsYayinAdresi, "Windows not"),
-            new(null, "2.5.0", IstemciPlatformlari.TestFlightAdresi, "TestFlight not"));
+            new(null, "9.0.0", IstemciPlatformlari.TestFlightAdresi, "TestFlight not"));
         var vm = Kur(dto, platform);
         await vm.YukleAsync();
         Assert.Null(vm.Hata);
