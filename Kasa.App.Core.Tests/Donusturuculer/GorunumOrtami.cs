@@ -93,8 +93,7 @@ internal static partial class GorunumOrtami
 
     /// <summary>Görünür öğe ağacını çözümlenmiş görsel özellikleriyle döker. Görünmeyen (IsVisible=false) öğe dökülmez: MAUI
     /// yerleşimi onu ölçmez, yerleştirmez ve yığın aralığına saymaz (Visibility.Collapsed). Yerleşimi değiştirmeyen sarmallar
-    /// açılır: dolgusuz, zeminsiz ContentView (içeriği yerine geçer) ve aynı aralıklı dikey yığının içindeki kenar boşluksuz
-    /// DurumSeridi (çocukları üst yığına katılır; eski düz yerleşimle aynı konumlar).</summary>
+    /// açılır: dolgusuz, zeminsiz ContentView (içeriği yerine geçer).</summary>
     public static string Dok(Element kok)
     {
         var sb = new StringBuilder();
@@ -127,11 +126,6 @@ internal static partial class GorunumOrtami
         if (e.GetType() == typeof(ContentView) && e is ContentView cv && cv.Padding == default && Brush.IsNullOrEmpty(cv.Background)
             && cv.BackgroundColor is null && cv.Margin == default && cv.Parent is not null && cv.Content is { IsVisible: true } c)
             return [c];
-        if (e is Kasa.App.Controls.DurumSeridi s && s.Parent is VerticalStackLayout ust && ust.Spacing == s.Spacing
-            && s.Margin == default && s.Padding == default && Brush.IsNullOrEmpty(s.Background) && s.BackgroundColor is null
-            && s.HorizontalOptions == LayoutOptions.Fill && s.VerticalOptions == LayoutOptions.Fill
-            && s.Children.OfType<VisualElement>().Any(x => x.IsVisible))
-            return s.Children.OfType<Element>();
         return null;
     }
 

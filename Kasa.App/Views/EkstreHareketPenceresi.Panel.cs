@@ -147,7 +147,7 @@ public sealed partial class EkstreHareketPenceresi
                 Goster(hatalar, nameof(_vm.OnizlemeHataVar)),
                 Goster(Bagli(nameof(_vm.OnizlemeMetni)), nameof(_vm.OnizlemeVar)),
                 // Seçim ya da satır değişince özet düşer: boş panel yerine ne yapılacağı.
-                Goster(Metin("Seçim değişti. Güncel etkiyi görmek için alttaki \"Etkisini göster ve kaydet\"e basın."), nameof(_vm.OnizlemeYenilenmeli)),
+                Goster(Metin("Seçim değişti; etkiyi yeniden gösterin."), nameof(_vm.OnizlemeYenilenmeli)),
             }
         };
     }
@@ -160,8 +160,8 @@ public sealed partial class EkstreHareketPenceresi
         Spacing = 8,
         Children =
         {
-            Goster(Onay("Benzer kayıt / belirsizlik uyarılarını kontrol ettim; ayrı hareket olarak kaydedilsin.", nameof(_vm.TekrarOnay)), nameof(_vm.TekrarOnayGerekli)),
-            Onay("Seçilen satırları, kanal paylarını ve kasa etkisini kontrol ettim.", nameof(_vm.Onay)),
+            Goster(Onay("Uyarılara baktım, ayrı hareket olarak kaydedilsin.", nameof(_vm.TekrarOnay)), nameof(_vm.TekrarOnayGerekli)),
+            Onay("Satırları ve kasa etkisini kontrol ettim.", nameof(_vm.Onay)),
             Birincil(Dugme("Kaydet", nameof(_vm.KaydetCommand))),
             FormHatasi(nameof(_vm.KayitHatasi)),
         }
@@ -211,7 +211,7 @@ public sealed partial class EkstreHareketPenceresi
             Children =
             {
                 kaynak, Bagli(nameof(s.Uyarilar)), Bagli(nameof(s.OneriMetni)), eylemler, Dolu(Etiket("LblTakipMesaj"), nameof(s.FormMesaji)),
-                SatirAlanlari(Alan("Tarih (yıl-ay-gün)", Girdi(nameof(s.TarihMetni))), Alan("Tutar (pozitif TL)", Girdi(nameof(s.TutarMetni)))),
+                SatirAlanlari(Alan("Tarih", YerTutucu(Girdi(nameof(s.TarihMetni)), "yıl-ay-gün")), Alan("Tutar", Girdi(nameof(s.TutarMetni)))),
                 Alan("Açıklama", Girdi(nameof(s.Aciklama))),
                 Alan("İşlem türü", Secim(nameof(s.IslemTurleri), nameof(s.IslemTuru))),
                 Goster(Alan("Kanal dağılımı", Secim(nameof(s.DagilimTurleri), nameof(s.DagilimTuru))), nameof(s.DagilimGorunur)),
@@ -222,7 +222,7 @@ public sealed partial class EkstreHareketPenceresi
                 {
                     Spacing = 8,
                     Children = {
-                    Metin("Bu satır yeni kayıt oluşturmaz; aynı tutarda, en çok 3 gün farklı tarihli mevcut bir kayda bağlanır. Kasa ve kart borcu değişmez."),
+                    Metin("Aynı tutarda, en çok 3 gün farklı tarihli mevcut kayda bağlanır."),
                     Ikincil(Tikla("Eşleşme adaylarını getir", () => _vm.EslesmeAdaylariniGetirCommand.ExecuteAsync(null))),
                     Alan("Bağlanacak mevcut kayıt", Secim(nameof(s.EslesmeAdaylari), nameof(s.SeciliAday), "Baslik")) }
                 }, nameof(s.EslesmeMi)),
@@ -245,7 +245,6 @@ public sealed partial class EkstreHareketPenceresi
         Spacing = 8,
         Children =
         {
-            Metin("İşaretli satırların türünü ve kanal dağılımını doldurur; kaydetmez. Süzgecin ya da aramanın gizlediği satırlar değişmez."),
             Bagli(nameof(_vm.TopluHedefMetni)),
             Alan("Toplu işlem türü", Secim(nameof(_vm.TopluTurler), nameof(_vm.TopluTur))),
             Alan("Toplu kanal dağılımı", Secim(nameof(_vm.TopluDagilimlar), nameof(_vm.TopluDagilim))),
@@ -254,6 +253,13 @@ public sealed partial class EkstreHareketPenceresi
             Dolu(Etiket("LblTakipMesaj"), nameof(_vm.TopluMesaji)), Dolu(Etiket("LblTakipHata"), nameof(_vm.TopluHatasi)),
         }
     };
+
+    /// <summary>Alanın beklediği biçim etiket yerine kutunun içinde (yer tutucu) yazılır.</summary>
+    private static Entry YerTutucu(Entry girdi, string metin)
+    {
+        girdi.Placeholder = metin;
+        return girdi;
+    }
 
     /// <summary>Paneldeki yardımcı düğmeler ikincildir: ekranda tek birincil düğme olur.</summary>
     private static View IkincilDugmeler(View gorunum)

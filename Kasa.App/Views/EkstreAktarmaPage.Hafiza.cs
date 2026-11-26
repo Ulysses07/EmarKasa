@@ -28,8 +28,8 @@ public sealed partial class EkstreAktarmaPage
             }
         };
         Govde.Add(Editor(Kart("İşlem hafızası",
-            Metin("Kaydettiğiniz ve yok saydığınız satırlar kendiliğinden öğrenilir; aynı açıklama ve yöndeki yeni satır öyle doldurulur. "
-                + "Hafıza kayıt oluşturmaz. Kişisel kural eşleşirse kural önceliklidir."),
+            Yardim("Kaydettiğiniz ve yok saydığınız satırlar öğrenilir; aynı açıklama ve yöndeki yeni satır öyle doldurulur. Kişisel kural "
+                + "eşleşirse kural önceliklidir."),
             dugme, Goster(liste, nameof(Vm.HafizaAcik)))));
     }
 }

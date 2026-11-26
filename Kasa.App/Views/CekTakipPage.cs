@@ -78,8 +78,7 @@ public sealed partial class CekTakipPage : TakipSayfasi<CekTakipViewModel>, IQue
         catch (Exception ex) { Debug.WriteLine($"Çek bildirimi seçimi başarısız: {ex}"); }
     }
 
-    public CekTakipPage(CekTakipViewModel vm) : base(vm, "Çekler ve senetler",
-        "Çek kasayı yalnız tahsil, ödeme, ciro, kırdırma ya da dönüş gününde etkiler; kayıt ve vade günü kasayı değiştirmez.", vm.YukleAsync)
+    public CekTakipPage(CekTakipViewModel vm) : base(vm, "Çekler", vm.YukleAsync)
     {
         _formHataKutusu = FormHatasi(nameof(vm.Hatalar) + ".Genel");
         _hareketHataKutusu = FormHatasi(nameof(vm.HareketHatalari) + ".Genel");
@@ -99,7 +98,7 @@ public sealed partial class CekTakipPage : TakipSayfasi<CekTakipViewModel>, IQue
         Govde.Add(Editor(new Controls.UyumluSatir
         {
             Spacing = 12,
-            Children = { Dugme("Yeni çek / senet", nameof(vm.YeniCekCommand)), IkincilDugme("Toplu çek gir", nameof(vm.TopluAcCommand)) },
+            Children = { Dugme("Yeni çek", nameof(vm.YeniCekCommand)), IkincilDugme("Toplu çek gir", nameof(vm.TopluAcCommand)) },
         }));
         Govde.Add(Editor(_form, nameof(vm.FormAcik)));
         Govde.Add(Editor(_topluForm, nameof(vm.TopluAcik)));
@@ -140,7 +139,7 @@ public sealed partial class CekTakipPage : TakipSayfasi<CekTakipViewModel>, IQue
     /// yenilenir.
     /// Düzeltme formunda düzenlenen çekin satırı vurgulanır (DuzenlenenCekId).</summary>
     private static View SatirListesi(CekTakipViewModel vm, string yol, bool bosMetin) => Liste<CekSatiri>(yol, s => vm.SecCommand.ExecuteAsync(s),
-        "Aç / kapat", bosMetin: bosMetin, aciklama: s => $"{s.Baslik}, {(vm.Acik?.Id == s.Veri.Id ? "açık" : "kapalı")}",
+        "Ayrıntı", bosMetin: bosMetin, aciklama: s => $"{s.Baslik}, {(vm.Acik?.Id == s.Veri.Id ? "açık" : "kapalı")}",
         vurgu: (vm, nameof(vm.DuzenlenenCekId)), bosMetinGizleYolu: nameof(vm.SorguYuklenmedi));
 
     /// <summary>Hareket formu: genel hata formun en üstünde, alan hataları alanın altında (tasarım 2026-10-02 §1).</summary>
@@ -155,8 +154,8 @@ public sealed partial class CekTakipPage : TakipSayfasi<CekTakipViewModel>, IQue
                 hataKutusu,
                 Alan("Tarih", Tarih(nameof(vm.HareketTarihi)), h, nameof(vm.HareketTarihi)),
                 Alan("Tutar", Girdi(nameof(vm.HareketTutari), para: true), h, nameof(vm.HareketTutari)),
-                Goster(Alan("Kasa (kanal)", Secim(nameof(vm.KasaSecenekleri), nameof(vm.HareketKasasi), "."), h, nameof(vm.HareketKasasi)), nameof(vm.KasaGerekli)),
-                Goster(Alan("Ciro edilen kişi / banka ya da faktoring", Girdi(nameof(vm.Karsi)), h, nameof(vm.Karsi)), nameof(vm.KarsiGerekli)),
+                Goster(Alan("Kasa", Secim(nameof(vm.KasaSecenekleri), nameof(vm.HareketKasasi), "."), h, nameof(vm.HareketKasasi)), nameof(vm.KasaGerekli)),
+                Goster(Alan("Ciro edilen", Girdi(nameof(vm.Karsi)), h, nameof(vm.Karsi)), nameof(vm.KarsiGerekli)),
                 Goster(Alan("Hesaba geçen tutar", Girdi(nameof(vm.NetTutar), para: true), h, nameof(vm.NetTutar)), nameof(vm.NetGerekli)),
                 Bagli(nameof(vm.MasrafMetni)), Birincil(Dugme("Hareketi kaydet", nameof(vm.HareketKaydetCommand))),
             },
@@ -212,16 +211,16 @@ public sealed partial class CekTakipPage : TakipSayfasi<CekTakipViewModel>, IQue
         baslik.FontAttributes = FontAttributes.Bold;
         var kaydet = Birincil(Dugme("Kaydet", nameof(vm.KaydetCommand)));
         kaydet.SetBinding(Button.TextProperty, nameof(vm.KaydetMetni));
-        var kart = Kart("Çek / senet bilgileri",
+        var kart = Kart("Çek bilgileri",
             baslik, hataKutusu,
             Alan("Tür", Secim(nameof(vm.TurSecenekleri), nameof(vm.FormTur))), Alan("Yön", Secim(nameof(vm.YonSecenekleri), nameof(vm.FormYon))),
-            Alan("Çek / senet numarası", Girdi(nameof(vm.No)), h, nameof(vm.No)),
-            Alan("Banka (senette boş olabilir)", Girdi(nameof(vm.Banka)), h, nameof(vm.Banka)),
-            Alan("Kişi (alınanda kimden, verilende kime)", Girdi(nameof(vm.Kisi)), h, nameof(vm.Kisi)),
+            Alan("Numara", Girdi(nameof(vm.No)), h, nameof(vm.No)),
+            Alan("Banka", Girdi(nameof(vm.Banka)), h, nameof(vm.Banka)),
+            Alan("Kişi", Girdi(nameof(vm.Kisi)), h, nameof(vm.Kisi)),
             Alan("Tutar", Girdi(nameof(vm.Tutar), para: true), h, nameof(vm.Tutar)),
             Alan("Vade", Tarih(nameof(vm.Vade)), h, nameof(vm.Vade)),
             Goster(Alan("Ödeneceği kasa", Secim(nameof(vm.CekKasaSecenekleri), nameof(vm.CekKasasi), "."), h, nameof(vm.CekKasasi)), nameof(vm.FormVerilen)),
-            konum, Onay("Teminat çeki (bildirim çıkmaz, panel toplamlarına girmez)", nameof(vm.Teminat)), Alan("Not", Girdi(nameof(vm.Not)), h, nameof(vm.Not)),
+            konum, Onay("Teminat çeki", nameof(vm.Teminat)), Alan("Not", Girdi(nameof(vm.Not)), h, nameof(vm.Not)),
             ayni, kaydet, Dugme("Vazgeç", nameof(vm.FormuKapatCommand)));
         return kart;
     }

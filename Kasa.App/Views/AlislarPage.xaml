@@ -8,22 +8,15 @@
              x:Class="Kasa.App.Views.AlislarPage" x:Name="Sayfa"
              Title="Alışlar" BackgroundColor="{StaticResource AppBg}">
     <Grid Padding="{OnIdiom Desktop='24,18', Default='16,14'}" RowDefinitions="Auto,Auto,*" RowSpacing="14">
-        <ctl:UyumluIzgara ColumnDefinitions="*,Auto,Auto" DarSutunlar="*,*" ColumnSpacing="10" RowSpacing="8">
-            <VerticalStackLayout ctl:UyumluIzgara.DarSatir="0" ctl:UyumluIzgara.DarSutunAraligi="2" Spacing="3">
-                <Label Text="Alışlar" Style="{StaticResource LblPageTitle}" />
-                <Label Text="Kalemleri kaydedin, kanallara dağıtın, inceleme ve ödemeleri takip edin." Style="{StaticResource LblPageSub}" />
-                <!-- Son güncelleme: hiç yükleme yokken "Henüz yüklenmedi.", eski veride "güncel olmayabilir" (tasarım 2026-10-02 §3). -->
-                <Label Text="{Binding SonGuncellemeMetni}" Style="{StaticResource LblPageSub}" />
-            </VerticalStackLayout>
-            <Button Grid.Column="1" ctl:UyumluIzgara.DarSatir="1" Text="Yenile" Command="{Binding YenileCommand}" Style="{StaticResource BtnSecondary}" VerticalOptions="Center" />
-            <Button Grid.Column="2" ctl:UyumluIzgara.DarSatir="1" ctl:UyumluIzgara.DarSutun="1" Text="+ Yeni alış" Clicked="YeniAlisTiklandi"
-                    VerticalOptions="Center" IsEnabled="{Binding Mesgul, Converter={StaticResource TersIse}}" />
-        </ctl:UyumluIzgara>
+        <ctl:SayfaBasligi Baslik="Alışlar" Mesgul="{Binding Mesgul}" Hata="{Binding Hata}" HataKutusu="True" Mesaj="{Binding Mesaj}"
+                          VeriEski="{Binding VeriEski}" SonGuncellemeMetni="{Binding SonGuncellemeMetni}" YenileCommand="{Binding YenileCommand}">
+            <ctl:SayfaBasligi.Eylem>
+                <Button Text="Yeni alış" Clicked="YeniAlisTiklandi" Style="{StaticResource BtnKucuk}" VerticalOptions="Center"
+                        IsEnabled="{Binding Mesgul, Converter={StaticResource TersIse}}" />
+            </ctl:SayfaBasligi.Eylem>
+        </ctl:SayfaBasligi>
 
         <VerticalStackLayout Grid.Row="1" Spacing="8">
-            <!-- Şerit boşken gizlenir: aşağıdaki ileti ve uyarı kutusu yukarı kayar (eski düz yerleşimle aynı). -->
-            <ctl:DurumSeridi Mesgul="{Binding Mesgul}" YukleniyorMetni="İşlem tamamlanıyor…" Hata="{Binding Hata}" HataKutusu="True" />
-            <Label Text="{Binding Mesaj}" TextColor="{StaticResource Green}" IsVisible="{Binding Mesaj, Converter={StaticResource DoluIse}}" />
             <Border BackgroundColor="{StaticResource UyariZemin}" Stroke="{StaticResource BrushUyariKenar}" StrokeShape="RoundRectangle 10" Padding="14,10" IsVisible="{Binding DagilimBekliyor}">
                 <Label TextColor="{StaticResource UyariMetin}">
                     <Label.FormattedText><FormattedString>

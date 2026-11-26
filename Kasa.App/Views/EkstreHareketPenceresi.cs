@@ -174,7 +174,7 @@ public sealed partial class EkstreHareketPenceresi : ContentPage
         var ozet = Bagli(nameof(_vm.SecimOzeti));
         ozet.Style = Stil("LblTakipMetin");
         ozet.VerticalOptions = LayoutOptions.Center;
-        var toplu = Ikincil(Tikla("Toplu tür / kanal", () => { PaneliAc(PanelKipi.Toplu); return Task.CompletedTask; }));
+        var toplu = Ikincil(Tikla("Toplu düzenle", () => { PaneliAc(PanelKipi.Toplu); return Task.CompletedTask; }));
         var yokSay = Ikincil(Tikla("Yok say", SecilenleriYokSayAsync));
         yokSay.SetBinding(IsVisibleProperty, nameof(_vm.YokSayDestekleniyor));
         var kaydet = _etkiDugmesi = Birincil(Tikla("Etkisini göster ve kaydet", () => _vm.OnizleCommand.ExecuteAsync(null)));

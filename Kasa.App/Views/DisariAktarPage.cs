@@ -13,15 +13,11 @@ public sealed class DisariAktarPage : ContentPage, Controls.IYenilenebilir
     {
         _vm = vm;
         BindingContext = vm;
-        Title = "Gider raporu dışa aktar";
+        Title = "Rapor dışa aktar";
         BackgroundColor = (Color)Application.Current!.Resources["AppBg"];
         var root = new VerticalStackLayout { Padding = new Thickness(28, 22), Spacing = 16, MaximumWidthRequest = 1220 };
         root.SizeChanged += (_, _) => root.Padding = root.Width < 600 ? new Thickness(16, 14) : new Thickness(28, 22);
-        root.Add(new Label { Text = Title, Style = (Style)Application.Current.Resources["LblTakipSayfaBaslik"] });
-        root.Add(new Label { Text = "Tarih ve kanal süzgeciyle Excel, CSV veya yazdırılabilir gider raporu. Kanal filtresi eşleşen ödemenin tamamını listeler; kanal payı toplamı değildir." });
-        var yenile = new Button { Text = "Yenile / tekrar dene", HorizontalOptions = LayoutOptions.Start };
-        yenile.Clicked += async (_, _) => await vm.YukleAsync();
-        TakipUi.DurumSatirlari(root, yenile);
+        root.Add(TakipUi.SayfaBasligi(Title));
 
         var form = new VerticalStackLayout { Spacing = 12 };
         form.SetBinding(IsVisibleProperty, nameof(vm.VeriHazir));
@@ -31,7 +27,7 @@ public sealed class DisariAktarPage : ContentPage, Controls.IYenilenebilir
         var kanal = new Picker { Title = "Tüm kanallar", ItemDisplayBinding = new Binding("Ad") };
         kanal.SetBinding(Picker.ItemsSourceProperty, nameof(vm.Kanallar));
         kanal.SetBinding(Picker.SelectedItemProperty, nameof(vm.Kanal));
-        form.Add(Alan("Kanal (boş: tümü)", kanal));
+        form.Add(Alan("Kanal", kanal));
         var temizle = new Button { Text = "Tüm kanallar", HorizontalOptions = LayoutOptions.Start };
         temizle.Clicked += (_, _) => vm.Kanal = null;
         form.Add(temizle);

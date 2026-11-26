@@ -18,21 +18,17 @@ namespace Kasa.App.Views;
 /// </summary>
 public sealed class KartTakipPage : TakipSayfasi<KartTakipViewModel>, IQueryAttributable
 {
-    private const string SayfaAciklamasi = "Yeni takipte kartla harcama nakit çıkışı oluşturmaz; kasa kaydettiğiniz ödeme ile azalır. "
-        + "Geçiş yapılmamış eski kartlarda önceki ay sonu kuralı korunur.";
-    private const string KasaNotu = "Bu tutarlar mevcut kasadan düşülmüş değildir. Kasa, kaydedilen kart ödemesiyle değişir.";
-    private const string AcilisNotu = "Açılış borcunun bilinen kanal paylarını girin. Bilinmeyen dağılım tahmin edilmez.";
-    private const string DurumNotu = "Kartı pasife almak geçmiş hareketleri silmez.";
+    private const string KasaNotu = "Kart borcu kasadan, ödemeyi kaydedince düşer.";
+    private const string AcilisNotu = "Bilinen kanal paylarını girin.";
     private const string GecisNotu = "Bankanızdaki kalan borcu girin. Kasada önceden sayılan kısım, sistemin eski kuralla kasadan düştüğü/düşeceği borçtur; "
         + "siz değiştirmedikçe alan kalan borç ile sistem kart borcunun küçüğünü izler. Önizleme farklı bir tutar önerirse "
         + "\"Önerilen tutarla yeniden önizle\" ile uygulayabilirsiniz. Önerilenin altı yalnız açılış borcu kasadan ayrıca ödenecekse girilebilir. "
         + "Girdiler değişirse geçiş, yeni önizleme alınmadan onaylanamaz. Bu işlem yeni harcama oluşturmaz.";
-    private const string EkstreNotu = "Asgari ödeme ve tarihler bankanın ekstresinden girilir; uygulama oran veya tatil günü tahmini yapmaz.";
+    private const string EkstreNotu = "Tutar ve tarihleri bankanın ekstresinden girin.";
     private const string MasrafNotu = "Bankanın bildirdiği tutarı girin. Seçilen kesilmiş ekstre ve önceki ekstrelerin kalan borcuna göre kanallara dağıtılır; "
         + "ileri taksitler ağırlığa katılmaz. Bilinmeyen kanal payı varsa kaydetmeden önce düzeltilmelidir.";
-    private const string HarcamaNotu = "Alışlar veya İşlemler'den bu karta bağlanan harcamayı tekrar girmeyin. İade için eksi tutar ve tek taksit kullanın. "
-        + "Kalan borca dağıtılacak faiz / masrafı \"Faiz / masraf\" formundan girin.";
-    private const string HarcamaPayNotu = "Bilinen kanal paylarını girin. Taksit toplamı borca ikinci kez eklenmez.";
+    private const string HarcamaNotu = "Alışlar ya da İşlemler'de girilen harcamayı tekrar girmeyin. İade için eksi tutar yazın.";
+    private const string HarcamaPayNotu = "Bilinen kanal paylarını girin.";
     private const string DevirNotu = "Devrin ödemesi kasada önceden sayılan kısım kadar kasadan ikinci kez düşmez; devre yapılan iadenin önceden sayılmış kısmı "
         + "iade tarihinde kasaya döner. Hatalı devir iptal edilmez: düzeltme etkin devri iptal edip aynı tarihle yeni tutarı yazar, gerekçe denetim izine kaydedilir.";
 
@@ -79,7 +75,7 @@ public sealed class KartTakipPage : TakipSayfasi<KartTakipViewModel>, IQueryAttr
         catch (Exception ex) { Debug.WriteLine($"Kart bildirimi seçimi başarısız: {ex}"); }
     }
 
-    public KartTakipPage(KartTakipViewModel vm) : base(vm, "Kredi Kartları", SayfaAciklamasi, vm.YukleAsync, nameof(vm.SayfaHatasi))
+    public KartTakipPage(KartTakipViewModel vm) : base(vm, "Kartlar", vm.YukleAsync, nameof(vm.SayfaHatasi))
     {
         _formHataSatiri = BagliHata(nameof(vm.FormHatasi));
         _kartHataKutusu = FormHatasi(nameof(vm.KartHatalari) + ".Genel");
@@ -198,7 +194,7 @@ public sealed class KartTakipPage : TakipSayfasi<KartTakipViewModel>, IQueryAttr
         Children =
         {
             Goster(DugmeSirasi(FormDugmesi("Ödeme kaydet", KartFormu.Odeme), FormDugmesi("Harcama ekle", KartFormu.Harcama),
-                FormDugmesi("Faiz / masraf", KartFormu.Masraf), FormDugmesi("Kartı düzenle", KartFormu.KartBilgisi)), nameof(vm.YeniTakip)),
+                FormDugmesi("Faiz ve masraf", KartFormu.Masraf), FormDugmesi("Kartı düzenle", KartFormu.KartBilgisi)), nameof(vm.YeniTakip)),
             Goster(DugmeSirasi(FormDugmesi("Yeni takibe al", KartFormu.Gecis), FormDugmesi("Kartı düzenle", KartFormu.KartBilgisi)),
                 nameof(vm.EskiTakip)),
         },
@@ -257,7 +253,7 @@ public sealed class KartTakipPage : TakipSayfasi<KartTakipViewModel>, IQueryAttr
                 Metin(AcilisNotu), Paylar(vm.AcilisPaylari, () => vm.PayEkle(vm.AcilisPaylari)),
             },
         };
-        var durum = AltBolum("Kullanım durumu", Metin(DurumNotu), Tikla("Aktif / pasif durumunu değiştir",
+        var durum = AltBolum("Kullanım durumu", Tikla("Durumu değiştir",
             () => GerekceyleAsync("Kartın kullanım durumunu değiştir", (gerekce, _) =>
             {
                 vm.Gerekce = gerekce;
@@ -273,9 +269,9 @@ public sealed class KartTakipPage : TakipSayfasi<KartTakipViewModel>, IQueryAttr
             Children =
             {
                 baslik, _kartHataKutusu,
-                Alan("Kart / banka adı", Girdi(nameof(vm.Ad)), h, nameof(vm.Ad)), Alan("Limit", Girdi(nameof(vm.Limit), true), h, nameof(vm.Limit)),
-                Alan("Hesap kesim günü (1–31)", Girdi(nameof(vm.KesimGunu), sayi: true), h, nameof(vm.KesimGunu)),
-                Alan("Son ödeme günü (1–31)", Girdi(nameof(vm.SonOdemeGunu), sayi: true), h, nameof(vm.SonOdemeGunu)),
+                Alan("Kart adı", Girdi(nameof(vm.Ad)), h, nameof(vm.Ad)), Alan("Limit", Girdi(nameof(vm.Limit), true), h, nameof(vm.Limit)),
+                Alan("Hesap kesim günü", Girdi(nameof(vm.KesimGunu), sayi: true), h, nameof(vm.KesimGunu)),
+                Alan("Son ödeme günü", Girdi(nameof(vm.SonOdemeGunu), sayi: true), h, nameof(vm.SonOdemeGunu)),
                 Goster(acilis, nameof(vm.YeniKart)), kaydet,
                 Goster(durum, nameof(vm.KartSecili)), Goster(Devir(vm), nameof(vm.GecisKaydi), true),
             },
@@ -296,7 +292,7 @@ public sealed class KartTakipPage : TakipSayfasi<KartTakipViewModel>, IQueryAttr
                 Dugme("Devri düzelt", nameof(vm.DevirDuzeltCommand)),
             },
         };
-        return AltBolum("Eski borç devri", Metin(DevirNotu), Dugme("Devir bilgisini göster", nameof(vm.DevirYukleCommand)),
+        return AltBolum("Eski borç devri", Yardim(DevirNotu), Dugme("Devir bilgisini göster", nameof(vm.DevirYukleCommand)),
             Bagli(nameof(vm.DevirOzeti)), Goster(devirFormu, nameof(vm.DevirDuzeltilebilir)));
     }
 
@@ -309,13 +305,13 @@ public sealed class KartTakipPage : TakipSayfasi<KartTakipViewModel>, IQueryAttr
         return Form("Kart ödemesi kaydet", hataKutusu,
             Alan("Tarih", Tarih(nameof(vm.OdemeTarihi)), h, nameof(vm.OdemeTarihi)),
             Alan("Tutar", Girdi(nameof(vm.OdemeTutari), true), h, nameof(vm.OdemeTutari)),
-            Alan("Ekstre (boş: en eski açık ekstreler)", Secim(nameof(vm.Ekstreler), nameof(vm.OdemeEkstresi))),
+            Alan("Ekstre", Secim(nameof(vm.Ekstreler), nameof(vm.OdemeEkstresi))),
             Tikla("En eski açık ekstrelere dağıt", () =>
             {
                 vm.OdemeEkstresi = null;
                 return Task.CompletedTask;
             }),
-            Alan("Ödeme notu / dekont referansı", Girdi(nameof(vm.OdemeNotu)), h, nameof(vm.OdemeNotu)),
+            Alan("Not", Girdi(nameof(vm.OdemeNotu)), h, nameof(vm.OdemeNotu)),
             Dugme("Ödemeyi kontrol et", nameof(vm.OdemeOnizleCommand)), onayBlogu,
             Benzerlik(nameof(vm.OdemeBenzerlik), nameof(vm.OdemeyiAyriKaydetCommand)));
     }
@@ -323,9 +319,9 @@ public sealed class KartTakipPage : TakipSayfasi<KartTakipViewModel>, IQueryAttr
     private static View Harcama(KartTakipViewModel vm) => Form("Bağımsız kart hareketi",
         Metin(HarcamaNotu),
         Alan("Tarih", Tarih(nameof(vm.HarcamaTarihi))), Alan("Açıklama", Girdi(nameof(vm.HarcamaAciklama))),
-        Alan("Tutar (iade için eksi)", Girdi(nameof(vm.HarcamaTutari), true)), Alan("Taksit sayısı", Girdi(nameof(vm.TaksitSayisi), sayi: true)),
+        Alan("Tutar", Girdi(nameof(vm.HarcamaTutari), true)), Alan("Taksit sayısı", Girdi(nameof(vm.TaksitSayisi), sayi: true)),
         Onay("İlk hesap kesim tarihini belirle", nameof(vm.IlkKesimVar)), Goster(Alan("İlk kesim tarihi", Tarih(nameof(vm.IlkKesimTarihi))), nameof(vm.IlkKesimVar)),
-        Goster(Alan("İade edilen harcama (kanal payları kaynaktan alınır)", Secim(nameof(vm.IadeKaynaklari), nameof(vm.IadeKaynagi), "Baslik")), nameof(vm.IadeGirisi)),
+        Goster(Alan("İade edilen harcama", Secim(nameof(vm.IadeKaynaklari), nameof(vm.IadeKaynagi), "Baslik")), nameof(vm.IadeGirisi)),
         Goster(new VerticalStackLayout
         {
             Spacing = 10,
@@ -335,9 +331,9 @@ public sealed class KartTakipPage : TakipSayfasi<KartTakipViewModel>, IQueryAttr
         Benzerlik(nameof(vm.HarcamaBenzerlik), nameof(vm.HarcamayiAyriKaydetCommand)));
 
     private static View Masraf(KartTakipViewModel vm) => Form("Faiz / masrafı kalan borca dağıt",
-        Metin(MasrafNotu),
+        Yardim(MasrafNotu),
         Alan("Kesilmiş açık ekstre", Secim(nameof(vm.MasrafEkstreleri), nameof(vm.MasrafEkstresi))),
-        Alan("Tarih", Tarih(nameof(vm.MasrafTarihi))), Alan("Bankanın bildirdiği faiz / masraf", Girdi(nameof(vm.MasrafTutari), true)),
+        Alan("Tarih", Tarih(nameof(vm.MasrafTarihi))), Alan("Faiz ve masraf tutarı", Girdi(nameof(vm.MasrafTutari), true)),
         Alan("Açıklama", Girdi(nameof(vm.MasrafAciklama))),
         Dugme("Kanal dağılımını göster", nameof(vm.MasrafOnizleCommand)), Bagli(nameof(vm.MasrafOnizleme)),
         Birincil(Dugme("Gösterilen masrafı kaydet", nameof(vm.MasrafKaydetCommand))));
@@ -359,7 +355,7 @@ public sealed class KartTakipPage : TakipSayfasi<KartTakipViewModel>, IQueryAttr
         gecisOnerisi.SetBinding(Button.TextProperty, nameof(vm.GecisOneriMetni));
         gecisOnerisi.SetBinding(Button.CommandProperty, nameof(vm.OnerilenleGecisOnizleCommand));
         return Form("Eski kartı yeni takibe al",
-            Metin(GecisNotu),
+            Metin("Bankadaki kalan borcu girin."), Yardim(GecisNotu),
             Alan("Geçiş tarihi", Tarih(nameof(vm.GecisTarihi))), Alan("Kalan kart borcu", Girdi(nameof(vm.GecisKalanBorc), true)),
             Alan("Bu borcun kasada önceden sayılmış kısmı", Girdi(nameof(vm.OncedenSayilan), true)),
             Paylar(vm.GecisPaylari, () => vm.PayEkle(vm.GecisPaylari)), Alan("Geçiş açıklaması", Girdi(nameof(vm.GecisAciklama))),

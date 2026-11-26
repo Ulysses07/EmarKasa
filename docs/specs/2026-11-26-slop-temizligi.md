@@ -38,21 +38,28 @@ Eşdeğerlik testleri yapıyı korumaya devam eder; görünüm beklentileri yeni
 - Seçili çip açık yeşil zemin (`GreenSoft`), yeşil kenar ve yazı; dolu yeşil ana düğmeyle karışmaz. Onay kutusu yeşil.
 - Test: kodla yazılmış her sayfa (yüklenmiş ve form açık hâlleri) için beklenen ana düğme sayısı (`DugmeVeRenkKurallariTests`).
 
-## §2 Metin (PR 2)
+## §2 Metin (PR 2: kodla yazılmış sayfalar; PR 3: XAML sayfaları)
 
-- `TakipSayfasi` açıklama paragrafı isteğe bağlı ve varsayılanı yok; sayfa paragrafları kalkar.
-- Kart başı kural paragrafları silinir ya da ilgili alanın yanında, kullanıcı kısıta çarptığı anda bir kez söylenir.
+- `TakipSayfasi` açıklama paragrafı almaz; sayfa paragrafları ve XAML alt başlıkları kalkar.
+- Kart başı kural paragrafları silinir (güvence ve tekrar) ya da kısıt anında tek kısa cümle olarak kalır ("İşlenmiş taksidin tarihi ve
+  tutarı değiştirilemez."). Uzun ama gerekli kural açıklaması `TakipUi.Yardim` ile "Ayrıntılar" bağlantısının arkasındadır (aşamalı
+  gösterim); ekranda kalan ipucu en çok 80 karakterdir. Kalan ipucu ve liste özeti ikincil (gri) yazıdır.
 - "Değişmez / kaydetmez / oluşturmaz" yalnız geri alınamaz işlemin onay penceresinde ve kısıt anında.
-- Önizleme gösterilen yerlerde "kontrol ettim / onaylıyorum" kutuları kalkar; kutu yalnız gerçekten tehlikeli toplu işlemde kalır.
+- Mali işlemlerin onay kutuları (aylık gider ödemesi, kredi geçişi ve erken kapama, ekstre kaydı) muhasebe güvenliği için kalır, metinleri
+  kısalır. Kaldırmak bir muhasebe kararıdır; sahibine bırakıldı.
 - Düğmede tek fiil, tek nesne; "/" ve "—" yok. Parantezli niteleyiciler etiketten çıkar.
 - Microsoft Türkçe yazım kılavuzu: "siz" hitabı, kısa etken cümle, durum iletisinde edilgen, hata iletisinde ne oldu ve ne yapılacak,
   uzun tire ve noktalı virgülle zincir yok.
 
 ## §3 Başlık satırı (PR 2)
 
-- Beş Yenile/Son güncelleme uygulaması tek sayfa başlığı bileşenine iner: solda başlık, sağda küçük "Yenile", yalnız veri eskiyken
-  "Son güncelleme". "Tekrar dene" yalnız hata kutusunda. F5 sayfayı yeniler.
-- Gömülü bölümlerin (Kasalar, Aylık, Ayarlar) kendi Yenile satırları kalkar, sayfanın yenilemesine bağlanır.
+- Beş Yenile/Son güncelleme uygulaması tek sayfa başlığı bileşenine (`Controls.SayfaBasligi`) iner: solda başlık, sağda yalnız meşgulken
+  gösterge, yalnız veri eskiyken "Son güncelleme" ve küçük "Yenile" (`BtnKucuk`); altında yalnız doluyken hata ve ileti. Sayfaya özgü tek
+  eylem (Alışlar'da "Yeni alış") Yenile'nin solunda. `DurumSeridi` ve `TakipUi.DurumSatirlari` kalktı.
+- Yenile sayfanın yenilemesidir (`IYenilenebilir`, kabuğun "Yeniden dene"siyle aynı yol): gömülü bölümler (Kasalar'daki kasa kontrolü,
+  Aylık'taki ay kilidi, Ayarlar'daki alt limitler) kendi Yenile satırlarını kaybeder (`TakipUi.BolumDurumu`).
+- Sayfa başlıkları menü adıyla aynı ve cümle biçiminde ("Kartlar", "Aylık giderler", "Çekler", "Rapor dışa aktar").
+- F5 kısayolu öteki kısayollarla birlikte PR 6'da.
 
 ## §4 Para rengi (PR 1)
 
@@ -62,7 +69,7 @@ Eşdeğerlik testleri yapıyı korumaya devam eder; görünüm beklentileri yeni
 - Kasalar'da eksi genel kasa `HeroNeg` renginde; özet kutusunun gölgesi hafif.
 - Takip sayfalarının hata ve ileti rengi `Neg` / `Pos` (MAUI adlı DarkRed / DarkGreen ve `Colors.Red` kalktı).
 
-## §5 Küçük işaretler (PR 2)
+## §5 Küçük işaretler (PR 3)
 
 - BÜYÜK HARF `LblSection` etiketleri cümle biçiminde yarı kalın bölüm başlığı; harf aralığı yok.
 - Alışlar'daki "1 ·", "2 ·" numaraları ve boş taslak için yeşil özet kutusu kalkar.
@@ -71,20 +78,20 @@ Eşdeğerlik testleri yapıyı korumaya devam eder; görünüm beklentileri yeni
 - Orta nokta yalnız veri alt satırlarında. Menü adı ile sayfa başlığı aynı; başlıklar cümle biçiminde.
 - Üç boş durum biçimi tek bileşen: kısa cümle ve varsa tek eylem.
 
-## §6 Tablolar (PR 4)
+## §6 Tablolar (PR 5)
 
 - İşlemler satırındaki "Düzenle / Sil / Kaynak PDF" üçlüsü kalkar: satıra tıklamak düzenlemeyi açar, öteki eylemler "⋯" menüsünde.
 - `TakipUi.Liste` kullanan listeler ekstre tablosunun desenine geçer: tarih, açıklama, tür/kanal, sağa hizalı tutar; satıra tıklayınca
   ayrıntı. Satır yüksekliği 40 (yoğun 32).
 
-## §7 Tek sistem (PR 3)
+## §7 Tek sistem (PR 4)
 
 - Tip ölçeği XAML handoff ölçeği: sayfa başlığı 21, gövde 14, ikincil 12,5; takip sisteminin 28 ve 18 pt'si kalkar.
 - Boşluklar 4'ün katı: düğmeler arası 8, denetim ile etiketi 12, yüzey kenarı ile metin 16.
 - Form alanları tek görünüm; XAML alanlarındaki çift çerçeve (WinUI'nin kendi kenarlığı) kalkar. Kart içinde kart yok.
 - Windows tipinde Bold yok: Semibold.
 
-## §8 Yerleşim ve kısayollar (PR 5)
+## §8 Yerleşim ve kısayollar (PR 6)
 
 - Kasalar yalnız özet; alt limit, gerçek bakiye karşılaştırması ve hareket dökümü "Kasa kontrolü"ne taşınır; 7/30 gün çipe döner.
 - Formlar yalnız "Yeni …" ile açılır (Krediler'in yeni kredi formu, Aylık giderler'in şablon formu, Krediler'in erken kapama formu).
@@ -103,4 +110,5 @@ bir rengi değil karar verilmemişliği hedefler. Windows kuralı (tek yazı tip
 ## Doğrulama
 
 Her PR'da: App.Core testleri, biçim ve MAUI lint, uygulama derlemesi ve deneme kopyasıyla (ayrı uygulama kimliği, yerel sunucu, örnek veri)
-17 ekranın yeniden çekilip öncekiyle karşılaştırılması.
+17 ekranın yeniden çekilip öncekiyle karşılaştırılması. App.Core testleri sırayla koşar (`TestParalelligi.cs`): görünüm testleri tek MAUI
+uygulamasını ve stillerin paylaşılan değer nesnelerini kullanır, paralel koşu ara sıra "concurrent update" ile düşüyordu.

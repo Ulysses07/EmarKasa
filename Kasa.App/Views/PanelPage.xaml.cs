@@ -33,7 +33,6 @@ public partial class PanelPage : ContentPage, Controls.IYenilenebilir
         icerik.Add(TakipUi.Liste<TakipOlaySatiri>(nameof(takip.Olaylar)));
         TakipUi.SonVeriGovdesi(icerik);   // son veri görünür, eski veride panel kartları gibi soluk
         var kart = TakipUi.Kart("Kart ve kredi takibi",
-            TakipUi.Metin("Kart kesimi ve son ödeme günü hatırlatmadır; kartta kasa yalnız kaydedilen ödeme ile değişir. Kredi taksitleri ise vade tarihinde otomatik olarak kasaya işlenir."),
             secim, yukle, hata, icerik,
             TakipUi.Tikla("Kartlar", () => Shell.Current.GoToAsync("//kartlar")), TakipUi.Tikla("Krediler", () => Shell.Current.GoToAsync("//krediler")));
         kart.BindingContext = takip;

@@ -25,7 +25,7 @@ public class TakipSayfalariKaynakDenetimiTests
     {
         var kod = GorunumOrtami.Oku("Views/AylikGiderPage.cs");
         Assert.DoesNotContain("Alan(\"\", Onay(", kod);
-        Assert.Contains("Alan(\"Ödeme onayı\", Onay(\"Ödeme gerçekleşti; gösterilen tutar ve kanal paylarını onaylıyorum.\", nameof(vm.OdemeOnay)), o, nameof(vm.OdemeOnay))", kod);
+        Assert.Contains("Alan(\"Ödeme onayı\", Onay(\"Ödeme yapıldı, tutar ve kanal payları doğru.\", nameof(vm.OdemeOnay)), o, nameof(vm.OdemeOnay))", kod);
     }
 
     /// <summary>Y-1: ödeme kaydı ya da iptalinden sonra başarı iletisi (sayfa başında; ayın güncellenen satırı hemen altında)

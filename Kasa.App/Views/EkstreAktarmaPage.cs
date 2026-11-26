@@ -26,16 +26,15 @@ public sealed partial class EkstreAktarmaPage : TakipSayfasi<EkstreAktarmaViewMo
         }
         base.OnAppearing();
     }
-    public EkstreAktarmaPage(EkstreAktarmaViewModel vm) : base(vm, "Ekstre İçe Aktar",
-        "Banka, kart ya da ERP12 dosyasını yükleyin; hareketler ayrı pencerede incelenir ve yalnız onayladığınız satırlar kaydedilir.", vm.YukleAsync)
+    public EkstreAktarmaPage(EkstreAktarmaViewModel vm) : base(vm, "Ekstre içe aktar", vm.YukleAsync)
     {
         Govde.Add(Editor(Kart("Yeni belge yükle",
             Alan("Belge türü", Secim(nameof(vm.Kaynaklar), nameof(vm.Kaynak))),
             Goster(Alan("Banka", Secim(nameof(vm.Bankalar), nameof(vm.Banka))), nameof(vm.BankaSecilir)),
-            Goster(Alan("Kısa hesap adı / son 4 hane", Girdi(nameof(vm.HesapAdi))), nameof(vm.BankaMi)),
-            Goster(Alan("Kart (önce Kartlar bölümünde yeni takibi açın)", Secim(nameof(vm.Kartlar), nameof(vm.Kart))), nameof(vm.KartMi)),
-            Goster(Metin("Metin içeren şifresiz PDF (en çok 50 sayfa) ya da bankanın Excel'i; en fazla 10 MB, yalnız TL."), nameof(vm.BankaSecilir)),
-            Goster(Metin("ERP12'den cari hareketlerini Excel olarak dışa aktarın; hareketler kasadaki kayıtlarla eşleşir, önceden aktarılanlar ikinci kez alınmaz."),
+            Goster(Alan("Hesap adı ya da son 4 hane", Girdi(nameof(vm.HesapAdi))), nameof(vm.BankaMi)),
+            Goster(Alan("Kart", Secim(nameof(vm.Kartlar), nameof(vm.Kart))), nameof(vm.KartMi)),
+            Goster(Metin("Şifresiz PDF ya da bankanın Excel dosyası, en çok 10 MB."), nameof(vm.BankaSecilir)),
+            Goster(Metin("ERP12'den dışa aktarılan cari hareketleri Excel dosyası."),
                 nameof(vm.ErpMi)),
             Eylemler(Birincil(Tikla("PDF ya da Excel seç ve oku", PdfSecAsync)),
                 Goster(Ikincil(Tikla("Örnek Excel'i indir", () => DosyaIslemleri.IndirVeKaydetAsync(this, vm.SablonAsync))), nameof(vm.BankaSecilir))),

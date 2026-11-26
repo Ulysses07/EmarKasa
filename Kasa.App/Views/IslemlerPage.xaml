@@ -15,10 +15,9 @@
     <Grid RowDefinitions="Auto,*" Padding="{OnIdiom Desktop='28,22', Default='16,14'}"
           RowSpacing="20" MaximumWidthRequest="1160">
 
-        <VerticalStackLayout Spacing="3">
-            <Label Text="İşlemler" Style="{StaticResource LblPageTitle}" />
-            <Label Text="Ödeme ve kanal geliri kayıtları" Style="{StaticResource LblPageSub}" />
-        </VerticalStackLayout>
+        <ctl:SayfaBasligi Baslik="İşlemler" Mesgul="{Binding ListeYukleniyor}" Hata="{Binding YuklemeHatasi}" HataKutusu="True"
+                          Mesaj="{Binding Mesaj}" VeriEski="{Binding VeriEski}" SonGuncellemeMetni="{Binding SonGuncellemeMetni}"
+                          YenileCommand="{Binding YenileCommand}" />
 
         <ctl:UyumluBolmeler x:Name="IslemBolmeleri" Grid.Row="1" GenisSutunlar="360,*" ColumnSpacing="20"
                            IlkBaslik="İşlem / gelir" IkinciBaslik="Kayıtlar" DarSeciliBolme="1"
@@ -144,12 +143,6 @@
                 <Grid RowDefinitions="Auto,*">
                     <VerticalStackLayout Padding="18,16,18,12" Spacing="10">
                         <Label Text="SON İŞLEMLER" Style="{StaticResource LblSection}" />
-
-                        <!-- Durum şeridi (tüm roller): yükleniyor · liste hatası · kayıt/silme bilgisi · son güncelleme + yenile.
-                             Form hataları sol sütundaki kutuda kalır; liste hatası izleyicide de görünür. -->
-                        <ctl:DurumSeridi Spacing="10" Mesgul="{Binding ListeYukleniyor}" YukleniyorMetni="İşlemler yükleniyor…"
-                                         Hata="{Binding YuklemeHatasi}" HataKutusu="True" Mesaj="{Binding Mesaj}"
-                                         SonGuncellemeMetni="{Binding SonGuncellemeMetni}" YenileCommand="{Binding YenileCommand}" />
 
                         <!-- Filtre: kanal çipleri -->
                         <ctl:CipGrubu BindableLayout.ItemsSource="{Binding FiltreKanallari}" SecCommand="{Binding SecFiltreKanalCommand}" />

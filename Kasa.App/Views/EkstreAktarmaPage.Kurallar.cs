@@ -13,12 +13,11 @@ public sealed partial class EkstreAktarmaPage
         var picker = new Picker { Title = "Düzenlenecek kural", ItemDisplayBinding = new Binding(nameof(EkstreKuralDto.Ad)) };
         picker.SetBinding(Picker.ItemsSourceProperty, nameof(Vm.Kurallar));
         Govde.Add(Editor(Kart("Kişisel sınıflandırma kuralları", Bagli(nameof(Vm.KuralDurumu)),
-            Metin("Açıklamadaki sözcükler işlem türü ve kanal dağılımı önerir. Kesin öneri satırı işaretler, kaydetmez. Farklı sonuç öneren kurallar çelişki olarak gösterilir."),
-            Tikla("Kuralları ve önerileri yenile", Vm.KurallariYenileAsync),
-            Tikla("Uygun önerileri uygula", () => { Vm.OnerileriUygula(); return Task.CompletedTask; }),
-            Goster(Tikla("+ Kural ekle", () => { KuralFormunuKur(null); return Task.CompletedTask; }), nameof(Vm.KurallarDestekleniyor)),
+            Tikla("Kuralları yenile", Vm.KurallariYenileAsync),
+            Tikla("Önerileri uygula", () => { Vm.OnerileriUygula(); return Task.CompletedTask; }),
+            Goster(Tikla("Kural ekle", () => { KuralFormunuKur(null); return Task.CompletedTask; }), nameof(Vm.KurallarDestekleniyor)),
             picker,
-            Tikla("Seçili kuralı düzenle / kapat", () => { if (picker.SelectedItem is EkstreKuralDto rule) KuralFormunuKur(rule); return Task.CompletedTask; }),
+            Tikla("Seçili kuralı düzenle", () => { if (picker.SelectedItem is EkstreKuralDto rule) KuralFormunuKur(rule); return Task.CompletedTask; }),
             Tehlikeli(Tikla("Seçili kuralı sil", async () =>
             {
                 if (picker.SelectedItem is not EkstreKuralDto rule || !Vm.EditorMu || Vm.Mesgul)
@@ -104,12 +103,13 @@ public sealed partial class EkstreAktarmaPage
         allocation.SelectedItem = allocation.ItemsSource.Cast<EkstreSecenek>().FirstOrDefault(o => o.Kod == desiredAllocation) ?? allocation.SelectedItem;
         var error = new Label { TextColor = (Color)Application.Current!.Resources["Neg"] };
         var form = Kart(rule is null ? "Yeni kişisel kural" : $"Kuralı düzenle: {rule.Ad}",
-            Alan("Kural adı", name), Alan("Açıklamada geçen sözcük / ifade", phrase),
-            Metin("En az üç harfli bir sözcük kullanın. Türkçe harf ve noktalama farkları sadeleştirilir; sözcük sınırı korunur. Örneğin MIGROS, MIGROSAN ile eşleşmez."),
+            Alan("Kural adı", name), Alan("Açıklamada geçen sözcük", phrase),
+            Metin("En az üç harfli bir sözcük yazın. MIGROS, MIGROSAN ile eşleşmez."),
             Alan("Belge türü", source), Alan("Banka", bank), Alan("Hareket yönü", direction), Alan("Önerilen işlem", kind),
             Alan("Dağılım", allocation), channelList,
-            Metin("Kuralda sabit tutar saklanmaz. Atla önerisi satırı seçmeden bırakır. Kullanılamayan kanalı koruyarak kuralı kapatabilir; yeniden etkinleştirmek için aktif kanal seçebilirsiniz."),
-            new HorizontalStackLayout { Children = { enabled, Metin("Kural etkin (kapatmak için işareti kaldırın)") } }, error);
+            Yardim("Kuralda sabit tutar saklanmaz. Atla önerisi satırı seçmeden bırakır. Kullanılamayan kanalı koruyarak kuralı kapatabilirsiniz; "
+                + "yeniden etkinleştirmek için etkin bir kanal seçin. Türkçe harf ve noktalama farkları sadeleştirilir, sözcük sınırı korunur."),
+            new HorizontalStackLayout { Children = { enabled, Metin("Kural etkin") } }, error);
         var key = new TekrarAnahtari();
         var actions = new HorizontalStackLayout { Spacing = 8 };
         actions.Add(Birincil(Tikla("Kuralı kaydet", async () =>

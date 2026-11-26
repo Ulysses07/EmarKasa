@@ -6,8 +6,7 @@ namespace Kasa.App.Views;
 /// <summary>Cariler (docs/specs/2026-11-25-erp12-aktarimi.md): ERP12'den aktarılan hareketlerin cari listesi; carinin hareketleri listenin üstünde açılır.</summary>
 public sealed class CarilerPage : TakipSayfasi<CarilerViewModel>
 {
-    public CarilerPage(CarilerViewModel vm) : base(vm, "Cariler",
-        "ERP12'den aktarılan cari hareketleri. Kayıtların aslı ERP12'dedir; bakiye yalnız aktarılan hareketlere göredir ve kasayı etkilemez.", vm.YukleAsync)
+    public CarilerPage(CarilerViewModel vm) : base(vm, "Cariler", vm.YukleAsync)
     {
         var acik = Kart("Cari hareketleri", BagliBuyuk(nameof(vm.AcikBasligi)), Liste<CariHareketSatiri>(nameof(vm.Hareketler)));
         Govde.Add(Kart("Özet", Bagli(nameof(vm.Ozet)), Alan("Cari adı ya da kodu", Girdi(nameof(vm.Ara)))));

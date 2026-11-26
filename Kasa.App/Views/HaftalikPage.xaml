@@ -14,13 +14,9 @@
     <ScrollView>
         <VerticalStackLayout Padding="{OnIdiom Desktop='28,22', Default='16,14'}" Spacing="20"
                              MaximumWidthRequest="1160">
-            <VerticalStackLayout Spacing="3">
-                <Label Text="Haftalık" Style="{StaticResource LblPageTitle}" />
-                <Label Text="Dönem bazlı kasa sonuçları" Style="{StaticResource LblPageSub}" />
-            </VerticalStackLayout>
+            <ctl:SayfaBasligi Baslik="Haftalık" Mesgul="{Binding Mesgul}" Hata="{Binding Hata}" VeriEski="{Binding VeriEski}"
+                              SonGuncellemeMetni="{Binding SonGuncellemeMetni}" YenileCommand="{Binding YenileCommand}" />
 
-            <ctl:DurumSeridi Mesgul="{Binding Mesgul}" Hata="{Binding Hata}"
-                             SonGuncellemeMetni="{Binding SonGuncellemeMetni}" YenileCommand="{Binding YenileCommand}" />
 
             <!-- Sunucunun veri sağlığı uyarısı (ör. rapor ufkunun ötesinde tarihli kayıt): dönem listesinden ayrı ve öne çıkar. -->
             <Border Style="{StaticResource ErrorBox}" IsVisible="{Binding VeriSagligiUyarisi, Converter={StaticResource DoluIse}}">
