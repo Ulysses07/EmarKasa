@@ -44,6 +44,16 @@ public partial class EkstreAktarmaViewModel
         }
     }
 
+    /// <summary>Kayıt özeti düştü (seçim ya da satır değişti) ve gösterilecek hata da yok: pencere özeti yeniden göstermeyi önerir.</summary>
+    public bool OnizlemeYenilenmeli => !OnizlemeVar && !OnizlemeHataVar;
+
+    protected override void OnPropertyChanged(System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        base.OnPropertyChanged(e);
+        if (e.PropertyName is nameof(OnizlemeVar) or nameof(OnizlemeHataVar))
+            base.OnPropertyChanged(new System.ComponentModel.PropertyChangedEventArgs(nameof(OnizlemeYenilenmeli)));
+    }
+
     partial void OnSuzgecChanged(EkstreSuzgec value)
     {
         CipleriYaz();
@@ -58,7 +68,10 @@ public partial class EkstreAktarmaViewModel
         KendiligindenIsaretle();
         _uyelik.Clear();
         foreach (var s in Satirlar)
+        {
             _uyelik[s] = s.Kapali ? EkstreSuzgec.Kapanan : s.KontrolNedeni is null ? EkstreSuzgec.Hazir : EkstreSuzgec.Kontrol;
+            s.GosterimiYenile();
+        }
         foreach (var ad in new[] { nameof(HazirSayisi), nameof(KontrolSayisi), nameof(KapananSayisi) })
             OnPropertyChanged(ad);
         CipleriYaz();

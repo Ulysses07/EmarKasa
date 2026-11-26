@@ -26,6 +26,14 @@ public partial class EkstreSatirEditor
         : Oneri is { Durum: "Oneri" } o && IslemTuru?.Kod == o.IslemTuru ? "kural"
         : "";
 
+    /// <summary>Tablo hücrelerini yeniden okutur: doldurmanın kaynağı (hafıza, yapay zekâ, ERP12) alanlardan sonra belli olur, hücre bildirimleri
+    /// o anda eski değeri verir.</summary>
+    public void GosterimiYenile()
+    {
+        foreach (var ad in new[] { nameof(KontrolNedeni), nameof(TurKanalMetni), nameof(KaynakEtiketi), nameof(TutarGosterimi) })
+            OnPropertyChanged(ad);
+    }
+
     /// <summary>Tutar yönüyle: giriş "+1.500,00", çıkış "−553,15", yönü belirsiz işaretsiz.</summary>
     public string TutarGosterimi => EtkinTutar is not { } tutar ? ""
         : EtkinYon switch { "Giris" => "+", "Cikis" => "−", _ => "" } + tutar.ToString("N2", Tr);

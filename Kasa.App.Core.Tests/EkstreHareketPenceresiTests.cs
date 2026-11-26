@@ -25,6 +25,38 @@ public partial class EkstreAktarmaTests
         Assert.Equal("2 satır işaretli · Giriş +0,00 ₺ (0 satır) · Çıkış −200,00 ₺ (2 satır)", vm.SecimOzeti);
     }
 
+    /// <summary>Ekran, hücrenin son bildirimindeki değeri gösterir: öneri doldurulduktan sonra neden, kaynak ve tür bildirimleri güncel değeri vermeli
+    /// (görsel denemede hazır satırda "kontrol edin" kalıyordu).</summary>
+    [Fact]
+    public async Task Doldurma_sonrasi_bildirimler_guncel_degeri_verir()
+    {
+        var (vm, api, _) = await Hazir(new() { Veri = DurumBelgesi(Satir(1)) });
+        var s = vm.Satirlar[0];
+        var son = new Dictionary<string, object?>();
+        s.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName is nameof(s.KontrolNedeni) or nameof(s.KaynakEtiketi) or nameof(s.TurKanalMetni))
+                son[e.PropertyName] = typeof(EkstreSatirEditor).GetProperty(e.PropertyName)!.GetValue(s);
+        };
+        api.Oneriler = [YzHazir(1)];
+        await vm.KurallariYenileAsync();
+        Assert.True(s.Secili);
+        Assert.Equal(((object?)null, (object?)"yapay zekâ", (object?)"Gider · Genel"), (son[nameof(s.KontrolNedeni)], son[nameof(s.KaynakEtiketi)], son[nameof(s.TurKanalMetni)]));
+    }
+
+    /// <summary>Kayıt özeti açıkken seçim değişirse özet düşer; panel boş kalmasın diye yenilenmesi gerektiği bildirilir.</summary>
+    [Fact]
+    public async Task Secim_degisince_ozetin_yenilenmesi_gerektigi_bildirilir()
+    {
+        var (vm, _, _) = await Hazir(new() { Veri = DurumBelgesi(Satir(1), Satir(2)), Oneriler = [YzHazir(1), YzHazir(2)] });
+        await vm.OnizleCommand.ExecuteAsync(null);
+        Assert.Equal((true, false), (vm.OnizlemeVar, vm.OnizlemeYenilenmeli));
+        var bildirildi = false;
+        vm.PropertyChanged += (_, e) => bildirildi |= e.PropertyName == nameof(vm.OnizlemeYenilenmeli);
+        vm.Satirlar[1].Secili = false;
+        Assert.Equal((false, true, true), (vm.OnizlemeVar, vm.OnizlemeYenilenmeli, bildirildi));
+    }
+
     [Fact]
     public async Task Kaldirilan_isaret_yeniden_konmaz()
     {

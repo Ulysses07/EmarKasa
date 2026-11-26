@@ -37,7 +37,7 @@ public partial class EkstreAktarmaViewModel
             HafizayiYansit();
             SuzgecleriHesapla();
             KurallarDestekleniyor = true;
-            KuralDurumu = $"{list.Count} kişisel kural. Öneriler satır seçmez veya kayıt oluşturmaz.";
+            KuralDurumu = $"{list.Count} kişisel kural. Kesin öneri satırı işaretler; kayıt yine sizin onayınızla olur.";
         }
         catch (Exception e) when (e is HttpRequestException or TaskCanceledException || e is KasaApiException { DurumKodu: not (HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden) })
         {

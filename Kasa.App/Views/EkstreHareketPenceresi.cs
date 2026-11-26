@@ -12,6 +12,8 @@ public sealed partial class EkstreHareketPenceresi : ContentPage
 {
     private readonly EkstreAktarmaViewModel _vm;
     private readonly EkstreAktarmaPage _sayfa;
+    /// <summary>Alt çubuğun birincil düğmesi; kayıt özeti açıkken ikincil görünür (ekranda tek birincil düğme: özetin "Kaydet"i).</summary>
+    private Button _etkiDugmesi = null!;
     private static Style Stil(string anahtar) => (Style)Application.Current!.Resources[anahtar];
     private static Color Renk(string anahtar) => (Color)Application.Current!.Resources[anahtar];
 
@@ -128,7 +130,7 @@ public sealed partial class EkstreHareketPenceresi : ContentPage
         var toplu = Ikincil(Tikla("Toplu tür / kanal", () => { PaneliAc(PanelKipi.Toplu); return Task.CompletedTask; }));
         var yokSay = Ikincil(Tikla("Yok say", SecilenleriYokSayAsync));
         yokSay.SetBinding(IsVisibleProperty, nameof(_vm.YokSayDestekleniyor));
-        var kaydet = Tikla("Etkisini göster ve kaydet", () => _vm.OnizleCommand.ExecuteAsync(null));
+        var kaydet = _etkiDugmesi = Tikla("Etkisini göster ve kaydet", () => _vm.OnizleCommand.ExecuteAsync(null));
         var cubuk = new Grid
         {
             Padding = new Thickness(0, 10, 0, 14),

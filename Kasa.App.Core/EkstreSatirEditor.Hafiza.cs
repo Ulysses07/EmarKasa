@@ -92,6 +92,7 @@ public partial class EkstreSatirEditor
             _hafizadan = o is not null;
         }
         finally { _oneriUygulaniyor = false; }
+        GosterimiYenile();
         return once != Durum();
     }
 

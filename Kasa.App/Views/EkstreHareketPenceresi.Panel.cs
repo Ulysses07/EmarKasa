@@ -12,10 +12,10 @@ public sealed partial class EkstreHareketPenceresi
     private const double DarGenislik = 900, PanelGenisligi = 360;
     private PanelKipi _kip;
     private Border _panel = null!;
-    private ContentView _panelIcerigi = null!;
+    private ContentView _panelIcerigi = null!, _panelAlti = null!;
     private Label _panelBasligi = null!;
     private Button _panelKapat = null!;
-    private View? _toplu, _kayitOzeti;
+    private View? _toplu, _kayitOzeti, _kayitEylemleri;
     private bool PanelAcik => _kip != PanelKipi.Kapali;
 
     private View PaneliKur()
@@ -27,13 +27,19 @@ public sealed partial class EkstreHareketPenceresi
         ust.Add(_panelBasligi);
         ust.Add(_panelKapat, 1);
         _panelIcerigi = new ContentView();
+        // Kaydetme eylemleri uzun özetin altında kaybolmasın: panelin altında sabit durur.
+        _panelAlti = new ContentView { Padding = new Thickness(0, 10, 0, 0) };
+        var yerlesim = new Grid { RowSpacing = 10, RowDefinitions = { new(GridLength.Auto), new(GridLength.Star), new(GridLength.Auto) } };
+        yerlesim.Add(ust);
+        yerlesim.Add(new ScrollView { Content = _panelIcerigi }, 0, 1);
+        yerlesim.Add(_panelAlti, 0, 2);
         _panel = new Border
         {
             IsVisible = false,
             WidthRequest = PanelGenisligi,
             Margin = new Thickness(12, 0, 0, 0),
             Padding = 14,
-            Content = new ScrollView { Content = new VerticalStackLayout { Spacing = 10, Children = { ust, _panelIcerigi } } },
+            Content = yerlesim,
         };
         _panel.SetDynamicResource(StyleProperty, "Card");
         _vm.PropertyChanged += SeciliSatirDegisti;
@@ -67,6 +73,8 @@ public sealed partial class EkstreHareketPenceresi
             PanelKipi.KayitOzeti => ("Kayıt özeti", _kayitOzeti ??= KayitOzeti()),
             _ => ("", null),
         };
+        _panelAlti.Content = kip == PanelKipi.KayitOzeti ? _kayitEylemleri ??= KayitEylemleri() : null;
+        EtkiDugmesiniAyarla();
         _panel.IsVisible = true;
         DarDuzeniUygula();
     }
@@ -77,6 +85,8 @@ public sealed partial class EkstreHareketPenceresi
         _kip = PanelKipi.Kapali;
         _panel.IsVisible = false;
         _panelIcerigi.Content = null;
+        _panelAlti.Content = null;
+        EtkiDugmesiniAyarla();
         if (kip == PanelKipi.Satir)
             _vm.SeciliSatir = null;
         DarDuzeniUygula();
@@ -130,21 +140,32 @@ public sealed partial class EkstreHareketPenceresi
             Children =
             {
                 Goster(hatalar, nameof(_vm.OnizlemeHataVar)),
-                Goster(new VerticalStackLayout
-                {
-                    Spacing = 10,
-                    Children =
-                    {
-                        Bagli(nameof(_vm.OnizlemeMetni)),
-                        Goster(Onay("Benzer kayıt / belirsizlik uyarılarını kontrol ettim; ayrı hareket olarak kaydedilsin.", nameof(_vm.TekrarOnay)), nameof(_vm.TekrarOnayGerekli)),
-                        Onay("Seçilen satırları, kanal paylarını ve kasa etkisini kontrol ettim.", nameof(_vm.Onay)),
-                        Dugme("Kaydet", nameof(_vm.KaydetCommand)),
-                        FormHatasi(nameof(_vm.KayitHatasi)),
-                    }
-                }, nameof(_vm.OnizlemeVar)),
+                Goster(Bagli(nameof(_vm.OnizlemeMetni)), nameof(_vm.OnizlemeVar)),
+                // Seçim ya da satır değişince özet düşer: boş panel yerine ne yapılacağı.
+                Goster(Metin("Seçim değişti. Güncel etkiyi görmek için alttaki \"Etkisini göster ve kaydet\"e basın."), nameof(_vm.OnizlemeYenilenmeli)),
             }
         };
     }
+
+    private void EtkiDugmesiniAyarla()
+    {
+        if (_kip == PanelKipi.KayitOzeti)
+            _etkiDugmesi.Style = Stil("BtnSecondary");
+        else
+            _etkiDugmesi.ClearValue(StyleProperty);
+    }
+
+    private View KayitEylemleri() => Goster(new VerticalStackLayout
+    {
+        Spacing = 8,
+        Children =
+        {
+            Goster(Onay("Benzer kayıt / belirsizlik uyarılarını kontrol ettim; ayrı hareket olarak kaydedilsin.", nameof(_vm.TekrarOnay)), nameof(_vm.TekrarOnayGerekli)),
+            Onay("Seçilen satırları, kanal paylarını ve kasa etkisini kontrol ettim.", nameof(_vm.Onay)),
+            Dugme("Kaydet", nameof(_vm.KaydetCommand)),
+            FormHatasi(nameof(_vm.KayitHatasi)),
+        }
+    }, nameof(_vm.OnizlemeVar));
 
     private View KapananSatirFormu(EkstreSatirEditor s)
     {
