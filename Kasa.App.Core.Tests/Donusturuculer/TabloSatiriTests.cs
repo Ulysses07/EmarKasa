@@ -45,6 +45,28 @@ public class TabloSatiriTests
         Assert.Equal(["Öde", "Öde"], eylemler.Select(b => b.Text));
     }
 
+    /// <summary>Dar ekranda (iPhone) eylem bağlantısı başlığın altına iner: başlık ve özet tutarla aynı satırda genişçe kalır
+    /// ("Ödemeyi iptal et" gibi uzun eylem başlığı sıkıştırmaz). Geniş ekranda üç sütun.</summary>
+    [Fact]
+    public void Dar_ekranda_satir_eylemi_alt_satira_iner()
+    {
+        GorunumOrtami.Kur();
+        var baglam = new Baglam();
+        baglam.Satirlar.Add(Gider(12_000m));
+        var liste = (Layout)TakipUi.Liste<object>(nameof(Baglam.Satirlar), _ => Task.CompletedTask, "Ödemeyi iptal et");
+        liste.BindingContext = baglam;
+        var satir = liste.GetVisualTreeDescendants().OfType<Kasa.App.Controls.UyumluIzgara>().Single();
+        var eylem = satir.Children.OfType<Button>().Single();
+        var metin = satir.Children.OfType<VerticalStackLayout>().Single();
+
+        ((ICrossPlatformLayout)satir).CrossPlatformMeasure(320, double.PositiveInfinity);
+        Assert.Equal((1, 0, 2), (Grid.GetRow(eylem), Grid.GetColumn(eylem), Grid.GetColumnSpan(eylem)));
+        Assert.Equal((0, 0), (Grid.GetRow(metin), Grid.GetColumn(metin)));
+
+        ((ICrossPlatformLayout)satir).CrossPlatformMeasure(900, double.PositiveInfinity);
+        Assert.Equal((0, 2), (Grid.GetRow(eylem), Grid.GetColumn(eylem)));
+    }
+
     [Theory]
     [InlineData("1500", "+1.500,00")]
     [InlineData("-553.15", "−553,15")]
