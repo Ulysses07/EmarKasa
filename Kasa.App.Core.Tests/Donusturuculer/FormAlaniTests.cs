@@ -68,29 +68,38 @@ public class FormAlaniTests
     }
 
     [Fact]
-    public void Takip_ailesi_cercevesi_yalniz_hatada_gorunur_genel_hata_kutusu_yalniz_doluyken()
+    /// <summary>Takip ailesinde de metin girdisi XAML'daki gibi FieldBorder çerçevesindedir (tek sistem §7); hatada çerçeve kırmızı.
+    /// Girdi olmayan içerik (kanal seçimleri) çerçevesizdir, çerçeve yalnız hatada görünür.</summary>
+    public void Takip_ailesi_girdisi_cerceveli_hatada_kirmizi_genel_hata_kutusu_yalniz_doluyken()
     {
         GorunumOrtami.Kur();
         var baglam = new Baglam();
         var alan = TakipUi.Alan("Tutar", TakipUi.Girdi("Ad"), nameof(Baglam.Hatalar), "Tutar");
+        var secimler = TakipUi.Alan("Kanallar", TakipUi.KanalSecimleri("Kanallar"), nameof(Baglam.Hatalar), "Kanallar");
         var kutu = TakipUi.FormHatasi("Hatalar.Genel");
-        var panel = new VerticalStackLayout { Children = { kutu, alan }, BindingContext = baglam };
+        var panel = new VerticalStackLayout { Children = { kutu, alan, secimler }, BindingContext = baglam };
         var cerceve = alan.GetVisualTreeDescendants().OfType<Border>().Single();
+        var secimCercevesi = secimler.GetVisualTreeDescendants().OfType<Border>().Single();
 
         Assert.Equal("Tutar", alan.Alan);
         Assert.Same((Style)Application.Current!.Resources["LblTakipKucuk"], alan.GetVisualTreeDescendants().OfType<Label>().First().Style);
-        Assert.Same(Brush.Transparent, cerceve.Stroke);
+        Assert.Same((Style)Application.Current!.Resources["FieldBorder"], cerceve.Style);
+        Assert.Same(Firca("BrushFieldStroke"), cerceve.Stroke);
+        Assert.Same(Brush.Transparent, secimCercevesi.Stroke);
         Assert.False(kutu.IsVisible);
 
         baglam.Hatalar.Ayarla("Tutar", "Tutar sıfırdan büyük olmalı.");
+        baglam.Hatalar.Ayarla("Kanallar", "Kanal seçin.");
         baglam.Hatalar.Genel = "Sunucuya ulaşılamadı. Kayıt yapılmadı; bağlantı gelince yeniden kaydedin.";
         Assert.Same(Firca("BrushNeg"), cerceve.Stroke);
+        Assert.Same(Firca("BrushNeg"), secimCercevesi.Stroke);
         Assert.True(kutu.IsVisible);
         Assert.Same((Style)Application.Current!.Resources["ErrorBox"], kutu.Style);
         Assert.Equal(baglam.Hatalar.Genel, ((Label)kutu.Content!).Text);
 
         baglam.Hatalar.Temizle();
-        Assert.Same(Brush.Transparent, cerceve.Stroke);
+        Assert.Same(Firca("BrushFieldStroke"), cerceve.Stroke);
+        Assert.Same(Brush.Transparent, secimCercevesi.Stroke);
         Assert.False(kutu.IsVisible);
         Assert.NotNull(panel);
     }

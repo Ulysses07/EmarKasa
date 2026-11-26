@@ -160,7 +160,10 @@ public partial class GorunumEsdegerligiTests
         {
             var alan = Assert.IsType<VerticalStackLayout>(Kasa.App.Views.TakipUi.Alan("Tutar", giris));
             Assert.Equal("Tutar", Assert.IsType<Label>(alan.Children[0]).Text);
-            Assert.Same(giris, alan.Children[1]);
+            // Girdi FieldBorder çerçevesindedir (tek sistem §7).
+            var cerceve = Assert.IsType<Border>(alan.Children[1]);
+            Assert.Same((Style)Application.Current!.Resources["FieldBorder"], cerceve.Style);
+            Assert.Same(giris, cerceve.Content);
             Assert.Equal("Tutar", SemanticProperties.GetDescription(giris));
         }
         var onay = Assert.IsType<Grid>(Kasa.App.Views.TakipUi.Onay("Şablon aktif", "Aktif"));

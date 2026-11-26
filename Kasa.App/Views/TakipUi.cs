@@ -41,16 +41,24 @@ internal static class TakipUi
         return new VerticalStackLayout
         {
             Spacing = 5,
-            Children = { new Label { Text = ad, Style = (Style)Application.Current!.Resources["LblTakipKucuk"] }, v },
+            Children = { new Label { Text = ad, Style = (Style)Application.Current!.Resources["LblTakipKucuk"] }, GirdiMi(v) ? Cerceve(v) : v },
         };
     }
+
+    /// <summary>Form alanlarının tek görünümü (docs/specs/2026-11-26-slop-temizligi.md §7): metin, tutar, seçim ve tarih girdisi XAML
+    /// sayfalarındaki gibi FieldBorder çerçevesindedir. WinUI'nin kendi kenarı ve zemini Windows'ta kaldırılır (WinUI.YerelGorunum);
+    /// görünür tek sınır bu çerçevedir.</summary>
+    public static Border Cerceve(View girdi) => new() { Style = (Style)Application.Current!.Resources["FieldBorder"], Content = girdi };
+
+    /// <summary>Çerçeveye giren denetimler: metin ve tutar girişi, seçici, tarih ve saat.</summary>
+    public static bool GirdiMi(View v) => v is InputView or Picker or DatePicker or TimePicker;
 
     /// <summary>Hatası gösterilen alan (docs/specs/2026-10-02-masaustu-form-hatalari-ve-baglanti.md §1; Controls.FormAlani): başlık,
     /// girdi ve hata varken altında ileti; çerçeve yalnız hata varken (kırmızı) görünür. <paramref name="hatalar"/> modelin
     /// AlanHatalari özelliğinin yolu ("Hatalar"), <paramref name="alan"/> alanın adı ("Tutar"): hata "Hatalar[Tutar]" yolundan gelir.</summary>
     public static Controls.FormAlani Alan(string ad, View v, string hatalar, string alan)
     {
-        var f = new Controls.FormAlani { Baslik = ad, Icerik = v, Alan = alan, Cerceveli = false, TakipStili = true };
+        var f = new Controls.FormAlani { Baslik = ad, Icerik = v, Alan = alan, Cerceveli = GirdiMi(v), TakipStili = true };
         f.SetBinding(Controls.FormAlani.HataProperty, $"{hatalar}[{alan}]");
         return f;
     }
@@ -184,7 +192,8 @@ internal static class TakipUi
     public static Border Kart(string title, params View[] views)
     {
         var l = new VerticalStackLayout { Spacing = 12 };
-        l.Add(new Label { Text = title, Style = (Style)Application.Current!.Resources["LblTakipKartBaslik"] });
+        // Kart başlığı XAML sayfalarının bölüm başlığıyla aynı ölçektedir (tek sistem §7).
+        l.Add(new Label { Text = title, Style = (Style)Application.Current!.Resources["LblSection"] });
         foreach (var v in views)
             l.Add(v);
         return new Border { Style = (Style)Application.Current!.Resources["CardForm"], Content = l };
@@ -369,8 +378,8 @@ internal static class TakipUi
         BindableLayout.SetItemTemplate(rows, new DataTemplate(() =>
         {
             var row = new Controls.UyumluIzgara { ColumnSpacing = 10, ColumnDefinitions = { new(GridLength.Star), new(new GridLength(145)), new(GridLength.Auto) } };
-            row.Add(Secim("Kanallar", "Kanal"));
-            row.Add(Girdi("Tutar", true), 1);
+            row.Add(Cerceve(Secim("Kanallar", "Kanal")));
+            row.Add(Cerceve(Girdi("Tutar", true)), 1);
             var sil = new Button { Text = "Kaldır", Style = (Style)Application.Current!.Resources["BtnSecondary"] };
             sil.Clicked += (_, _) =>
             {
@@ -432,7 +441,7 @@ internal static class TakipUi
 public abstract class TakipSayfasi<T> : ContentPage, Controls.IYenilenebilir where T : OturumluViewModel
 {
     protected readonly T Vm;
-    protected readonly VerticalStackLayout Govde = new() { Spacing = 18 };
+    protected readonly VerticalStackLayout Govde = new() { Spacing = 20 };
     protected readonly ScrollView Kaydirici;
     /// <summary>Sayfanın kaydırma yardımcısı (açılan ayrıntı, form ve ilk hatalı alan görünür yere kaydırılır).</summary>
     protected readonly Controls.GorunurYapici Gorunur;

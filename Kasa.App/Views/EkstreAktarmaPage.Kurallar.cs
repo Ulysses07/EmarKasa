@@ -16,7 +16,7 @@ public sealed partial class EkstreAktarmaPage
             Tikla("Kuralları yenile", Vm.KurallariYenileAsync),
             Tikla("Önerileri uygula", () => { Vm.OnerileriUygula(); return Task.CompletedTask; }),
             Goster(Tikla("Kural ekle", () => { KuralFormunuKur(null); return Task.CompletedTask; }), nameof(Vm.KurallarDestekleniyor)),
-            picker,
+            Cerceve(picker),
             Tikla("Seçili kuralı düzenle", () => { if (picker.SelectedItem is EkstreKuralDto rule) KuralFormunuKur(rule); return Task.CompletedTask; }),
             Tehlikeli(Tikla("Seçili kuralı sil", async () =>
             {
