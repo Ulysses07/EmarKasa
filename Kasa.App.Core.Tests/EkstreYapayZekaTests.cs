@@ -4,7 +4,8 @@ using Kasa.Core.Kodlar;
 
 namespace Kasa.App.Core.Tests;
 
-// Yapay zekâ önerileri (docs/specs/2026-11-25-yapay-zeka-onerileri.md): yalnız düğmeyle sorulur, satırı doldurur, hazır saymaz, kaydetmez.
+// Yapay zekâ önerileri (docs/specs/2026-11-25-yapay-zeka-onerileri.md): belge açılınca kendiliğinden sorulur (EkstreYapayZekaDoldurmaTests); yanıtsız satırlar
+// elle, onayla yeniden sorulur; öneri satırı doldurur, kaydetmez.
 public partial class EkstreAktarmaTests
 {
     private static YapayZekaDurumDto YzDurum(bool acik = true, string? neden = null, int sonuclanan = 0, int ayni = 0, params YapayZekaOlcumDto[] olcumler) =>
@@ -46,22 +47,22 @@ public partial class EkstreAktarmaTests
     }
 
     [Fact]
-    public async Task Sor_dugmesi_yalniz_acikken_ve_taninmayan_satir_varken_gorunur()
+    public async Task Yanitsizlari_sor_yalniz_acikken_ve_taninmayan_satir_varken_kullanilir()
     {
         var (vm, api, _) = await Hazir(new() { Veri = DurumBelgesi(Satir(1), Satir(2), Satir(3, "USD")), Oneriler = [Yok(1), HafizaOnerisi(2), Yok(3)] });
         // Sunucu desteklemiyor: hiçbir şey görünmez.
-        Assert.Equal((false, false, false, ""), (vm.YapayZekaGorunur, vm.YapayZekaAcik, vm.YapayZekaSorulabilir, vm.YapayZekaMetni));
+        Assert.Equal((false, false, false, ""), (vm.YapayZekaGorunur, vm.YapayZekaAcik, vm.YanitsizSorulabilir, vm.YapayZekaMetni));
         api.YzDurumu = YzDurum(false, "Yapay zekâ sunucuda kapalı.");
         await vm.YukleAsync();
-        Assert.Equal((true, false, false, "Yapay zekâ sunucuda kapalı."), (vm.YapayZekaGorunur, vm.YapayZekaAcik, vm.YapayZekaSorulabilir, vm.YapayZekaMetni));
-        await vm.YapayZekaSorAsync();
+        Assert.Equal((true, false, false, "Yapay zekâ sunucuda kapalı."), (vm.YapayZekaGorunur, vm.YapayZekaAcik, vm.YanitsizSorulabilir, vm.YapayZekaMetni));
+        await vm.YanitsizlariSorAsync();
         await vm.YapayZekaOlcAsync("Banka");
         Assert.Null(await vm.YapayZekaOnizleAsync());
         Assert.Equal((0, 0, 0), (api.YzSorulari.Count, api.YzOlcumleri.Count, api.YzOnizlemeSayisi));
 
         api.YzDurumu = YzDurum(sonuclanan: 12, ayni: 11, olcumler: new YapayZekaOlcumDto("Banka", 40, 37, 30, 24, 25, 25, 2, 0.0041m, new(2026, 11, 25, 12, 0, 0, TimeSpan.FromHours(3))));
         await vm.YukleAsync();
-        Assert.Equal((true, "Tanınmayan 1 satırı yapay zekâya sor"), (vm.YapayZekaSorulabilir, vm.YapayZekaSorDugmesi));
+        Assert.True(vm.YanitsizSorulabilir);
         Assert.Equal("Bu ay 0,0026 $ / 2,00 $ · 3 çağrı · claude-haiku-5-5\nÖnerisi sonuçlanan 12 satırın 11 tanesi önerilen türde kapandı (%92).\n"
             + "Banka ölçümü (25.11.2026): 40 karar · tür %93 · dağılım %80 · yüksek güvenlide tür %100 · 2 karara öneri yok · 0,0041 $", vm.YapayZekaMetni);
         // Durum alınamazsa bölüm gizlenir, ekran çalışır.
@@ -74,27 +75,23 @@ public partial class EkstreAktarmaTests
     public async Task Sorulan_satirlar_dolar_mesaj_ve_harcama_guncellenir()
     {
         var (vm, api, _) = await Hazir(new() { Veri = DurumBelgesi(Satir(1), Satir(2)), Oneriler = [Yok(1), Yok(2)], YzDurumu = YzDurum() });
+        // Belge açılınca bir kez kendiliğinden soruldu; gönderilen metin görülebilir.
+        Assert.True(Assert.Single(api.YzSorulari).YalnizSorulmamis);
         await vm.GonderilecekAcKapatCommand.ExecuteAsync(null);
         Assert.Equal((true, "Gönderilecek metni gizle"), (vm.GonderilecekAcik, vm.GonderilecekDugmesi));
         Assert.Equal(["1 | CIKIS | 100-1000 | [1] KARGO"], vm.GonderilecekSatirlar);
-        Assert.Empty(api.YzSorulari);
 
         api.YzSorYaniti = g => { api.Oneriler = [YzOneri(1), Yok(2)]; api.YzDurumu = YzDurum() with { AyHarcamasiUsd = 0.5m }; return new(1, 1, 1, 0.0025m, null); };
-        await vm.YapayZekaSorAsync();
-        Assert.Equal("1 satır soruldu, 1 satıra öneri geldi (0,0025 $). Öneriler satırları doldurdu; kontrol edip kendiniz işaretleyin. 1 satır kaldı; yeniden sorabilirsiniz.", vm.YapayZekaMesaji);
-        Assert.Equal(("Gider", false, false, true, "Tanınmayan 1 satırı yapay zekâya sor"), (vm.Satirlar[0].IslemTuru!.Kod, vm.Satirlar[0].Secili, vm.GonderilecekAcik, vm.YapayZekaSorulabilir, vm.YapayZekaSorDugmesi));
+        await vm.YanitsizlariSorAsync();
+        Assert.False(api.YzSorulari[1].YalnizSorulmamis);
+        Assert.Equal("1 satır soruldu, 1 satıra öneri geldi (0,0025 $). 1 satır kaldı; yeniden sorabilirsiniz.", vm.YapayZekaMesaji);
+        Assert.Equal(("Gider", false, false, true), (vm.Satirlar[0].IslemTuru!.Kod, vm.Satirlar[0].Secili, vm.GonderilecekAcik, vm.YanitsizSorulabilir));
         Assert.Contains("0,50 $ / 2,00 $", vm.YapayZekaMetni);
         Assert.Empty(api.KaydetIstekleri);
-        // Kullanılamayan yanıtta yeniden sorulabilir; yanıt gelip satır yine tanınmadıysa düğme kalkar.
+        // Kullanılamayan yanıtta yeniden sorulabilir.
         api.YzSorYaniti = _ => new(1, 0, 0, 0.0025m, "Yanıt yarım kaldı.");
-        await vm.YapayZekaSorAsync();
-        Assert.Equal(("Yanıt yarım kaldı. (0,0025 $)", true), (vm.YapayZekaMesaji, vm.YapayZekaSorulabilir));
-        api.YzSorYaniti = _ => new(1, 0, 0, 0.0025m, null);
-        await vm.YapayZekaSorAsync();
-        Assert.False(vm.YapayZekaSorulabilir);
-        api.Oneriler = [Yok(1), Yok(2)];
-        await vm.KurallariYenileAsync();
-        Assert.True(vm.YapayZekaSorulabilir);
+        await vm.YanitsizlariSorAsync();
+        Assert.Equal(("Yanıt yarım kaldı. (0,0025 $)", true), (vm.YapayZekaMesaji, vm.YanitsizSorulabilir));
     }
 
     [Fact]
@@ -106,8 +103,9 @@ public partial class EkstreAktarmaTests
         Assert.Equal("70 satırın maskeli açıklaması Anthropic'e gönderilecek. En çok 0,0200 $ tutar. 4 satır sonraki soruya kalır.", vm.YapayZekaOnayi(new(70, 4, 0, [], 0.02m)));
         api.YzOnizleme = new(0, 0, 0, [], 0);
         Assert.Null(await vm.YapayZekaOnizleAsync());
-        Assert.Equal((false, "Tanınmayan satırlar yalnız ad ve sayıdan oluşuyor; gönderilecek bilgi yok."), (vm.YapayZekaSorulabilir, vm.YapayZekaMesaji));
-        Assert.Empty(api.YzSorulari);
+        Assert.Equal("Tanınmayan satırlar yalnız ad ve sayıdan oluşuyor; gönderilecek bilgi yok.", vm.YapayZekaMesaji);
+        // Yalnız belge açılınca kendiliğinden giden soru.
+        Assert.Single(api.YzSorulari);
     }
 
     /// <summary>Bağlantı kesilirse aynı istek kimliğiyle yinelenir (ikinci kez ücret doğmaz); sunucu reddinde yeni kimlik alınır.</summary>
@@ -115,16 +113,17 @@ public partial class EkstreAktarmaTests
     public async Task Yanit_kaybolursa_ayni_kimlikle_yinelenir_sunucu_reddinde_yenilenir()
     {
         var (vm, api, _) = await Hazir(new() { Veri = DurumBelgesi(Satir(1)), Oneriler = [Yok(1)], YzDurumu = YzDurum() });
+        // İlk soru belge açılınca kendiliğinden gitti; aşağıdakiler elle "yanıtsızları yeniden sor".
         api.YzSorYaniti = _ => throw new HttpRequestException();
-        await vm.YapayZekaSorAsync();
+        await vm.YanitsizlariSorAsync();
         Assert.NotNull(vm.YapayZekaHatasi);
         api.YzSorYaniti = _ => throw new KasaApiException(HttpStatusCode.Conflict, "Önceki istek tamamlanmadı; yeniden sorun.");
-        await vm.YapayZekaSorAsync();
+        await vm.YanitsizlariSorAsync();
         Assert.Contains("yeniden sorun", vm.YapayZekaHatasi);
         api.YzSorYaniti = _ => new(1, 1, 0, 0.0025m, null);
-        await vm.YapayZekaSorAsync();
+        await vm.YanitsizlariSorAsync();
         Assert.Null(vm.YapayZekaHatasi);
-        Assert.Equal((api.YzSorulari[0].IstekId, true), (api.YzSorulari[1].IstekId, api.YzSorulari[1].IstekId != api.YzSorulari[2].IstekId));
+        Assert.Equal((api.YzSorulari[1].IstekId, true), (api.YzSorulari[2].IstekId, api.YzSorulari[2].IstekId != api.YzSorulari[3].IstekId));
     }
 
     [Fact]

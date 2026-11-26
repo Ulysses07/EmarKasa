@@ -7,7 +7,8 @@ using Kasa.Core.Kodlar;
 
 namespace Kasa.App.Core;
 
-// Yapay zekâ önerileri (docs/specs/2026-11-25-yapay-zeka-onerileri.md): yalnız düğmeyle sorulur; öneri satırı doldurur, seçmez ve kaydetmez.
+// Yapay zekâ önerileri (docs/specs/2026-11-25-yapay-zeka-onerileri.md, 2026-11-26-ekstre-hareket-penceresi.md §3): belge açılınca hiç sorulmamış satırlar
+// kendiliğinden sorulur; hazır öneri satırı işaretler, kaydetmez. Yanıt alamamış satırlar yalnız kullanıcı isteyince (onayla) yeniden sorulur.
 public partial class EkstreAktarmaViewModel
 {
     private readonly TekrarAnahtari _yapayZekaKey = new(), _olcumKey = new();
@@ -27,11 +28,13 @@ public partial class EkstreAktarmaViewModel
     public bool YapayZekaAcik => YapayZeka?.Acik == true;
     /// <summary>Kural ve hafızanın tanımadığı, önerisi olmayan bekleyen satırlar.</summary>
     private int TaninmayanSayisi => Satirlar.Count(s => s.Secilebilir && s.Oneri?.Durum == "Yok");
-    /// <summary>Sorulmuş (ya da yalnız ad ve sayıdan oluşan) satırları kalan belge: tanınmayan satır sayısı artmadıkça yeniden sorulmaz.</summary>
-    private (int Belge, int Satir)? _cevapsiz;
-    public bool YapayZekaSorulabilir => YapayZekaAcik && Belge is { Kaynak: not EkstreKaynaklari.Erp } b && TaninmayanSayisi is > 0 and var sayi
-        && !(_cevapsiz is { } c && c.Belge == b.Id && c.Satir >= sayi);
-    public string YapayZekaSorDugmesi => $"Tanınmayan {TaninmayanSayisi} satırı yapay zekâya sor";
+    /// <summary>Yanıt alamamış (ya da hiç sorulmamış) tanınmayan satır var: "Yanıtsız satırları yeniden sor" kullanılabilir.</summary>
+    public bool YanitsizSorulabilir => YapayZekaAcik && Belge is { Kaynak: not EkstreKaynaklari.Erp } && TaninmayanSayisi > 0;
+    /// <summary>Kendiliğinden doldurmanın durumu: "Yapay zekâ N satırı dolduruyor… tur", bitince "Yapay zekâ N satırı doldurdu".</summary>
+    [ObservableProperty] private string? _yapayZekaIlerleme;
+    /// <summary>Bu oturumda kendiliğinden doldurmanın gönderdiği maskeli satırlar.</summary>
+    public ObservableCollection<string> SonGonderilenler { get; } = new();
+    private const int EnCokYapayZekaTuru = 10;
     /// <summary>Gönder onayının metni: gönderilecek ve gönderilmeyecek satırlar, en yüksek maliyet.</summary>
     public string YapayZekaOnayi(YapayZekaOnizlemeDto o)
     {
@@ -51,8 +54,7 @@ public partial class EkstreAktarmaViewModel
 
     private void YapayZekayiBildir()
     {
-        foreach (var ad in new[] { nameof(YapayZekaSorulabilir), nameof(YapayZekaSorDugmesi) })
-            OnPropertyChanged(ad);
+        OnPropertyChanged(nameof(YanitsizSorulabilir));
     }
     partial void OnYapayZekaChanged(YapayZekaDurumDto? value) => YapayZekayiBildir();
 
@@ -76,7 +78,7 @@ public partial class EkstreAktarmaViewModel
         await YurutAsync(async n =>
         {
             YapayZekaHatasi = null;
-            if (!EditorMu || !VeriHazir || !YapayZekaSorulabilir || Belge is not { } belge)
+            if (!EditorMu || !VeriHazir || !YanitsizSorulabilir || Belge is not { } belge)
                 return;
             var onizleme = await api.YapayZekaOnizlemeAsync(belge.Id);
             if (!Gecerli(n) || Belge?.Id != belge.Id)
@@ -85,8 +87,6 @@ public partial class EkstreAktarmaViewModel
             if (onizleme.SatirSayisi == 0)
             {
                 YapayZekaMesaji = "Tanınmayan satırlar yalnız ad ve sayıdan oluşuyor; gönderilecek bilgi yok.";
-                _cevapsiz = (belge.Id, TaninmayanSayisi);
-                YapayZekayiBildir();
                 return;
             }
             sonuc = onizleme;
@@ -94,20 +94,75 @@ public partial class EkstreAktarmaViewModel
         return sonuc;
     }
 
+    /// <summary>Gönderilen metin: bu oturumda kendiliğinden doldurmanın gönderdikleri; gönderim olmadıysa sonraki gönderimde gidecekler.</summary>
     [RelayCommand]
     private async Task GonderilecekAcKapatAsync()
     {
         if (GonderilecekAcik)
         { GonderilecekAcik = false; return; }
+        if (SonGonderilenler.Count > 0)
+        {
+            TakipMetni.Doldur(GonderilecekSatirlar, SonGonderilenler);
+            GonderilecekAcik = true;
+            return;
+        }
         GonderilecekAcik = await YapayZekaOnizleAsync() is not null;
     }
 
-    /// <summary>Tanınmayan satırları sorar (sayfa önce onay ister). Aynı istek yeniden gönderilirse ikinci kez ücret doğmaz.</summary>
-    public Task YapayZekaSorAsync() => YurutAsync(async n =>
+    /// <summary>Belge açılınca hiç sorulmamış tanınmayan satırları onaysız sorar: "kalan" bitene, sunucu "sorulacak satır yok" diyene, bir turda öneri
+    /// gelmeyene ya da hataya kadar, en çok <see cref="EnCokYapayZekaTuru"/> tur. Aynı yürütmenin içindedir (pencere bu sürede meşguldür).</summary>
+    private async Task YapayZekaDoldurAsync(int n)
+    {
+        if (!EditorMu || !Gecerli(n) || !YapayZekaAcik || Belge is not { Kaynak: not EkstreKaynaklari.Erp } belge || TaninmayanSayisi == 0)
+            return;
+        YapayZekaHatasi = null;
+        SonGonderilenler.Clear();
+        var doldurulan = 0;
+        try
+        {
+            for (var tur = 1; tur <= EnCokYapayZekaTuru; tur++)
+            {
+                var onizleme = await api.YapayZekaOnizlemeAsync(belge.Id, yalnizSorulmamis: true);
+                if (!Gecerli(n) || Belge?.Id != belge.Id || onizleme.SatirSayisi == 0)
+                    break;
+                YapayZekaIlerleme = $"Yapay zekâ {onizleme.SatirSayisi + onizleme.KalanSatir} satırı dolduruyor… {tur}";
+                foreach (var satir in onizleme.Satirlar)
+                    SonGonderilenler.Add(satir);
+                YapayZekaSonucDto sonuc;
+                try
+                { sonuc = await api.YapayZekaSorAsync(belge.Id, new(_yapayZekaKey.Al(new { belge.Id, belge.Surum, tur }), YalnizSorulmamis: true)); }
+                catch (KasaApiException e) when (e.DurumKodu == HttpStatusCode.Conflict && e.Message.Contains("sorulacak satır yok", StringComparison.Ordinal))
+                { _yapayZekaKey.Temizle(); break; }
+                catch (KasaApiException) { _yapayZekaKey.Temizle(); throw; }
+                _yapayZekaKey.Temizle();
+                if (!Gecerli(n) || Belge?.Id != belge.Id)
+                    break;
+                doldurulan += sonuc.Onerilen;
+                await KurallariAlAsync(n);
+                if (!Gecerli(n) || sonuc.KalanSatir == 0 || sonuc.Onerilen == 0)
+                    break;
+            }
+        }
+        catch (Exception e) when (e is HttpRequestException or TaskCanceledException or TimeoutException
+            || e is KasaApiException { DurumKodu: not (HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden) })
+        {
+            if (Gecerli(n))
+                YapayZekaHatasi = HataMesaji(e);
+        }
+        if (!Gecerli(n))
+            return;
+        YapayZekaIlerleme = doldurulan > 0 ? $"Yapay zekâ {doldurulan} satırı doldurdu" : null;
+        YapayZekayiBildir();
+        await YapayZekaDurumunuAlAsync(n);
+    }
+
+    /// <summary>Yanıt alamamış satırları da sorar (sayfa önce <see cref="YapayZekaOnayi"/> ile onay ister). Aynı istek yeniden gönderilirse ikinci kez
+    /// ücret doğmaz.</summary>
+    public Task YanitsizlariSorAsync() => YurutAsync(async n =>
     {
         YapayZekaMesaji = null;
         YapayZekaHatasi = null;
-        if (!EditorMu || !VeriHazir || !YapayZekaSorulabilir || Belge is not { } belge)
+        if (!EditorMu || !VeriHazir || !YanitsizSorulabilir || Belge is not { } belge)
             return;
         YapayZekaSonucDto sonuc;
         try
@@ -122,10 +177,9 @@ public partial class EkstreAktarmaViewModel
             await KurallariAlAsync(n);
         if (!Gecerli(n))
             return;
-        _cevapsiz = sonuc is { Not: null, KalanSatir: 0 } ? (belge.Id, TaninmayanSayisi) : null;
         YapayZekayiBildir();
         YapayZekaMesaji = sonuc.Not is { } not ? $"{not} ({YapayZekaMetinleri.Dolar(sonuc.MaliyetUsd)})"
-            : $"{sonuc.Sorulan} satır soruldu, {sonuc.Onerilen} satıra öneri geldi ({YapayZekaMetinleri.Dolar(sonuc.MaliyetUsd)}). Öneriler satırları doldurdu; kontrol edip kendiniz işaretleyin."
+            : $"{sonuc.Sorulan} satır soruldu, {sonuc.Onerilen} satıra öneri geldi ({YapayZekaMetinleri.Dolar(sonuc.MaliyetUsd)})."
                 + (sonuc.KalanSatir > 0 ? $" {sonuc.KalanSatir} satır kaldı; yeniden sorabilirsiniz." : "");
         await YapayZekaDurumunuAlAsync(n);
     }, mesgulkenBildir: true, hataIsle: e => YapayZekaHatasi = HataMesaji(e));
@@ -153,7 +207,8 @@ public partial class EkstreAktarmaViewModel
         GonderilecekSatirlar.Clear();
         _yapayZekaKey.Temizle();
         _olcumKey.Temizle();
-        _cevapsiz = null;
+        YapayZekaIlerleme = null;
+        SonGonderilenler.Clear();
     }
 }
 

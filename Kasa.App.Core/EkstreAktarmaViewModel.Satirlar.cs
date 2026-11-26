@@ -232,6 +232,7 @@ public partial class EkstreAktarmaViewModel
             BelgeyiYansit(b);
             SatirMesaji = $"Belge yeniden okundu: {b.Satirlar.Count} satır.";
             await KurallariAlAsync(n);
+            await YapayZekaDoldurAsync(n);
         }, hataIsle: SatirHatasiniYaz);
     }
 

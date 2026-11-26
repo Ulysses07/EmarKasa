@@ -225,6 +225,7 @@ public partial class EkstreAktarmaViewModel(IEkstreAktarmaApi api, IKasaApi fina
         BelgeyiYansit(b);
         Tamamlandi();
         await KurallariAlAsync(n);
+        await YapayZekaDoldurAsync(n);
         if (!Gecerli(n))
             return;
         Mesaj = HazirSayisi > 0 ? $"Belge okundu. {HazirSayisi} satır hazır ve işaretli; {KontrolSayisi} satırı kontrol edin." : "Belge okundu. Kaydetmek istediğiniz satırları tek tek seçip kontrol edin.";
@@ -258,6 +259,7 @@ public partial class EkstreAktarmaViewModel(IEkstreAktarmaApi api, IKasaApi fina
             return;
         BelgeyiYansit(b, koru: true);
         await KurallariAlAsync(n);
+        await YapayZekaDoldurAsync(n);
     });
     public Task KaynakAcAsync(int kayitId) => YurutAsync(async n =>
     {
@@ -271,6 +273,7 @@ public partial class EkstreAktarmaViewModel(IEkstreAktarmaApi api, IKasaApi fina
         // Aranan kayıt (ya da iptali) Kapanan sekmesindedir.
         SeciliSekme = EkstreSekmesi.Kapanan;
         await KurallariAlAsync(n);
+        await YapayZekaDoldurAsync(n);
         if (Gecerli(n) && Kapananlar.FirstOrDefault(s => s.Kayit?.Veri.Id == kayitId) is { } satir)
             SatirGosterIstendi?.Invoke(this, satir);
     });

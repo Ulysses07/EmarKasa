@@ -9,8 +9,7 @@ public sealed partial class EkstreAktarmaPage
 {
     private View YapayZekaBolumu(EkstreAktarmaViewModel vm)
     {
-        var sor = Tikla("", YapayZekaSorAsync);
-        sor.SetBinding(Button.TextProperty, nameof(vm.YapayZekaSorDugmesi));
+        var sor = Tikla("Yanıtsız satırları yeniden sor", YanitsizlariSorAsync);
         var goster = Ikincil(Dugme("", nameof(vm.GonderilecekAcKapatCommand)));
         goster.SetBinding(Button.TextProperty, nameof(vm.GonderilecekDugmesi));
         var satirlar = new VerticalStackLayout { Spacing = 4 };
@@ -36,15 +35,15 @@ public sealed partial class EkstreAktarmaPage
             Spacing = 8,
             Children =
             {
-                Goster(bolum, nameof(vm.YapayZekaSorulabilir)), Dolu(Etiket("LblTakipMesaj"), nameof(vm.YapayZekaMesaji)), FormHatasi(nameof(vm.YapayZekaHatasi))
+                Goster(bolum, nameof(vm.YanitsizSorulabilir)), Dolu(Etiket("LblTakipMesaj"), nameof(vm.YapayZekaMesaji)), FormHatasi(nameof(vm.YapayZekaHatasi))
             }
         };
     }
 
-    private async Task YapayZekaSorAsync()
+    private async Task YanitsizlariSorAsync()
     {
         if (await Vm.YapayZekaOnizleAsync() is { } o && await DisplayAlertAsync("Yapay zekâya sor", Vm.YapayZekaOnayi(o), "Gönder", "Vazgeç"))
-            await Vm.YapayZekaSorAsync();
+            await Vm.YanitsizlariSorAsync();
     }
 
     private async Task YapayZekaOlcAsync(string kaynak)
