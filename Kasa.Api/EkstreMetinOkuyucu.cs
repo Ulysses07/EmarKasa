@@ -69,8 +69,11 @@ public static class EkstreMetinOkuyucu
     private sealed record Segment(string Raw, List<Column> Columns, int Page, int? InstallmentColumn, string? SectionCurrency, int Line = 0,
         IReadOnlyList<string>? Above = null, IReadOnlyList<string>? Below = null)
     {
-        /// <summary>Hareketin bütün metni (sınıflandırma ve kaynak satırı için); tutar ve bakiye yalnız <see cref="Raw"/>'dan okunur.</summary>
+        /// <summary>Hareketin PDF sırasıyla bütün metni (kaynak satırı için); tutar ve bakiye yalnız <see cref="Raw"/>'dan okunur.</summary>
         public string Text => Above is null ? Raw : string.Join('\n', [.. Above, Raw, .. Below!]);
+        /// <summary>Sınıflandırma ve yön için metin: üst ve alt satırlar birleşik okunur ("KENDI HESAPLAR" + "ARASI AKTARIM"); araya tarih
+        /// satırının kanal ve tutarları girmez (Codex incelemesi, EmarKasa#69).</summary>
+        public string Words => Above is null ? Raw : Raw + " " + string.Join(' ', [.. Above, .. Below!]);
     }
     // Direction yalnız Borç/Alacak kolonu veya B/A sonekiyle kesinleşir; işaretten okunan yön Sign'da (+1/-1) kalır.
     // UnreadSign: tutarın yanında okunamayan bir işaret var; açıklamadaki sözcük tek başına yön vermez.
@@ -270,7 +273,7 @@ public static class EkstreMetinOkuyucu
         {
             var read = ReadAmount(segments[index].Raw, segments[index].Columns);
             var written = read.Direction != "Belirsiz" ? read.Direction == "Giris" ? 1 : -1 : read.Sign != 0 ? read.Sign : link.Yazilan.Yon;
-            var normalized = Collapse(Normalize(segments[index].Text));
+            var normalized = Collapse(Normalize(segments[index].Words));
             var evidence = written != 0 ? written
                 : normalized.Contains("IADE") || normalized.Contains("IPTAL") ? 0
                 : DirectionalTransferRx.Match(normalized) is { Success: true } way ? way.Groups["way"].Value == "GELEN" ? 1 : -1 : 0;
@@ -370,7 +373,7 @@ public static class EkstreMetinOkuyucu
             warnings.Add("İşlem tarihi tam okunamadı; yılıyla birlikte girin.");
         if (dates.Count > 1)
             warnings.Add("Birden fazla tarih var; işlem tarihinin doğru olduğunu kontrol edin.");
-        var normalized = Normalize(segment.Text);
+        var normalized = Normalize(segment.Words);
         var (amount, direction, sign, tokenCount, unreadSign) = ReadAmount(raw, columns);
         // Tutarı okunamayan (tutar + bakiye) satırda bakiyenin doğruladığı tutar, yazıdaki işareti ya da B/A ekiyle alınır.
         if (amount is null && (link?.Yazilan ?? onlyAmount) is { } written)
@@ -646,7 +649,7 @@ public static class EkstreMetinOkuyucu
             var read = ReadAmount(segment.Raw, segment.Columns);
             if (read.Sign == 0)
                 continue;
-            var normalized = Normalize(segment.Text);
+            var normalized = Normalize(segment.Words);
             var classification = Classify(normalized);
             var key = CardKey(normalized, classification);
             var fee = IsFee(classification);

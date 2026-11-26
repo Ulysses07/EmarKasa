@@ -68,4 +68,21 @@ public class EkstreOrtaliAciklamaTests
         Assert.Equal(["ŞB HAVALE GELEN", "ŞB EFT GIDEN"], sonuc.Satirlar.Select(r => r.Aciklama));
         Assert.DoesNotContain(sonuc.Uyarilar, w => w.Contains("bölünmüş"));
     }
+
+    [Fact]
+    public void Uste_ve_alta_bolunen_ifade_siniflandirmada_birlesik_okunur()
+    {
+        // "HESAPLAR ARASI" üst ve alt satıra bölünmüş: tarih satırının kanal ve tutarları araya girmeden sınıflanır (Codex incelemesi, EmarKasa#69).
+        var sonuc = Oku(
+        [
+            Hareket("01.09.2026", "ŞB", "POS SATIS ISLEMI", "1,000.00", "11,000.00"),
+            Metin("KENDI HESAPLAR"),
+            Hareket("01.09.2026", "ŞB", "", "-500.00", "10,500.00"),
+            Metin("ARASI AKTARIM"),
+        ]);
+        var satir = sonuc.Satirlar[1];
+        Assert.Equal("ŞB KENDI HESAPLAR ARASI AKTARIM", satir.Aciklama);
+        Assert.Equal(("Transfer", "Atla"), (satir.Sinif, satir.OnerilenIslem));
+        Assert.Contains(satir.Uyarilar, w => w.StartsWith("Kendi hesaplarınız arası transfer"));
+    }
 }
