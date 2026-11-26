@@ -119,9 +119,9 @@ public class DugmeVeRenkKurallariTests
         Assert.True(ana.Count == beklenen, $"{ad}: {ana.Count} ana düğme ({string.Join(", ", ana)}); beklenen {beklenen}");
     }
 
-    private static bool Gorunur(Element e) => e is not VisualElement { IsVisible: false } && (e.Parent is null || Gorunur(e.Parent));
+    internal static bool Gorunur(Element e) => e is not VisualElement { IsVisible: false } && (e.Parent is null || Gorunur(e.Parent));
 
-    private static async Task<Page> SayfaKur(string ad)
+    internal static async Task<Page> SayfaKur(string ad)
     {
         var bugun = new DateOnly(2026, 9, 25);
         switch (ad)

@@ -42,7 +42,7 @@ public sealed class DisariAktarPage : ContentPage, Controls.IYenilenebilir
     private static View Alan(string label, View kontrol) => new VerticalStackLayout
     {
         Spacing = 4,
-        Children = { new Label { Text = label, Style = (Style)Application.Current!.Resources["LblTakipKucuk"] }, kontrol },
+        Children = { new Label { Text = label, Style = (Style)Application.Current!.Resources["LblTakipKucuk"] }, TakipUi.Cerceve(kontrol) },
     };
     private static DatePicker Tarih(string yol)
     {

@@ -12,11 +12,11 @@ public sealed class GuvenlikAlani : ContentView
         var stack = new VerticalStackLayout { Spacing = 12 };
         stack.Add(Baslik("Hesap güvenliği"));
         stack.Add(Yazi("Şifre değişince yeniden giriş yaparsınız ve kurtarma kodu geçersiz olur."));
-        stack.Add(Girdi("Mevcut şifre", nameof(vm.MevcutSifre)));
-        var yeni = Girdi("Yeni şifre (en az 12 karakter)", nameof(vm.YeniSifre));
-        var tekrar = Girdi("Yeni şifre (tekrar)", nameof(vm.YeniSifreTekrar));
-        stack.Add(yeni);
-        stack.Add(tekrar);
+        stack.Add(TakipUi.Cerceve(Girdi("Mevcut şifre", nameof(vm.MevcutSifre))));
+        var yeni = Girdi("Yeni şifre, en az 12 karakter", nameof(vm.YeniSifre));
+        var tekrar = Girdi("Yeni şifre tekrar", nameof(vm.YeniSifreTekrar));
+        stack.Add(TakipUi.Cerceve(yeni));
+        stack.Add(TakipUi.Cerceve(tekrar));
         stack.Add(SifreyiGoster(nameof(vm.YeniSifreyiGoster), yeni, tekrar));
         stack.Add(Dugme("Şifremi değiştir", nameof(vm.SifreDegistirCommand)));
         stack.Add(Dugme("Kurtarma kodu oluştur", nameof(vm.KurtarmaKoduOlusturCommand)));
@@ -63,8 +63,8 @@ public sealed class GuvenlikAlani : ContentView
         stack.Add(hata);
         Content = new Border { Style = (Style)Application.Current!.Resources["CardForm"], Content = stack };
     }
-    private static Label Baslik(string text) => new() { Text = text, FontSize = 18, FontAttributes = FontAttributes.Bold };
-    private static Label Yazi(string text) => new() { Text = text, FontSize = 13 };
+    private static Label Baslik(string text) => new() { Text = text, Style = (Style)Application.Current!.Resources["LblSection"] };
+    private static Label Yazi(string text) => new() { Text = text, Style = (Style)Application.Current!.Resources["LblTakipMetin"] };
     private static Entry Girdi(string baslik, string property) { var e = new Entry { Placeholder = baslik, IsPassword = true }; e.SetBinding(Entry.TextProperty, property); return e; }
     /// <summary>Yazım hatasını görmek için yalnız yeni şifre alanlarını açan kutu; mevcut şifre maskeli kalır. Durum görünüm
     /// modelindedir (<see cref="GuvenlikViewModel.YeniSifreyiGoster"/>): başarıda, ekrandan ayrılınca ve oturum sonunda kapanır.</summary>

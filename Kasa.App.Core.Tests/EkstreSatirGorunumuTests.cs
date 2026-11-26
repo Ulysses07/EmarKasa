@@ -138,8 +138,9 @@ public partial class EkstreAktarmaTests
         var (vm, _, _) = await Hazir();
         var pencere = Pencere(vm);
         var ara = pencere.GetVisualTreeDescendants().OfType<Entry>().Single(e => e.Placeholder == "Açıklamada ara");
-        var satir = (Grid)ara.Parent;
-        (int, int, double, int) Yer() => (Grid.GetColumn(ara), Grid.GetRow(ara), ara.WidthRequest, satir.ColumnDefinitions.Count);
+        var kutu = (Border)ara.Parent;   // arama kutusu FieldBorder çerçevesinde (tek sistem §7)
+        var satir = (Grid)kutu.Parent;
+        (int, int, double, int) Yer() => (Grid.GetColumn(kutu), Grid.GetRow(kutu), kutu.WidthRequest, satir.ColumnDefinitions.Count);
         ((IView)satir).Arrange(new Rect(0, 0, 312, 120));
         Assert.Equal((0, 1, -1d, 1), Yer());
         ((IView)satir).Arrange(new Rect(0, 0, 1000, 40));
@@ -174,6 +175,19 @@ public partial class EkstreAktarmaTests
         Assert.Same(vm.Satirlar[0], vm.SeciliSatir);
         Assert.Contains("Hatırlamadan önce genel kasa veya eşit kanal dağılımını seçin.",
             pencere.GetVisualTreeDescendants().OfType<Label>().Where(Gorunur).Select(l => l.Text));
+    }
+
+    /// <summary>Pencerede (arama ve açık satır paneli) görünen her girdi alan çerçevesindedir (tek sistem §7).</summary>
+    [Fact]
+    public async Task Pencerede_gorunen_her_girdi_alan_cercevesindedir()
+    {
+        GorunumOrtami.Kur();
+        var (vm, _, _) = await Hazir();
+        var pencere = Pencere(vm);
+        vm.SeciliSatir = vm.Satirlar[0];
+        var girdiler = pencere.GetVisualTreeDescendants().OfType<View>().Where(v => TakipUi.GirdiMi(v) && Gorunur(v)).ToList();
+        Assert.True(girdiler.Count >= 3);
+        Assert.All(girdiler, g => Assert.True(TekSistemTests.CercevesiVar(g), g.GetType().Name));
     }
 
     private static int BirincilDugmeSayisi(Page pencere)

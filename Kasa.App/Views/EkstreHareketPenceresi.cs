@@ -109,7 +109,7 @@ public sealed partial class EkstreHareketPenceresi : ContentPage
     private Grid Baslik()
     {
         var baslik = Bagli(nameof(_vm.PencereBasligi));
-        baslik.Style = Stil("LblTakipKartBaslik");
+        baslik.Style = Stil("LblPageTitle");
         var alt = Bagli(nameof(_vm.PencereAltBilgisi));
         alt.Style = Stil("LblTakipKucuk");
         var menu = Ikincil(Tikla("⋯", MenuAsync));
@@ -136,9 +136,12 @@ public sealed partial class EkstreHareketPenceresi : ContentPage
         ara.Placeholder = "Açıklamada ara";
         ara.WidthRequest = 240;
         SemanticProperties.SetDescription(ara, "Açıklamada ara");
+        var araKutusu = Cerceve(ara);
+        araKutusu.WidthRequest = 240;
+        ara.ClearValue(WidthRequestProperty);
         var satir = new Grid { ColumnSpacing = 12, ColumnDefinitions = { new(GridLength.Star), new(GridLength.Auto) } };
         satir.Add(cipler);
-        satir.Add(ara, 1);
+        satir.Add(araKutusu, 1);
         // Dar pencerede (telefon) arama çiplerin altına iner: çipler tüm genişliği kullanır, adları ve sayıları okunur.
         satir.SizeChanged += (_, _) =>
         {
@@ -149,9 +152,9 @@ public sealed partial class EkstreHareketPenceresi : ContentPage
                 : new ColumnDefinitionCollection(new(GridLength.Star), new(GridLength.Auto));
             satir.RowDefinitions = dar ? new RowDefinitionCollection(new(GridLength.Auto), new(GridLength.Auto)) : new RowDefinitionCollection();
             satir.RowSpacing = dar ? 8 : 0;
-            Grid.SetColumn(ara, dar ? 0 : 1);
-            Grid.SetRow(ara, dar ? 1 : 0);
-            ara.WidthRequest = dar ? -1 : 240;
+            Grid.SetColumn(araKutusu, dar ? 0 : 1);
+            Grid.SetRow(araKutusu, dar ? 1 : 0);
+            araKutusu.WidthRequest = dar ? -1 : 240;
         };
         return satir;
     }

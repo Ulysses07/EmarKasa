@@ -320,20 +320,24 @@
                             <Label Text="Ödeme düzeltmesi" Style="{StaticResource LblSection}" />
                             <Label Text="{Binding DuzeltilecekOdeme.Baslik}" FontAttributes="Bold" />
                             <VerticalStackLayout Spacing="12" IsEnabled="{Binding DuzeltmeAlanlariAcik}">
-                                <DatePicker Date="{Binding DuzeltmeTarihi}" />
-                                <ctl:ParaGirisi Tutar="{Binding DuzeltmeTutari}" Placeholder="Ödeme tutarı" />
-                                <Picker Title="Ödeme yöntemi" ItemsSource="{Binding DuzeltmeKartlari}"
-                                        ItemDisplayBinding="{Binding Ad, x:DataType=core:OdemeKartiSecenegi}" SelectedItem="{Binding DuzeltmeKarti}" />
+                                <Border Style="{StaticResource FieldBorder}"><DatePicker Date="{Binding DuzeltmeTarihi}" /></Border>
+                                <Border Style="{StaticResource FieldBorder}"><ctl:ParaGirisi Tutar="{Binding DuzeltmeTutari}" Placeholder="Ödeme tutarı" /></Border>
+                                <Border Style="{StaticResource FieldBorder}">
+                                    <Picker Title="Ödeme yöntemi" ItemsSource="{Binding DuzeltmeKartlari}"
+                                            ItemDisplayBinding="{Binding Ad, x:DataType=core:OdemeKartiSecenegi}" SelectedItem="{Binding DuzeltmeKarti}" />
+                                </Border>
                             </VerticalStackLayout>
                             <Label Text="Kart takibindeki ödemenin tarihi, tutarı ve kartı değiştirilemez."
                                    IsVisible="{Binding DuzeltmeTakipli}" Style="{StaticResource LblPageSub}" />
                             <Label Text="Kart silinmiş; yeni bir kart seçebilirsiniz."
                                    IsVisible="{Binding EskiKartHarcamasi}" Style="{StaticResource LblPageSub}" />
                             <Label Text="Yanlış alışa bağlandıysa hedef alışı seçin." Style="{StaticResource LblPageSub}" />
-                            <Picker Title="Başka alışa taşı" ItemsSource="{Binding DuzeltmeHedefleri}"
-                                    ItemDisplayBinding="{Binding Baslik, x:DataType=core:AlisSatiri}" SelectedItem="{Binding HedefAlis}" />
+                            <Border Style="{StaticResource FieldBorder}">
+                                <Picker Title="Başka alışa taşı" ItemsSource="{Binding DuzeltmeHedefleri}"
+                                        ItemDisplayBinding="{Binding Baslik, x:DataType=core:AlisSatiri}" SelectedItem="{Binding HedefAlis}" />
+                            </Border>
                             <Button Text="Aynı alışta bırak" Command="{Binding HedefiTemizleCommand}" Style="{StaticResource BtnSecondary}" />
-                            <Entry Text="{Binding DuzeltmeAciklamasi}" Placeholder="Açıklama" />
+                            <Border Style="{StaticResource FieldBorder}"><Entry Text="{Binding DuzeltmeAciklamasi}" Placeholder="Açıklama" /></Border>
                             <Button Text="Düzeltmeyi kaydet" Command="{Binding OdemeDuzeltKaydetCommand}" />
                             <VerticalStackLayout Spacing="8" IsVisible="{Binding DuzeltmeTakipli}">
                                 <ctl:UyumluSatir Spacing="10">
@@ -365,8 +369,10 @@
                             <Label Text="Belgeler" Style="{StaticResource LblSection}" />
                             <Label Text="PDF, PNG ya da JPEG, en çok 10 MB." Style="{StaticResource LblPageSub}" />
                             <Button Text="Belgeleri göster" Command="{Binding BelgeleriYukleCommand}" Style="{StaticResource BtnSecondary}" />
-                            <Picker x:Name="BelgeOdemesi" Title="Ödemeye bağla" ItemsSource="{Binding Odemeler}"
-                                    ItemDisplayBinding="{Binding Baslik, x:DataType=core:AlisOdemeSatiri}" IsVisible="{Binding EditorMu}" />
+                            <Border Style="{StaticResource FieldBorder}" IsVisible="{Binding EditorMu}">
+                                <Picker x:Name="BelgeOdemesi" Title="Ödemeye bağla" ItemsSource="{Binding Odemeler}"
+                                        ItemDisplayBinding="{Binding Baslik, x:DataType=core:AlisOdemeSatiri}" />
+                            </Border>
                             <Button Text="Belge ekle" Clicked="BelgeEkleTiklandi" />
                             <!-- Kaldırılan belgeler silinmez: editör onları kaldıran, zaman ve gerekçesiyle görebilir. -->
                             <ctl:UyumluSatir Spacing="8" IsVisible="{Binding EditorMu}">

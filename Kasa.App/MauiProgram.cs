@@ -18,6 +18,9 @@ public static class MauiProgram
 #endif
         // Platform sistem fontları Styles.xaml içindeki YaziAilesi kaynağından seçilir.
         builder.UseMauiApp<App>();
+#if WINDOWS
+        WinUI.YerelGorunum.Kur();
+#endif
 
         builder.Services.AddSingleton<ITokenStore, SecureStorageTokenStore>();
         builder.Services.AddSingleton(sp =>

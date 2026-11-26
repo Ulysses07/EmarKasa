@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8" ?>
-<!-- Emar Kasa · Styles.xaml (tasarım handoff entegrasyonu)
-     Tipografi: Sayfa başlığı 21 / Bölüm etiketi 11 (büyük harf) / Gövde 14 /
-     İkincil 12.5 / Tutar 14.5 kalın / Hero tutar 36. 8'lik boşluk gridi.
+<!-- Emar Kasa · Styles.xaml — tek görsel sistem (docs/specs/2026-11-26-slop-temizligi.md §7)
+     Tipografi: sayfa başlığı 21 / bölüm ve kart başlığı 14 kalın (cümle biçimi) / gövde 14 / ikincil 12-13 gri / tutar 14.5 kalın /
+     özet tutarı 36. Windows'ta kalın yazı Semibold çizilir (WinUI.YerelGorunum). Boşluklar 4'ün katı.
      Yazı ailesi tek anahtardan (YaziAilesi) gelir; sayfalar aileyi kendisi yazmaz. -->
 <ResourceDictionary
     xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
@@ -493,7 +493,7 @@
         </Setter>
     </Style>
     <Style x:Key="CardForm" TargetType="Border" BasedOn="{StaticResource Card}">
-        <Setter Property="Padding" Value="18" />
+        <Setter Property="Padding" Value="16" />
     </Style>
     <Style x:Key="CardHero" TargetType="Border">
         <Setter Property="Background" Value="{StaticResource BrushGreen}" />
@@ -560,23 +560,13 @@
     </Style>
 
     <!-- ===== TAKİP SAYFALARI (kodla yazılmış sayfalar; Views/TakipUi.cs) =====
-         Değerler, stil anahtarlarına geçmeden önce kodda yazılı sabitlerdir (sayfa başlığı 28, kart başlığı 18, özet 18,
-         açıklama 13, alan etiketi ve son güncelleme 12, gövde 14). -->
-    <Style x:Key="LblTakipSayfaBaslik" TargetType="Label">
-        <Setter Property="FontFamily" Value="{StaticResource YaziAilesi}" />
-        <Setter Property="FontAttributes" Value="Bold" />
-        <Setter Property="FontSize" Value="28" />
-        <Setter Property="TextColor" Value="{StaticResource Ink}" />
-    </Style>
-    <Style x:Key="LblTakipKartBaslik" TargetType="Label">
-        <Setter Property="FontFamily" Value="{StaticResource YaziAilesi}" />
-        <Setter Property="FontAttributes" Value="Bold" />
-        <Setter Property="FontSize" Value="18" />
-        <Setter Property="TextColor" Value="{StaticResource Ink}" />
-    </Style>
+         Tek sistem (docs/specs/2026-11-26-slop-temizligi.md §7): XAML sayfalarının ölçeği. Sayfa başlığı LblPageTitle (21), kart ve
+         panel başlığı bölüm başlığıyla aynı (14 kalın), özet satırı 15, gövde 14, ikincil 12-13 gri. Eski 28 ve 18 pt kalktı. -->
+    <Style x:Key="LblTakipKartBaslik" TargetType="Label" BasedOn="{StaticResource LblSection}" />
     <Style x:Key="LblTakipBuyuk" TargetType="Label">
         <Setter Property="FontFamily" Value="{StaticResource YaziAilesi}" />
-        <Setter Property="FontSize" Value="18" />
+        <Setter Property="FontAttributes" Value="Bold" />
+        <Setter Property="FontSize" Value="15" />
         <Setter Property="TextColor" Value="{StaticResource Ink}" />
     </Style>
     <!-- Kalan kısa ipucu ve liste özeti ikincil metindir (gri): asıl içerikle yarışmaz (sadeleştirme §2). -->
@@ -585,10 +575,11 @@
         <Setter Property="FontSize" Value="13" />
         <Setter Property="TextColor" Value="{StaticResource Sub}" />
     </Style>
+    <!-- Alan etiketi ve küçük yardımcı metin: XAML'ın LblField'ı gibi gri. -->
     <Style x:Key="LblTakipKucuk" TargetType="Label">
         <Setter Property="FontFamily" Value="{StaticResource YaziAilesi}" />
         <Setter Property="FontSize" Value="12" />
-        <Setter Property="TextColor" Value="{StaticResource Ink}" />
+        <Setter Property="TextColor" Value="{StaticResource Sub}" />
     </Style>
     <Style x:Key="LblTakipHata" TargetType="Label">
         <Setter Property="FontFamily" Value="{StaticResource YaziAilesi}" />
