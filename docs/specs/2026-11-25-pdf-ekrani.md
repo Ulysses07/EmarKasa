@@ -56,11 +56,6 @@ sunucu iletisi satır numarası taşımıyor, bazı durumlarda hiçbir şey yaz�
     çelişen açıklama tek başına yön vermez. Tek bir açıklama zinciri düşürmez; o satırda bakiye kazanır ve uyarı yazılır.
   - Yalnız "devir / önceki / açılış / başlangıç bakiyesi" yazan satır ilk satırın komşusudur; açıklamasında bakiye geçen hareket değildir.
   - Tutarı satırda yazmayan hareketin tutarı farktan **uydurulmaz**.
-  - pdftotext bir sayfanın metnini başlıkla hizalı çıkarmayabilir (QNB hesap hareketi: ilk sayfadan sonra tutar ve bakiye 8–10 karakter
-    sola kayar). Sayfanın her tablosu (aynı başlığın altındaki hareketler) ayrı değerlendirilir: bakiye kolonu olan tabloda tek satırlı, birden
-    çok tutarlı hiçbir hareketin bakiye kolonunda tek tutarı yoksa ve tablo başlıksız okunduğunda kendi içinde bakiye zinciri kuruyorsa o tablo
-    başlıksız okunur (son tutar bakiye adayıdır, başlıksız satırın eşiği geçerlidir) ve belge uyarısı sayfaları söyler. Zincir kurmayan tablo
-    eskisi gibi kalır (tutar elle girilir); aynı sayfadaki hizalı başka bir tablonun kolonlarına dokunulmaz.
 - Borç/Alacak kolonu, B/A eki ya da işaretten okunan yön bakiyeyle **çelişirse** yön "Belirsiz" olur ve uyarı yazılır.
 - Bakiye zinciri kurulmuşken bir satırda kopuyorsa belge uyarısı satır numaralarını söyler (arada okunamayan hareket olabilir).
 - **Anahtar kelime (yalnız banka, başka kanıt yoksa):** giriş — gelen EFT/havale/FAST, para yatırma, POS bloke çözümü, POS/üye işyeri
@@ -70,6 +65,12 @@ sunucu iletisi satır numarası taşımıyor, bazı durumlarda hiçbir şey yaz�
   havale/EFT'nin açıklaması karşı tarafındır: yalnız işlemin kendi masrafı ("EFT ücreti", "havale komisyonu") yön verir. "Maaş", "çek tahsilatı", "POS satışı", yalın "faiz",
   müşterinin de yazabileceği "fatura ödemesi" ve iade/iptal geçen satırlar iki anlamlıdır, belirsiz kalır. İki yöne de uyan açıklama
   belirsizdir.
+- **Bölünmüş açıklama:** bazı bankalar (QNB hesap hareketi) açıklama hücresini tarih satırına göre dikey ortalar; iki satırlık açıklamanın
+  biri tarih satırının üstüne, biri altına düşer ve tarih satırında açıklama kolonu boş kalır. Sayfanın tablo başlığından sonraki tarihsiz,
+  tutarsız metin satırları (sayfa numarası hariç) her harekete üstte ve altta eşit sayıda düşecek biçimde paylaştırılır. Bu paylaşım iki
+  koşulla uygulanır: satır alan hareketler tam olarak açıklama kolonu boş olanlardır ve son metin satırları son harekete tam yeter. Açıklama
+  "sol kolonlar + üst satırlar + alt satırlar" olur, kaynak satırı da PDF sırasıyla gösterilir. Tutar ve bakiye yalnız tarih satırından okunur.
+  Paylaşım tutmayan sayfaya (aşağı taşan açıklama, sayfa altı notu, satırlara bölünmüş hareket) dokunulmaz ve belge uyarısı sayfa sayısını söyler.
 - **Atlanan satırlar:** tutar içerdiği hâlde harekete alınmayan satırlar nedeniyle saklanır (en çok 300) ve belgede açılıp görülür.
 - **PDF'yi yeniden oku:** yalnız hiç kaydı (iptal edilmişler dahil) ve yok sayılan satırı olmayan belgede; saklanan PDF yeniden okunur.
   Eski belgeler kendiliğinden değişmez.
