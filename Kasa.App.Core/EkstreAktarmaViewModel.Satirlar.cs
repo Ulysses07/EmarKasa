@@ -194,7 +194,7 @@ public partial class EkstreAktarmaViewModel
                     _yokSayilanTaslak[s.Kaynak.No] = s;
             BelgeyiYansit(b, koru: true);
             var ad = nolar.Length == 1 ? $"Satır {nolar[0]}" : $"{nolar.Length} satır";
-            SatirMesaji = yokSay ? $"{ad} yok sayıldı; kasa değişmedi. Kapanan sekmesinden geri alabilirsiniz." : $"{ad} yeniden bekliyor.";
+            SatirMesaji = yokSay ? $"{ad} yok sayıldı; kasa değişmedi. Kapanan süzgecinden geri alabilirsiniz." : $"{ad} yeniden bekliyor.";
             await KurallariAlAsync(n);
             // Tek satırda liste yerinde kalır; toplu işlem listenin altındaki düğmeden yapılır, sonuç listenin üstündedir.
             if (Gecerli(n) && nolar.Length > 1)

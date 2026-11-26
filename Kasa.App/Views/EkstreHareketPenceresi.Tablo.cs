@@ -55,6 +55,7 @@ public sealed partial class EkstreHareketPenceresi
         var kutu = new CheckBox { MinimumWidthRequest = 0, VerticalOptions = LayoutOptions.Center };
         kutu.SetBinding(CheckBox.IsCheckedProperty, nameof(EkstreSatirEditor.Secili));
         kutu.SetBinding(IsEnabledProperty, nameof(EkstreSatirEditor.Secilebilir));
+        kutu.SetBinding(IsVisibleProperty, nameof(EkstreSatirEditor.Kapali), converter: new TersIseConverter());
         kutu.SetBinding(SemanticProperties.DescriptionProperty, new Binding(nameof(EkstreSatirEditor.Ozet), stringFormat: "Kaydetmek için seç: {0}"));
         izgara.Add(kutu, 1);
         var tarih = Etiket("LblRowPrimary");

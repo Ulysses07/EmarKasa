@@ -405,7 +405,7 @@ public partial class EkstreAktarmaViewModel(IEkstreAktarmaApi api, IKasaApi fina
             BelgeyiYansit(b, koru: true, yenile: g.Satirlar.Select(s => s.SatirNo).ToHashSet());
             _kayitKey.Temizle();
             Mesaj = "Seçilen satırlar kaydedildi. Diğer satırlar değişmedi.";
-            SatirMesaji = $"{g.Satirlar.Count} satır kaydedildi ve Kapanan sekmesine geçti.";
+            SatirMesaji = $"{g.Satirlar.Count} satır kaydedildi ve Kapanan süzgecine geçti.";
             await KurallariAlAsync(n);
             if (Gecerli(n))
                 SonucuGoster(EkstreSonucu.Satirlar);

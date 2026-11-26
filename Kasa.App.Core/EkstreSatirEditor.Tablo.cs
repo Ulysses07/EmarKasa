@@ -9,7 +9,8 @@ public partial class EkstreSatirEditor
     private static readonly CultureInfo Tr = CultureInfo.GetCultureInfo("tr-TR");
 
     /// <summary>"Gider · Genel", "Gider · PERAKENDE, MEZAT"; türü seçilmemiş satırda "—".</summary>
-    public string TurKanalMetni => IslemTuru is not { } tur ? "—" : DagilimMetni() is { Length: > 0 } dagilim ? $"{tur.Ad} · {dagilim}" : tur.Ad;
+    public string TurKanalMetni => Kayitli ? "Kaydedildi" : YokSayildi ? "Yok sayıldı"
+        : IslemTuru is not { } tur ? "—" : DagilimMetni() is { Length: > 0 } dagilim ? $"{tur.Ad} · {dagilim}" : tur.Ad;
 
     private string DagilimMetni() => DagilimTuru?.Kod switch
     {

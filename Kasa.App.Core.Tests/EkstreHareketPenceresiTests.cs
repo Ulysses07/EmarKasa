@@ -163,6 +163,16 @@ public partial class EkstreAktarmaTests
         Assert.Equal(("Belge uyarıları (2)", "Birinci uyarı.\nİkinci uyarı."), (vm.BelgeUyarilariBasligi, vm.BelgeUyarilariMetni));
     }
 
+    [Fact]
+    public async Task Kapanan_satir_turu_yerine_sonucunu_gosterir()
+    {
+        var belge = DurumBelgesi(Satir(1), Satir(2), Satir(3)) with { Kayitlar = [Kayit(7, 1)], YokSayilanlar = [2] };
+        var (vm, _, _) = await Hazir(new() { Veri = belge });
+        Assert.Equal(["Kaydedildi", "Yok sayıldı", "Gider"], vm.Satirlar.Select(s => s.TurKanalMetni));
+        await vm.YokSayAsync([vm.Satirlar[2]], true);
+        Assert.Equal("Satır 3 yok sayıldı; kasa değişmedi. Kapanan süzgecinden geri alabilirsiniz.", vm.SatirMesaji);
+    }
+
     /// <summary>Tablonun hücreleri: tür · kanal, doldurmanın kaynağı ve işaretli tutar (giriş +, çıkış −, belirsiz işaretsiz).</summary>
     [Fact]
     public async Task Tablo_hucreleri_tur_kanal_kaynak_ve_tutari_gosterir()
