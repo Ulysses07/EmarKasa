@@ -114,6 +114,23 @@ public partial class EkstreAktarmaTests
         Assert.Single(api.YzSorulari);
     }
 
+    /// <summary>Elle "yeniden sor"un onaylanan metni de gönderilenlere eklenir: "gönderilen metni göster" son gönderimi de gösterir.</summary>
+    [Fact]
+    public async Task Elle_yeniden_sorulan_metin_gonderilenlere_eklenir()
+    {
+        var api = YzBelgesi(Yok(1));
+        api.YzSorYaniti = _ => new(1, 0, 0, 0.0001m, null);
+        var (vm, _, _) = await Hazir(api);
+        List<string> otomatik = [.. vm.SonGonderilenler];
+        Assert.NotEmpty(otomatik);
+        api.YzOnizleme = new(1, 0, 0, ["1 | CIKIS | 100-1000 | [1] KIRA"], 0.0091m);
+        Assert.NotNull(await vm.YapayZekaOnizleAsync());
+        await vm.YanitsizlariSorAsync();
+        Assert.Equal([.. otomatik, "1 | CIKIS | 100-1000 | [1] KIRA"], vm.SonGonderilenler);
+        await vm.GonderilecekAcKapatCommand.ExecuteAsync(null);
+        Assert.Contains("1 | CIKIS | 100-1000 | [1] KIRA", vm.GonderilecekSatirlar);
+    }
+
     /// <summary>1500 satırda Tümü → Kontrol edin geçişi satır satır değil tek bildirimle olur (WinUI listesine 1460 ayrı güncelleme gitmez); arama
     /// ve süzgeç geçişleri hızlıdır.</summary>
     [Fact]

@@ -32,8 +32,10 @@ public partial class EkstreAktarmaViewModel
     public bool YanitsizSorulabilir => YapayZekaAcik && Belge is { Kaynak: not EkstreKaynaklari.Erp } && TaninmayanSayisi > 0;
     /// <summary>Kendiliğinden doldurmanın durumu: "Yapay zekâ N satırı dolduruyor… tur", bitince "Yapay zekâ N satırı doldurdu".</summary>
     [ObservableProperty] private string? _yapayZekaIlerleme;
-    /// <summary>Bu oturumda kendiliğinden doldurmanın gönderdiği maskeli satırlar.</summary>
+    /// <summary>Bu belgede kendiliğinden doldurmanın ve elle "yeniden sor"un gönderdiği maskeli satırlar.</summary>
     public ObservableCollection<string> SonGonderilenler { get; } = new();
+    /// <summary>Kullanıcının "yeniden sor" onayında gördüğü maskeli satırlar (belgesiyle); soru gidince gönderilenlere eklenir.</summary>
+    private (int Belge, IReadOnlyList<string> Satirlar)? _onaylanacakMetin;
     private const int EnCokYapayZekaTuru = 10;
     private bool _yapayZekaDurdur;
     /// <summary>Pencere kapanınca: kendiliğinden doldurma başlamaz ya da sonraki tura geçmez (sürmekte olan soru biter, sonucu yazılır). Bayrak
@@ -53,6 +55,7 @@ public partial class EkstreAktarmaViewModel
         YapayZekaHatasi = null;
         YapayZekaMesaji = null;
         SonGonderilenler.Clear();
+        _onaylanacakMetin = null;
         GonderilecekAcik = false;
     }
     /// <summary>Gönder onayının metni: gönderilecek ve gönderilmeyecek satırlar, en yüksek maliyet.</summary>
@@ -104,6 +107,7 @@ public partial class EkstreAktarmaViewModel
             if (!Gecerli(n) || Belge?.Id != belge.Id)
                 return;
             TakipMetni.Doldur(GonderilecekSatirlar, onizleme.Satirlar);
+            _onaylanacakMetin = (belge.Id, onizleme.Satirlar);
             if (onizleme.SatirSayisi == 0)
             {
                 YapayZekaMesaji = "Tanınmayan satırlar yalnız ad ve sayıdan oluşuyor; gönderilecek bilgi yok.";
@@ -192,6 +196,11 @@ public partial class EkstreAktarmaViewModel
         _yapayZekaKey.Temizle();
         if (!Gecerli(n))
             return;
+        // Onaylanan metin gerçekten gitti: "gönderilen metni göster" bunu da gösterir.
+        if (_onaylanacakMetin is { } metin && metin.Belge == belge.Id)
+            foreach (var satir in metin.Satirlar)
+                SonGonderilenler.Add(satir);
+        _onaylanacakMetin = null;
         GonderilecekAcik = false;
         GonderilecekSatirlar.Clear();
         if (Belge?.Id == belge.Id)
