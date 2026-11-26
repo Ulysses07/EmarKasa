@@ -195,7 +195,14 @@ public sealed partial class EkstreHareketPenceresi
                 s.OneriyiUygula(false);
             return Task.CompletedTask;
         })), nameof(s.OneriUygulanabilir)));
-        eylemler.Add(Ikincil(Tikla("Bu seçimi hatırla", async () => { await KapatAsync(); _sayfa.KuralHatirla(s); })));
+        // Kural önce doğrulanır: olamıyorsa (ödeme, eşleşme, eksik dağılım) neden bu panelde görünür, pencere açık kalır.
+        eylemler.Add(Ikincil(Tikla("Bu seçimi hatırla", async () =>
+        {
+            if (_sayfa.HatirlanacakKural(s) is not { } kural)
+                return;
+            await KapatAsync();
+            _sayfa.KuralFormunuAc(kural);
+        })));
         eylemler.Add(Goster(Ikincil(Tikla("Bu hafızayı unut", () => SatirHafizasiniUnutAsync(s))), nameof(s.HafizaVar)));
         eylemler.Add(Goster(Ikincil(Tikla("Yok say", () => _vm.YokSayAsync([s], true))), nameof(s.YokSayilabilir)));
         foreach (var eylem in eylemler.Children.OfType<View>())

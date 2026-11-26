@@ -35,14 +35,16 @@ public sealed partial class EkstreAktarmaPage
                 _kuralFormu.Content = null;
         };
     }
-    internal void KuralHatirla(EkstreSatirEditor row)
+    /// <summary>Satırın seçiminden hatırlanacak kural; kural olamıyorsa nedeni satırın form iletisine yazılır (iletiyi gösteren pencere açık kalır).</summary>
+    internal EkstreKuralYaz? HatirlanacakKural(EkstreSatirEditor row)
     {
         if (!Vm.EditorMu || Vm.Mesgul || !Vm.KurallarDestekleniyor || Vm.Belge is not { } doc || !Vm.Satirlar.Contains(row))
-            return;
+            return null;
         try
-        { KuralFormunuKur(null, row.HatirlanacakKural(doc)); }
-        catch (DogrulamaHatasi error) { row.FormMesaji = error.Message; }
+        { return row.HatirlanacakKural(doc); }
+        catch (DogrulamaHatasi error) { row.FormMesaji = error.Message; return null; }
     }
+    internal void KuralFormunuAc(EkstreKuralYaz kural) => KuralFormunuKur(null, kural);
     private void KuralFormunuKur(EkstreKuralDto? rule, EkstreKuralYaz? remembered = null)
     {
         if (!Vm.EditorMu || Vm.Mesgul || !Vm.KurallarDestekleniyor)

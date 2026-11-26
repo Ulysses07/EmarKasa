@@ -11,11 +11,30 @@ public sealed partial class EkstreHareketPenceresi
     private static readonly GridLength SeritGenisligi = new(3), KutuGenisligi = new(36), TarihGenisligi = new(56), TurGenisligi = new(230),
         TutarGenisligi = new(120);
 
+    /// <summary>Bu genişliğin altında (telefon, paneli açık dar pencere) sabit sütunlar açıklamayı ezer: tür · kanal açıklamanın altına iner.</summary>
+    private const double DarTablo = 680;
+
     private static Grid SatirIzgarasi() => new()
     {
         ColumnSpacing = 10,
         ColumnDefinitions = { new(SeritGenisligi), new(KutuGenisligi), new(TarihGenisligi), new(GridLength.Star), new(TurGenisligi), new(TutarGenisligi) },
+        RowDefinitions = { new(GridLength.Auto), new(GridLength.Auto) },
     };
+
+    /// <summary>Dar tabloda tür · kanal sütunu kalkar: satırda açıklamanın altına iner, başlıkta gizlenir. Başlık ve satırlar aynı kuralla hizalı kalır.</summary>
+    private static void SutunlariUyarla(Grid izgara, View tur, bool baslik)
+    {
+        var dar = izgara.Width is > 0 and < DarTablo;
+        izgara.ColumnSpacing = dar ? 6 : 10;
+        izgara.ColumnDefinitions[4].Width = dar ? new GridLength(0) : TurGenisligi;
+        if (baslik)
+            tur.IsVisible = !dar;
+        else
+        {
+            Grid.SetColumn(tur, dar ? 3 : 4);
+            Grid.SetRow(tur, dar ? 1 : 0);
+        }
+    }
 
     private View TabloBolumu()
     {
@@ -27,6 +46,8 @@ public sealed partial class EkstreHareketPenceresi
             etiket.Text = metin;
             if (sutun == 5)
                 etiket.HorizontalTextAlignment = TextAlignment.End;
+            if (sutun == 4)
+                baslik.SizeChanged += (_, _) => SutunlariUyarla(baslik, etiket, baslik: true);
             baslik.Add(etiket, sutun);
         }
         _tablo = new CollectionView
@@ -52,12 +73,14 @@ public sealed partial class EkstreHareketPenceresi
         var serit = new BoxView { Color = Renk("UyariKenar") };
         serit.SetBinding(IsVisibleProperty, nameof(EkstreSatirEditor.KontrolNedeni), converter: new DoluIseConverter());
         izgara.Add(serit);
+        Grid.SetRowSpan(serit, 2);
         var kutu = new CheckBox { MinimumWidthRequest = 0, VerticalOptions = LayoutOptions.Center };
         kutu.SetBinding(CheckBox.IsCheckedProperty, nameof(EkstreSatirEditor.Secili));
         kutu.SetBinding(IsEnabledProperty, nameof(EkstreSatirEditor.Secilebilir));
         kutu.SetBinding(IsVisibleProperty, nameof(EkstreSatirEditor.Kapali), converter: new TersIseConverter());
         kutu.SetBinding(SemanticProperties.DescriptionProperty, new Binding(nameof(EkstreSatirEditor.Ozet), stringFormat: "Kaydetmek için seç: {0}"));
         izgara.Add(kutu, 1);
+        Grid.SetRowSpan(kutu, 2);
         var tarih = Etiket("LblRowPrimary");
         tarih.SetBinding(Label.TextProperty, nameof(EkstreSatirEditor.TarihGosterimi));
         var aciklama = Etiket("LblRowPrimary");
@@ -94,6 +117,7 @@ public sealed partial class EkstreHareketPenceresi
             dokunus.Tapped += (_, _) => { if (izgara.BindingContext is EkstreSatirEditor s) SatiriAcKapat(s); };
             hucre.GestureRecognizers.Add(dokunus);
         }
+        izgara.SizeChanged += (_, _) => SutunlariUyarla(izgara, turYigini, baslik: false);
         izgara.SetBinding(BackgroundColorProperty, new MultiBinding
         {
             Converter = new AcikSatirRengi(Renk("GreenSoft")),

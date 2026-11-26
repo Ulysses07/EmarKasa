@@ -69,6 +69,45 @@ public partial class EkstreAktarmaTests
         Assert.DoesNotContain("27.09", Etiketler(gorunum));
     }
 
+    /// <summary>Dar tabloda (telefon, paneli açık dar pencere) tür · kanal açıklamanın altına iner; açıklama ve tutar ekrana sığar.</summary>
+    [Fact]
+    public async Task Dar_tabloda_tur_kanal_aciklamanin_altina_iner()
+    {
+        GorunumOrtami.Kur();
+        var (vm, _, _) = await Hazir();
+        var pencere = Pencere(vm);
+        var satir = (Grid)((Layout)SatirGorunumu(Tablo(pencere), vm.Satirlar[0])).Children[0];
+        var tur = satir.Children.OfType<VerticalStackLayout>().Single();
+        (int, int, double) Yer() => (Grid.GetColumn(tur), Grid.GetRow(tur), satir.ColumnDefinitions[4].Width.Value);
+        ((IView)satir).Arrange(new Rect(0, 0, 1000, 60));
+        Assert.Equal((4, 0, 230d), Yer());
+        ((IView)satir).Arrange(new Rect(0, 0, 360, 80));
+        Assert.Equal((3, 1, 0d), Yer());
+        // Sabit sütunlar ve aralıklar 360'ta açıklamaya en az 100 bırakır (telefonda açıklama ve tutar görünür).
+        var sabit = satir.ColumnDefinitions.Where(c => c.Width.IsAbsolute).Sum(c => c.Width.Value) + satir.ColumnSpacing * (satir.ColumnDefinitions.Count - 1)
+            + satir.Padding.HorizontalThickness;
+        Assert.True(360 - sabit >= 100, $"{sabit}");
+        var baslik = pencere.GetVisualTreeDescendants().OfType<Grid>().Single(g => g.Children.OfType<Label>().Any(l => l.Text == "Tür · kanal"));
+        ((IView)baslik).Arrange(new Rect(0, 0, 360, 30));
+        Assert.Equal((false, 0d), (baslik.Children.OfType<Label>().Single(l => l.Text == "Tür · kanal").IsVisible, baslik.ColumnDefinitions[4].Width.Value));
+        ((IView)satir).Arrange(new Rect(0, 0, 1000, 60));
+        Assert.Equal((4, 0, 230d), Yer());
+    }
+
+    /// <summary>"Bu seçimi hatırla" kural olamayan seçimde pencereyi kapatmaz; nedeni panelde görünür.</summary>
+    [Fact]
+    public async Task Hatirlanamayan_secimde_pencere_acik_kalir_nedeni_gorunur()
+    {
+        GorunumOrtami.Kur();
+        var (vm, _, _) = await Hazir(new() { Veri = DurumBelgesi(Satir(1)) });
+        var pencere = Pencere(vm);
+        vm.SeciliSatir = vm.Satirlar[0];
+        ((IButtonController)PanelDugmesi(pencere, "Bu seçimi hatırla")).SendClicked();
+        Assert.Same(vm.Satirlar[0], vm.SeciliSatir);
+        Assert.Contains("Hatırlamadan önce genel kasa veya eşit kanal dağılımını seçin.",
+            pencere.GetVisualTreeDescendants().OfType<Label>().Where(Gorunur).Select(l => l.Text));
+    }
+
     private static int BirincilDugmeSayisi(Page pencere)
     {
         var ikincil = (Style)Application.Current!.Resources["BtnSecondary"];
