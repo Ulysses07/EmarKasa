@@ -31,7 +31,7 @@ public sealed class AylikGiderPage : TakipSayfasi<AylikGiderViewModel>
         var odemeFormu = Kart("Bu ayın ödemesini kaydet", odemeHataKutusu, Bagli(nameof(vm.OdemeEtkisi)),
             Alan("Gerçek ödeme tarihi", Tarih(nameof(vm.OdemeTarihi))), Alan("Not / dekont açıklaması", Girdi(nameof(vm.OdemeNotu))),
             Alan("Ödeme onayı", Onay("Ödeme gerçekleşti; gösterilen tutar ve kanal paylarını onaylıyorum.", nameof(vm.OdemeOnay)), o, nameof(vm.OdemeOnay)),
-            Dugme("Nakit / havale ödemesini kaydet", nameof(vm.OdeCommand)));
+            Birincil(Dugme("Nakit / havale ödemesini kaydet", nameof(vm.OdeCommand))));
         Govde.Add(Editor(Goster(odemeFormu, nameof(vm.OdemeSecili))));
 
         Govde.Add(Kart("Düzenli gider şablonları", Metin("Kaydedilmiş ödemelerin tutarı ve kanal payları sabit kalır. Değişiklikler seçilen geçerlilik ayından itibaren uygulanır."),

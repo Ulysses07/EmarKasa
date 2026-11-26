@@ -84,7 +84,7 @@ public partial class GorunumEsdegerligiTests
         AyniGorunum(() => EskiTakipUi.Bagli("Ozet"), () => TakipUi.Bagli("Ozet"), b);
         AyniGorunum(() => EskiTakipUi.Bagli("Ozet", 13), () => TakipUi.BagliMetin("Ozet"), b);
         AyniGorunum(() => EskiTakipUi.Bagli("Ozet", 18), () => TakipUi.BagliBuyuk("Ozet"), b);
-        AyniGorunum(() => { var l = EskiTakipUi.Bagli("Hata"); l.TextColor = Colors.DarkRed; return l; }, () => TakipUi.BagliHata("Hata"), b);
+        AyniGorunum(() => { var l = EskiTakipUi.Bagli("Hata"); l.TextColor = (Color)Application.Current!.Resources["Neg"]; return l; }, () => TakipUi.BagliHata("Hata"), b);
         AyniGorunum(() => EskiTakipUi.Alan("Tutar", EskiTakipUi.Girdi("Tutar", true)), () => TakipUi.Alan("Tutar", TakipUi.Girdi("Tutar", true)), b);
         AyniGorunum(() => EskiTakipUi.Alan("Tarih", EskiTakipUi.Tarih("SonGuncelleme")), () => TakipUi.Alan("Tarih", TakipUi.Tarih("SonGuncelleme")), b);
         AyniGorunum(() => EskiTakipUi.Onay("Onaylıyorum", "Secili"), () => TakipUi.Onay("Onaylıyorum", "Secili"), b);
@@ -436,10 +436,10 @@ public partial class GorunumEsdegerligiTests
             busy.SetBinding(ActivityIndicator.IsRunningProperty, nameof(vm.Mesgul));
             root.Add(Bilincli.YenileSatiri(yenile, busy));
             var hata = Bagli(nameof(vm.Hata));
-            hata.TextColor = Colors.DarkRed;
+            hata.TextColor = (Color)Application.Current!.Resources["Neg"];
             root.Add(Bilincli.Doluysa(hata));
             var mesaj = Bagli(nameof(vm.Mesaj));
-            mesaj.TextColor = Colors.DarkGreen;
+            mesaj.TextColor = (Color)Application.Current!.Resources["Pos"];
             root.Add(Bilincli.Doluysa(mesaj));
             root.Add(Bilincli.Zaman());
             Bilincli.Govde(govde);
@@ -456,7 +456,7 @@ public partial class GorunumEsdegerligiTests
             var busy = new ActivityIndicator();
             busy.SetBinding(ActivityIndicator.IsRunningProperty, "Mesgul");
             var hata = Bagli("Hata");
-            hata.TextColor = Colors.DarkRed;
+            hata.TextColor = (Color)Application.Current!.Resources["Neg"];
             panel.Add(Bilincli.YenileSatiri(Tikla("Yenile / tekrar dene", () => Task.CompletedTask), busy));
             panel.Add(Bilincli.Doluysa(hata));
             panel.Add(Bilincli.Doluysa(Bagli("Mesaj")));
@@ -473,7 +473,7 @@ public partial class GorunumEsdegerligiTests
             var busy = new ActivityIndicator { HorizontalOptions = LayoutOptions.Start };
             busy.SetBinding(ActivityIndicator.IsRunningProperty, "Mesgul");
             root.Add(Bilincli.YenileSatiri(yenile, busy));
-            var hata = new Label { TextColor = Colors.DarkRed };
+            var hata = new Label { TextColor = (Color)Application.Current!.Resources["Neg"] };
             hata.SetBinding(Label.TextProperty, "Hata");
             root.Add(Bilincli.Doluysa(hata));
             root.Add(Bilincli.Zaman());

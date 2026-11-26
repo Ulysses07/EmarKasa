@@ -19,6 +19,21 @@ public class PanelViewModelTests
         Assert.Single(vm.Kanallar);
         Assert.Equal("MEZAT", vm.Kanallar[0].Kanal);
     }
+    /// <summary>Eksi genel kasa özet kutusunda ayrı renkle işaretlenir (docs/specs/2026-11-26-slop-temizligi.md §4).</summary>
+    [Fact]
+    public async Task Eksi_genel_kasa_isaretlenir()
+    {
+        var api = new SahteApi { Panel = new PanelDto(-60005.35m, new List<KanalBakiyeDto>(), 0m, 0m) };
+        var vm = new PanelViewModel(api);
+        var bildirildi = false;
+        vm.PropertyChanged += (_, e) => bildirildi |= e.PropertyName == nameof(vm.GuncelKasaEksi);
+        await vm.YukleAsync();
+        Assert.True(vm.GuncelKasaEksi);
+        Assert.True(bildirildi);
+        api.Panel = new PanelDto(0m, new List<KanalBakiyeDto>(), 0m, 0m);
+        await vm.YukleAsync();
+        Assert.False(vm.GuncelKasaEksi);
+    }
     [Fact]
     public async Task Kart_borcu_kimlikle_eslenir_mevcut_kasa_ve_belirsiz_pay_degismez()
     {

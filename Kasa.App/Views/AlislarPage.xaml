@@ -181,7 +181,7 @@
                             <Label Text="{Binding DagilimOzeti}" FontAttributes="Bold" />
                             <Label Text="Kaydedilmemiş değişiklikler var." TextColor="{StaticResource UyariMetin}" IsVisible="{Binding KaydedilmemisDegisiklikVar}" />
                             <FlexLayout Wrap="Wrap" AlignItems="Center">
-                                <Button Text="{Binding KaydetMetni}" Command="{Binding KaydetCommand}" IsVisible="{Binding Duzenlenebilir}" Margin="0,0,10,6" />
+                                <Button Text="{Binding KaydetMetni}" Command="{Binding KaydetCommand}" IsVisible="{Binding Duzenlenebilir}" Style="{StaticResource BtnPrimary}" Margin="0,0,10,6" />
                                 <Button Text="İncelemeye gönder" Command="{Binding GonderCommand}" IsVisible="{Binding Gonderilebilir}" Style="{StaticResource BtnSecondary}" Margin="0,0,10,6" />
                                 <Button Text="Kaydet ve onayla" Command="{Binding OnaylaCommand}" IsVisible="{Binding Onaylanabilir}" Margin="0,0,10,6" />
                                 <Button Text="Değişiklikleri bırak" Clicked="DegisiklikleriBirakTiklandi"

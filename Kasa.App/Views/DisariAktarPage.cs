@@ -35,7 +35,7 @@ public sealed class DisariAktarPage : ContentPage, Controls.IYenilenebilir
         var temizle = new Button { Text = "Tüm kanallar", HorizontalOptions = LayoutOptions.Start };
         temizle.Clicked += (_, _) => vm.Kanal = null;
         form.Add(temizle);
-        form.Add(Indir("Excel (.xlsx) kaydet", "xlsx"));
+        form.Add(TakipUi.Birincil(Indir("Excel (.xlsx) kaydet", "xlsx")));
         form.Add(Indir("CSV kaydet", "csv"));
         form.Add(Indir("Yazdır / PDF kaydet", "html"));
         form.Add(TakipUi.Metin(DosyaIslemleri.YazdirmaAciklamasi));

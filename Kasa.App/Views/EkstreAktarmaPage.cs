@@ -37,7 +37,7 @@ public sealed partial class EkstreAktarmaPage : TakipSayfasi<EkstreAktarmaViewMo
             Goster(Metin("Metin içeren şifresiz PDF (en çok 50 sayfa) ya da bankanın Excel'i; en fazla 10 MB, yalnız TL."), nameof(vm.BankaSecilir)),
             Goster(Metin("ERP12'den cari hareketlerini Excel olarak dışa aktarın; hareketler kasadaki kayıtlarla eşleşir, önceden aktarılanlar ikinci kez alınmaz."),
                 nameof(vm.ErpMi)),
-            Eylemler(Tikla("PDF ya da Excel seç ve oku", PdfSecAsync),
+            Eylemler(Birincil(Tikla("PDF ya da Excel seç ve oku", PdfSecAsync)),
                 Goster(Ikincil(Tikla("Örnek Excel'i indir", () => DosyaIslemleri.IndirVeKaydetAsync(this, vm.SablonAsync))), nameof(vm.BankaSecilir))),
             FormHatasi(nameof(vm.YuklemeHatasi)))));
         Govde.Add(Editor(Kart("İçe aktarma geçmişi", Liste<EkstreGecmisSatiri>(nameof(vm.Gecmis), s => vm.BelgeAcAsync(s.Veri.Id), "Belgeyi incele"),

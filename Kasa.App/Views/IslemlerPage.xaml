@@ -79,7 +79,7 @@
                                 <Entry Text="{Binding DuzenNot}" Placeholder="İsteğe bağlı" />
                             </ctl:FormAlani>
                             <ctl:UyumluIzgara ColumnDefinitions="*,Auto,Auto" DarEsik="280" ColumnSpacing="8" RowSpacing="8" Margin="0,2,0,0">
-                                <Button Text="{Binding KaydetMetni}" Command="{Binding KaydetCommand}" />
+                                <Button Text="{Binding KaydetMetni}" Command="{Binding KaydetCommand}" Style="{StaticResource BtnPrimary}" />
                                 <Button Grid.Column="1" Text="Vazgeç" Command="{Binding VazgecCommand}" IsVisible="{Binding DuzenlemeModu}"
                                         Style="{StaticResource BtnSecondary}" />
                                 <Button Grid.Column="2" Text="Yeni" Command="{Binding YeniCommand}"
@@ -209,9 +209,9 @@
                                                        IsVisible="{Binding ErpCari, Converter={StaticResource DoluIse}}" />
                                             </VerticalStackLayout>
                                             <Label Grid.Column="2" ctl:UyumluIzgara.DarSatir="1" ctl:UyumluIzgara.DarSutun="1"
-                                                   Text="{Binding TutarTl, Converter={StaticResource ParaBicim}}"
+                                                   Text="{Binding TutarTl, Converter={StaticResource ParaBicim}, ConverterParameter=Gider}"
                                                    Style="{StaticResource LblMoney}"
-                                                   TextColor="{Binding TutarTl, Converter={StaticResource ParaRenk}}"
+                                                   TextColor="{Binding TutarTl, Converter={StaticResource ParaRenk}, ConverterParameter=Gider}"
                                                    VerticalOptions="Center" />
                                             <FlexLayout Grid.Column="3" Wrap="Wrap" AlignItems="Center" Direction="Row"
                                                                    ctl:UyumluIzgara.DarSatir="2" ctl:UyumluIzgara.DarSutunAraligi="2"

@@ -157,7 +157,7 @@
         <Setter Property="MinimumHeightRequest" Value="38" />
         <Style.Triggers>
             <DataTrigger TargetType="Border" Binding="{Binding Secili}" Value="True">
-                <Setter Property="Background" Value="{StaticResource BrushGreen}" />
+                <Setter Property="Background" Value="{StaticResource BrushGreenSoft}" />
                 <Setter Property="Stroke" Value="{StaticResource Green}" />
             </DataTrigger>
         </Style.Triggers>
@@ -169,7 +169,7 @@
         <Setter Property="VerticalOptions" Value="Center" />
         <Style.Triggers>
             <DataTrigger TargetType="Label" Binding="{Binding Secili}" Value="True">
-                <Setter Property="TextColor" Value="White" />
+                <Setter Property="TextColor" Value="{StaticResource Green}" />
             </DataTrigger>
         </Style.Triggers>
     </Style>
@@ -227,19 +227,57 @@
         <Setter Property="OnColor" Value="{StaticResource Green}" />
         <Setter Property="ThumbColor" Value="White" />
     </Style>
+    <Style TargetType="CheckBox">
+        <Setter Property="Color" Value="{StaticResource Green}" />
+    </Style>
     <Style TargetType="ActivityIndicator">
         <Setter Property="Color" Value="{StaticResource Green}" />
     </Style>
 
-    <!-- ===== BUTONLAR ===== -->
+    <!-- ===== BUTONLAR =====
+         Yeşil yalnız ana düğme, marka ve gelir içindir (docs/specs/2026-11-26-slop-temizligi.md §1). Örtük düğme ikincildir (beyaz
+         zemin, ince kenar, koyu yazı): kodla yaratılan düğme kendiliğinden ana düğme olmaz. Ana düğme BtnPrimary ile bilerek seçilir
+         (açık formun kaydetmesi ya da sayfanın tek asıl işi), yıkıcı eylem BtnDanger'dır. MAUI açık anahtarlı stille örtük stili
+         birleştirir: açık stiller örtük stilin kenarını gerekirse kendisi sıfırlar (BtnPrimary, BtnRowEdit, SeffafDugme). -->
     <Style TargetType="Button">
-        <Setter Property="BackgroundColor" Value="{StaticResource Green}" />
-        <Setter Property="TextColor" Value="White" />
+        <Setter Property="BackgroundColor" Value="{StaticResource Card}" />
+        <Setter Property="TextColor" Value="{StaticResource Ink}" />
+        <Setter Property="BorderColor" Value="{StaticResource Border}" />
+        <Setter Property="BorderWidth" Value="1" />
         <Setter Property="FontFamily" Value="{StaticResource YaziAilesi}" />
         <Setter Property="FontAttributes" Value="Bold" />
         <Setter Property="FontSize" Value="14" />
         <Setter Property="CornerRadius" Value="10" />
         <Setter Property="HeightRequest" Value="44" />
+        <Setter Property="Padding" Value="16,0" />
+        <Setter Property="VisualStateManager.VisualStateGroups">
+            <VisualStateGroupList>
+                <VisualStateGroup x:Name="CommonStates">
+                    <VisualState x:Name="Normal" />
+                    <VisualState x:Name="PointerOver">
+                        <VisualState.Setters>
+                            <Setter Property="BackgroundColor" Value="{StaticResource AppBg}" />
+                        </VisualState.Setters>
+                    </VisualState>
+                    <VisualState x:Name="Pressed">
+                        <VisualState.Setters>
+                            <Setter Property="BackgroundColor" Value="{StaticResource AppBg}" />
+                        </VisualState.Setters>
+                    </VisualState>
+                    <VisualState x:Name="Disabled">
+                        <VisualState.Setters>
+                            <Setter Property="BackgroundColor" Value="{StaticResource AppBg}" />
+                            <Setter Property="TextColor" Value="{StaticResource Muted}" />
+                        </VisualState.Setters>
+                    </VisualState>
+                </VisualStateGroup>
+            </VisualStateGroupList>
+        </Setter>
+    </Style>
+    <Style x:Key="BtnPrimary" TargetType="Button">
+        <Setter Property="BackgroundColor" Value="{StaticResource Green}" />
+        <Setter Property="TextColor" Value="White" />
+        <Setter Property="BorderWidth" Value="0" />
         <Setter Property="Padding" Value="20,0" />
         <Setter Property="VisualStateManager.VisualStateGroups">
             <VisualStateGroupList>
@@ -258,6 +296,33 @@
                     <VisualState x:Name="Disabled">
                         <VisualState.Setters>
                             <Setter Property="BackgroundColor" Value="{StaticResource DisabledBg}" />
+                        </VisualState.Setters>
+                    </VisualState>
+                </VisualStateGroup>
+            </VisualStateGroupList>
+        </Setter>
+    </Style>
+    <!-- Yıkıcı eylem (Sil, Seçili kuralı sil, Son hareketi geri al): ikincil düğme, kırmızı yazı; üzerine gelince açık kırmızı. -->
+    <Style x:Key="BtnDanger" TargetType="Button">
+        <Setter Property="TextColor" Value="{StaticResource Neg}" />
+        <Setter Property="VisualStateManager.VisualStateGroups">
+            <VisualStateGroupList>
+                <VisualStateGroup x:Name="CommonStates">
+                    <VisualState x:Name="Normal" />
+                    <VisualState x:Name="PointerOver">
+                        <VisualState.Setters>
+                            <Setter Property="BackgroundColor" Value="{StaticResource NegSoft}" />
+                        </VisualState.Setters>
+                    </VisualState>
+                    <VisualState x:Name="Pressed">
+                        <VisualState.Setters>
+                            <Setter Property="BackgroundColor" Value="{StaticResource NegSoft}" />
+                        </VisualState.Setters>
+                    </VisualState>
+                    <VisualState x:Name="Disabled">
+                        <VisualState.Setters>
+                            <Setter Property="BackgroundColor" Value="{StaticResource AppBg}" />
+                            <Setter Property="TextColor" Value="{StaticResource Muted}" />
                         </VisualState.Setters>
                     </VisualState>
                 </VisualStateGroup>
@@ -294,6 +359,7 @@
         </Setter>
     </Style>
     <Style x:Key="BtnRowEdit" TargetType="Button">
+        <Setter Property="BorderWidth" Value="0" />
         <Setter Property="BackgroundColor" Value="{StaticResource GreenSoft}" />
         <Setter Property="TextColor" Value="{StaticResource Green}" />
         <Setter Property="FontFamily" Value="{StaticResource YaziAilesi}" />
@@ -396,7 +462,7 @@
         <Setter Property="StrokeShape" Value="RoundRectangle 16" />
         <Setter Property="Padding" Value="28,26" />
         <Setter Property="Shadow">
-            <Shadow Brush="#1E5F46" Opacity="0.22" Radius="16" Offset="0,8" />
+            <Shadow Brush="#1E5F46" Opacity="0.08" Radius="8" Offset="0,2" />
         </Setter>
     </Style>
     <Style x:Key="ErrorBox" TargetType="Border">
@@ -487,12 +553,12 @@
     <Style x:Key="LblTakipHata" TargetType="Label">
         <Setter Property="FontFamily" Value="{StaticResource YaziAilesi}" />
         <Setter Property="FontSize" Value="14" />
-        <Setter Property="TextColor" Value="{StaticResource KoyuKirmizi}" />
+        <Setter Property="TextColor" Value="{StaticResource Neg}" />
     </Style>
     <Style x:Key="LblTakipMesaj" TargetType="Label">
         <Setter Property="FontFamily" Value="{StaticResource YaziAilesi}" />
         <Setter Property="FontSize" Value="14" />
-        <Setter Property="TextColor" Value="{StaticResource KoyuYesil}" />
+        <Setter Property="TextColor" Value="{StaticResource Pos}" />
     </Style>
     <Style x:Key="TakipAyirici" TargetType="BoxView">
         <Setter Property="HeightRequest" Value="1" />

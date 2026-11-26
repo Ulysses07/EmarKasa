@@ -31,7 +31,7 @@ public sealed class BildirimPage : TakipSayfasi<BildirimViewModel>
             TakipUi.Onay("Hatırlatmalar açık", nameof(vm.Etkin)),
             TakipUi.Alan("Saat (0–23, Türkiye saati)", TakipUi.Girdi(nameof(vm.Saat), sayi: true)),
             TakipUi.Alan("Dakika (0–59)", TakipUi.Girdi(nameof(vm.Dakika), sayi: true)),
-            TakipUi.Dugme("Ayarları kaydet", nameof(vm.KaydetCommand))));
+            TakipUi.Birincil(TakipUi.Dugme("Ayarları kaydet", nameof(vm.KaydetCommand)))));
         Govde.Add(TakipUi.Kart("Hatırlatmalar", TakipUi.Liste<BildirimSatiri>(nameof(vm.Bildirimler), vm.OkunduAsync, "Okundu işaretle", x => !x.Veri.Okundu),
             TakipUi.Tikla("Kartları aç", () => Shell.Current.GoToAsync("//kartlar")), TakipUi.Tikla("Kredileri aç", () => Shell.Current.GoToAsync("//krediler"))));
         Govde.Add(TakipUi.Kart("İzin verilmiş cihazlar",

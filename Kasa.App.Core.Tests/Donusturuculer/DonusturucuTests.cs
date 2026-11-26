@@ -14,6 +14,9 @@ namespace Kasa.App.Core.Tests;
 /// </summary>
 public class DonusturucuTests
 {
+    /// <summary>ParaRenk renkleri uygulama paletinden (Colors.xaml) okur.</summary>
+    public DonusturucuTests() => GorunumOrtami.Kur();
+
     private static readonly CultureInfo[] BaglamaKulturleri = [CultureInfo.InvariantCulture, CultureInfo.GetCultureInfo("en-US"), CultureInfo.GetCultureInfo("tr-TR")];
 
     /// <summary>İş parçacığı kültürü İngilizceyken çalıştırır: dönüştürücü tr-TR'yi kendisi seçmeli.</summary>
@@ -177,27 +180,46 @@ public class DonusturucuTests
     public void ParaBicim_decimal_olmayan_deger_bicimlenmeden_metne_cevrilir(object? deger, string beklenen)
         => Assert.Equal(beklenen, Cevir(new ParaBicimConverter(), deger)); // Para alanları decimal'dır; int gelirse biçimlenmez.
 
+    private const string Yesil = "#1B7A4E", Kirmizi = "#C13A2E", Gri = "#6C7163";
+
+    /// <summary>Para rengine tek kural (docs/specs/2026-11-26-slop-temizligi.md §4): artı yeşil, eksi kırmızı, sıfır gri (palet anahtarları
+    /// Pos, Neg, Sub). "Gider" parametresi tutarı gider sayar: pozitif gider kırmızı, iade (negatif gider) yeşil.</summary>
     [Theory]
-    [InlineData("-0.01", true)]
-    [InlineData("-48200", true)]
-    [InlineData("0", false)]
-    [InlineData("0.01", false)]
-    [InlineData("1308800", false)]
-    public void ParaRenk_negatif_kirmizi_sifir_ve_pozitif_yesil(string tutar, bool kirmizi)
+    [InlineData("-0.01", null, Kirmizi)]
+    [InlineData("-48200", null, Kirmizi)]
+    [InlineData("0", null, Gri)]
+    [InlineData("0.01", null, Yesil)]
+    [InlineData("1308800", null, Yesil)]
+    [InlineData("1334.44", "Gider", Kirmizi)]
+    [InlineData("-50", "Gider", Yesil)]
+    [InlineData("0", "Gider", Gri)]
+    public void ParaRenk_arti_yesil_eksi_kirmizi_sifir_gri(string tutar, string? parametre, string beklenen)
     {
-        Assert.Equal(kirmizi ? "#C13A2E" : "#1B7A4E", Renk(decimal.Parse(tutar, CultureInfo.InvariantCulture)));
+        Assert.Equal(beklenen, Renk(decimal.Parse(tutar, CultureInfo.InvariantCulture), parametre));
     }
 
-    private static string Renk(object? deger) => Assert.IsType<Color>(Cevir(new ParaRenkConverter(), deger)).ToHex();
+    private static string Renk(object? deger, object? parametre = null) => Assert.IsType<Color>(Cevir(new ParaRenkConverter(), deger, parametre)).ToHex();
 
     [Fact]
     public void ParaRenk_bos_ve_decimal_olmayan_sayilar()
     {
-        Assert.Equal("#1B7A4E", Renk(null));
-        Assert.Equal("#C13A2E", Renk(-5));
-        Assert.Equal("#C13A2E", Renk(-0.5d));
-        Assert.Equal("#1B7A4E", Renk(3L));
+        Assert.Equal(Gri, Renk(null));
+        Assert.Equal(Kirmizi, Renk(-5));
+        Assert.Equal(Kirmizi, Renk(-0.5d));
+        Assert.Equal(Yesil, Renk(3L));
         Assert.Throws<FormatException>(() => Cevir(new ParaRenkConverter(), "tutar"));
+    }
+
+    /// <summary>"Gider" parametresiyle tutar yönüyle yazılır: gider "−1.334,44", iade "+50,00", sıfır işaretsiz (ekstre penceresiyle aynı eksi).</summary>
+    [Theory]
+    [InlineData("1334.44", "−1.334,44")]
+    [InlineData("-50", "+50,00")]
+    [InlineData("0", "0,00")]
+    public void ParaBicim_gider_parametresiyle_isaretli_yazar(string tutar, string beklenen)
+    {
+        var deger = decimal.Parse(tutar, CultureInfo.InvariantCulture);
+        foreach (var kultur in BaglamaKulturleri)
+            Assert.Equal(beklenen, IngilizceKulturde(() => Cevir(new ParaBicimConverter(), deger, "Gider", kultur)));
     }
 
     [Theory]

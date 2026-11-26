@@ -2,14 +2,18 @@ using System.Globalization;
 
 namespace Kasa.App.Converters;
 
-/// <summary>Negatif tutar kırmızı, aksi halde pozitif yeşil (para etiketleri için).</summary>
+/// <summary>Para rengine tek kural (docs/specs/2026-11-26-slop-temizligi.md §4): artı yeşil (Pos), eksi kırmızı (Neg), sıfır gri (Sub);
+/// renkler paletten gelir. Parametre <see cref="ParaBicimConverter.Gider"/> ise tutar gider sayılır: pozitif gider kırmızı, iade (negatif
+/// gider) yeşil.</summary>
 public sealed class ParaRenkConverter : IValueConverter
 {
-    static readonly Color Pos = Color.FromArgb("#1B7A4E");
-    static readonly Color Neg = Color.FromArgb("#C13A2E");
-
     public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
-        => System.Convert.ToDecimal(value ?? 0m) < 0 ? Neg : Pos;
+    {
+        var tutar = System.Convert.ToDecimal(value ?? 0m);
+        if (parameter as string == ParaBicimConverter.Gider)
+            tutar = -tutar;
+        return (Color)Application.Current!.Resources[tutar switch { < 0 => "Neg", > 0 => "Pos", _ => "Sub" }];
+    }
 
     public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
         => throw new NotSupportedException();
