@@ -573,4 +573,25 @@ public class EkstreBakiyeTests
         Assert.All(sonuc.Satirlar, r => Assert.Contains(r.Uyarilar, w => w.Contains("Birden fazla tutar")));
         Assert.DoesNotContain(sonuc.Uyarilar, w => w.Contains("hizalı değil"));
     }
+
+    /// <summary>Kayma yalnız bakiye tablosunu başlıksız okutur: aynı sayfada yeniden başlayan hizalı Borç tablosunun kolonu yön vermeye devam eder
+    /// (Codex incelemesi, EmarKasa#69).</summary>
+    [Fact]
+    public void Kayan_tablonun_duzeltmesi_ayni_sayfadaki_hizali_tabloya_dokunmaz()
+    {
+        var kayan = new[]
+        {
+            Hareket("02.09.2026", "HAREKET", "500.00", "11,470.00", 9),
+            Hareket("02.09.2026", "HAREKET", "-15.00", "11,455.00", 9),
+            Hareket("03.09.2026", "HAREKET", "2,000.00", "13,455.00", 9),
+        };
+        var borcBasligi = "Tarih".PadRight(14) + "Açıklama".PadRight(36) + "Borç";
+        var borc = "04.09.2026".PadRight(14) + "HAREKET".PadRight(36) + "25.00";
+        var sonuc = EkstreMetinOkuyucu.Oku("Para Birimi: TL\n" + Baslik() + "\n" + string.Join("\n", kayan) + "\n" + borcBasligi + "\n" + borc, "Banka", "QNB");
+        var rows = sonuc.Satirlar;
+        Assert.Equal(4, rows.Count);
+        Assert.Equal((2000m, "Giris", YonKaynaklari.Bakiye), Ozet(rows[2]));
+        Assert.Equal((25m, "Cikis", YonKaynaklari.Sutun), Ozet(rows[3]));
+        Assert.Contains(sonuc.Uyarilar, w => w.StartsWith("1. sayfada tutar ve bakiye başlıktaki kolonlarla hizalı değil"));
+    }
 }

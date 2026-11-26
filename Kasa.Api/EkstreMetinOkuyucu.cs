@@ -211,9 +211,9 @@ public static class EkstreMetinOkuyucu
                 if (segments.Count > 1500)
                     throw new PdfOkumaException("Bir dosyada en fazla 1500 hareket okunabilir. Daha kısa tarih aralığı seçin.");
             }
-            if (bank && MisalignedPage(segments, pageStart))
+            if (bank && MisalignedRows(segments, pageStart) is { Count: > 0 } shifted)
             {
-                for (var s = pageStart; s < segments.Count; s++)
+                foreach (var s in shifted)
                 {
                     segments[s] = segments[s] with { Columns = [] };
                     balances[nodeOf[s]] = BalanceNode(segments[s], s);
@@ -313,17 +313,27 @@ public static class EkstreMetinOkuyucu
         return new(index, balance?.Value, balance is null ? 0 : BalanceSuffix(balance), amounts, hasColumn, day);
     }
     /// <summary>pdftotext sayfanın metnini başlıkla hizalı çıkarmayabilir (QNB hesap hareketi: ilk sayfadan sonra tutar ve bakiye 8–10 karakter
-    /// sola kayar): bakiye kolonu olan sayfada tek satırlı ve birden çok tutarlı hiçbir hareketin bakiye kolonunda tek tutarı yoksa kolonlar o
-    /// sayfada bir şey söylemez. Sayfa ancak başlıksız okunduğunda kendi içinde bakiye zinciri kuruyorsa başlıksız okunur; zincir kurmuyorsa
-    /// eskisi gibi kalır (tutar elle girilir).</summary>
-    private static bool MisalignedPage(List<Segment> segments, int pageStart)
+    /// sola kayar). Sayfanın her tablosu (aynı başlığın altındaki hareketler) ayrı değerlendirilir: bakiye kolonu olan tabloda tek satırlı ve birden
+    /// çok tutarlı hiçbir hareketin bakiye kolonunda tek tutarı yoksa kolonlar o tabloda bir şey söylemez. Tablo ancak başlıksız okunduğunda kendi
+    /// içinde bakiye zinciri kuruyorsa başlıksız okunur; zincir kurmuyorsa eskisi gibi kalır (tutar elle girilir). Aynı sayfadaki hizalı başka bir
+    /// tablonun (ör. Borç/Alacak) kolonlarına dokunulmaz.</summary>
+    /// <returns>Başlıksız okunacak hareketlerin sırası.</returns>
+    private static List<int> MisalignedRows(List<Segment> segments, int pageStart)
     {
-        var page = segments.Skip(pageStart).ToList();
-        var candidates = page.Where(s => s.Columns.Any(c => c.Kind == "Balance") && !s.Raw.Contains('\n') && Tokens(s.Raw).Count > 1).ToList();
-        if (candidates.Count < 2 || candidates.Any(s => Tokens(s.Raw).Count(t => s.Columns.LastOrDefault(c => t.End >= c.Start)?.Kind == "Balance") == 1))
-            return false;
-        var chain = EkstreBakiyeZinciri.Coz(page.Select((s, i) => BalanceNode(s with { Columns = [] }, i)).ToList());
-        return chain.Baglar.Count + chain.YalnizTutar.Count > 0;
+        var rows = new List<int>();
+        foreach (var table in Enumerable.Range(pageStart, segments.Count - pageStart).GroupBy(i => segments[i].Columns, ReferenceEqualityComparer.Instance))
+        {
+            var columns = segments[table.First()].Columns;
+            if (!columns.Any(c => c.Kind == "Balance"))
+                continue;
+            var candidates = table.Select(i => segments[i].Raw).Where(raw => !raw.Contains('\n') && Tokens(raw).Count > 1).ToList();
+            if (candidates.Count < 2 || candidates.Any(raw => Tokens(raw).Count(t => columns.LastOrDefault(c => t.End >= c.Start)?.Kind == "Balance") == 1))
+                continue;
+            var chain = EkstreBakiyeZinciri.Coz(table.Select((i, n) => BalanceNode(segments[i] with { Columns = [] }, n)).ToList());
+            if (chain.Baglar.Count + chain.YalnizTutar.Count > 0)
+                rows.AddRange(table);
+        }
+        return rows;
     }
     private static int BalanceSuffix(Token t) => t.Direction switch { "B" => -1, "A" => 1, _ => 0 };
 

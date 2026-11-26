@@ -57,9 +57,10 @@ sunucu iletisi satır numarası taşımıyor, bazı durumlarda hiçbir şey yaz�
   - Yalnız "devir / önceki / açılış / başlangıç bakiyesi" yazan satır ilk satırın komşusudur; açıklamasında bakiye geçen hareket değildir.
   - Tutarı satırda yazmayan hareketin tutarı farktan **uydurulmaz**.
   - pdftotext bir sayfanın metnini başlıkla hizalı çıkarmayabilir (QNB hesap hareketi: ilk sayfadan sonra tutar ve bakiye 8–10 karakter
-    sola kayar). Bakiye kolonu olan sayfada tek satırlı, birden çok tutarlı hiçbir hareketin bakiye kolonunda tek tutarı yoksa ve sayfa
-    başlıksız okunduğunda kendi içinde bakiye zinciri kuruyorsa sayfa başlıksız okunur (son tutar bakiye adayıdır, başlıksız satırın eşiği
-    geçerlidir) ve belge uyarısı sayfaları söyler. Zincir kurmayan sayfa eskisi gibi kalır: tutar elle girilir.
+    sola kayar). Sayfanın her tablosu (aynı başlığın altındaki hareketler) ayrı değerlendirilir: bakiye kolonu olan tabloda tek satırlı, birden
+    çok tutarlı hiçbir hareketin bakiye kolonunda tek tutarı yoksa ve tablo başlıksız okunduğunda kendi içinde bakiye zinciri kuruyorsa o tablo
+    başlıksız okunur (son tutar bakiye adayıdır, başlıksız satırın eşiği geçerlidir) ve belge uyarısı sayfaları söyler. Zincir kurmayan tablo
+    eskisi gibi kalır (tutar elle girilir); aynı sayfadaki hizalı başka bir tablonun kolonlarına dokunulmaz.
 - Borç/Alacak kolonu, B/A eki ya da işaretten okunan yön bakiyeyle **çelişirse** yön "Belirsiz" olur ve uyarı yazılır.
 - Bakiye zinciri kurulmuşken bir satırda kopuyorsa belge uyarısı satır numaralarını söyler (arada okunamayan hareket olabilir).
 - **Anahtar kelime (yalnız banka, başka kanıt yoksa):** giriş — gelen EFT/havale/FAST, para yatırma, POS bloke çözümü, POS/üye işyeri
