@@ -50,6 +50,25 @@ public partial class EkstreAktarmaTests
         Assert.Equal(0, api.OnizlemeSayisi);
     }
 
+    private static List<string> Etiketler(View gorunum) => [.. gorunum.GetVisualTreeDescendants().OfType<Label>().Select(l => l.Text)];
+
+    /// <summary>Tarih hücresi bekleyen satırda düzenlenen tarihi, kapanan satırda kaydedilen tarihi gösterir (PDF'ten okunanı değil).</summary>
+    [Fact]
+    public async Task Tablonun_tarihi_duzenlenen_ve_kaydedilen_tarihtir()
+    {
+        GorunumOrtami.Kur();
+        var belge = DurumBelgesi(Satir(1), Satir(2)) with { Kayitlar = [Kayit(7, 1) with { Tarih = new(2026, 9, 25) }] };
+        var (vm, _, _) = await Hazir(new() { Veri = belge });
+        var tablo = Tablo(Pencere(vm));
+        var bekleyen = vm.Satirlar.Single(s => !s.Kapali);
+        var gorunum = SatirGorunumu(tablo, bekleyen);
+        bekleyen.TarihMetni = "2026-09-28";
+        Assert.Contains("28.09", Etiketler(gorunum));
+        Assert.Contains("25.09", Etiketler(SatirGorunumu(tablo, vm.Satirlar.Single(s => s.Kayitli))));
+        bekleyen.TarihMetni = "28 eylül";
+        Assert.DoesNotContain("27.09", Etiketler(gorunum));
+    }
+
     private static int BirincilDugmeSayisi(Page pencere)
     {
         var ikincil = (Style)Application.Current!.Resources["BtnSecondary"];

@@ -80,6 +80,40 @@ public partial class EkstreAktarmaTests
         Assert.True(vm.Satirlar[0].Secili);
     }
 
+    /// <summary>Hazırlanmadan önce kullanıcının işaretleyip kaldırdığı satır, sonradan hazırlansa da kendiliğinden işaretlenmez.</summary>
+    [Fact]
+    public async Task Hazirlanmadan_once_elle_kaldirilan_isaret_hazirlaninca_geri_gelmez()
+    {
+        var (vm, api, _) = await Hazir(new() { Veri = DurumBelgesi(Satir(1)) });
+        vm.Satirlar[0].Secili = true;
+        vm.Satirlar[0].Secili = false;
+        api.Oneriler = [HafizaOnerisi(1)];
+        await vm.KurallariYenileAsync();
+        Assert.Equal((true, false), (vm.Satirlar[0].HazirOneri, vm.Satirlar[0].Secili));
+    }
+
+    /// <summary>Pencere, belge açılışının kural isteği sürerken kapanırsa yapay zekâya hiç soru gitmez; belge yeniden açılınca sorar.</summary>
+    [Fact]
+    public async Task Kurallar_beklenirken_kapanan_pencere_yapay_zekayi_baslatmaz()
+    {
+        var api = YzBelgesi(Yok(1));
+        var vm = new EkstreAktarmaViewModel(api, new SahteApi { KanallarListe = [new(1, "MEZAT", true, 0, 0)] }, new FinansTakipTests.Sahte(),
+            new AuthViewModel(new SahteApi()) { AktifRol = Rol.Editor });
+        await vm.YukleAsync();
+        var kurallar = new TaskCompletionSource<IReadOnlyList<EkstreKuralOnerisi>>();
+        api.OneriYaniti = kurallar.Task;
+        var acildi = false;
+        vm.PencereAcIstendi += (_, _) => acildi = true;
+        var acilis = vm.BelgeAcAsync(1);
+        Assert.True(acildi);
+        vm.YapayZekaDurdur();
+        kurallar.SetResult(api.Oneriler);
+        await acilis;
+        Assert.Equal((0, 0), (api.YzSorulari.Count, api.YzOnizlemeSayisi));
+        await vm.BelgeAcAsync(1);
+        Assert.Single(api.YzSorulari);
+    }
+
     /// <summary>1500 satırda Tümü → Kontrol edin geçişi satır satır değil tek bildirimle olur (WinUI listesine 1460 ayrı güncelleme gitmez); arama
     /// ve süzgeç geçişleri hızlıdır.</summary>
     [Fact]

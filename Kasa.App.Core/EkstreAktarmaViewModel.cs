@@ -233,7 +233,7 @@ public partial class EkstreAktarmaViewModel(IEkstreAktarmaApi api, IKasaApi fina
             return;
         BelgeyiYansit(b);
         Tamamlandi();
-        PencereAcIstendi?.Invoke(this, EventArgs.Empty);
+        PencereyiAc();
         await KurallariAlAsync(n);
         await YapayZekaDoldurAsync(n);
         if (!Gecerli(n))
@@ -268,7 +268,7 @@ public partial class EkstreAktarmaViewModel(IEkstreAktarmaApi api, IKasaApi fina
         if (!Gecerli(n))
             return;
         BelgeyiYansit(b, koru: true);
-        PencereAcIstendi?.Invoke(this, EventArgs.Empty);
+        PencereyiAc();
         await KurallariAlAsync(n);
         await YapayZekaDoldurAsync(n);
     });
@@ -283,7 +283,7 @@ public partial class EkstreAktarmaViewModel(IEkstreAktarmaApi api, IKasaApi fina
         BelgeyiYansit(b, koru: true);
         // Aranan kayıt (ya da iptali) Kapanan sekmesindedir.
         SeciliSekme = EkstreSekmesi.Kapanan;
-        PencereAcIstendi?.Invoke(this, EventArgs.Empty);
+        PencereyiAc();
         await KurallariAlAsync(n);
         await YapayZekaDoldurAsync(n);
         if (Gecerli(n) && Kapananlar.FirstOrDefault(s => s.Kayit?.Veri.Id == kayitId) is { } satir)

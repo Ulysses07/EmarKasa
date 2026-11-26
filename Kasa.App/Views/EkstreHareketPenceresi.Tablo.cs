@@ -59,7 +59,7 @@ public sealed partial class EkstreHareketPenceresi
         kutu.SetBinding(SemanticProperties.DescriptionProperty, new Binding(nameof(EkstreSatirEditor.Ozet), stringFormat: "Kaydetmek için seç: {0}"));
         izgara.Add(kutu, 1);
         var tarih = Etiket("LblRowPrimary");
-        tarih.SetBinding(Label.TextProperty, new Binding("Kaynak.Tarih", stringFormat: "{0:dd.MM}"));
+        tarih.SetBinding(Label.TextProperty, nameof(EkstreSatirEditor.TarihGosterimi));
         var aciklama = Etiket("LblRowPrimary");
         aciklama.MaxLines = 1;
         aciklama.SetBinding(Label.TextProperty, nameof(EkstreSatirEditor.Aciklama));

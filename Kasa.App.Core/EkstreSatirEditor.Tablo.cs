@@ -44,6 +44,10 @@ public partial class EkstreSatirEditor
             OnPropertyChanged(ad);
     }
 
+    /// <summary>Tarih hücresi ("27.09"): kapanan satırda kaydedilen tarih, bekleyende düzenlenen tarih; okunamayan tarihte boş.</summary>
+    public string TarihGosterimi => Kayit is { } kayit ? kayit.Veri.Tarih.ToString("dd.MM", Tr)
+        : DateOnly.TryParseExact(TarihMetni.Trim(), "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var tarih) ? tarih.ToString("dd.MM", Tr) : "";
+
     /// <summary>Tutar yönüyle: giriş "+1.500,00", çıkış "−553,15", yönü belirsiz işaretsiz.</summary>
     public string TutarGosterimi => EtkinTutar is not { } tutar ? ""
         : EtkinYon switch { "Giris" => "+", "Cikis" => "−", _ => "" } + tutar.ToString("N2", Tr);

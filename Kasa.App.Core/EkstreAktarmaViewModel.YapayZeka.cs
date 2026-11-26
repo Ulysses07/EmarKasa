@@ -36,8 +36,16 @@ public partial class EkstreAktarmaViewModel
     public ObservableCollection<string> SonGonderilenler { get; } = new();
     private const int EnCokYapayZekaTuru = 10;
     private bool _yapayZekaDurdur;
-    /// <summary>Pencere kapanınca: kendiliğinden doldurma sonraki tura geçmez (sürmekte olan soru biter, sonucu yazılır).</summary>
+    /// <summary>Pencere kapanınca: kendiliğinden doldurma başlamaz ya da sonraki tura geçmez (sürmekte olan soru biter, sonucu yazılır). Bayrak
+    /// pencere açılmadan önce kalkar (<see cref="PencereyiAc"/>); açılışın kural isteği sürerken kapanan pencere yapay zekâyı başlatmaz.</summary>
     public void YapayZekaDurdur() => _yapayZekaDurdur = true;
+    private void YapayZekaDurdurmayiKaldir() => _yapayZekaDurdur = false;
+    /// <summary>Belge açılışı pencereyi açar: önceki pencerenin durdurması bu açılışa geçmez.</summary>
+    private void PencereyiAc()
+    {
+        YapayZekaDurdurmayiKaldir();
+        PencereAcIstendi?.Invoke(this, EventArgs.Empty);
+    }
     /// <summary>Başka belge açıldı: önceki belgenin ilerlemesi, hatası ve gönderilen metni görünmez.</summary>
     private void YapayZekaBelgeDurumunuTemizle()
     {
@@ -125,8 +133,7 @@ public partial class EkstreAktarmaViewModel
     /// gelmeyene ya da hataya kadar, en çok <see cref="EnCokYapayZekaTuru"/> tur. Aynı yürütmenin içindedir (pencere bu sürede meşguldür).</summary>
     private async Task YapayZekaDoldurAsync(int n)
     {
-        _yapayZekaDurdur = false;
-        if (!EditorMu || !Gecerli(n) || !YapayZekaAcik || Belge is not { Kaynak: not EkstreKaynaklari.Erp } belge || TaninmayanSayisi == 0)
+        if (!EditorMu || !Gecerli(n) || _yapayZekaDurdur || !YapayZekaAcik || Belge is not { Kaynak: not EkstreKaynaklari.Erp } belge || TaninmayanSayisi == 0)
             return;
         YapayZekaHatasi = null;
         SonGonderilenler.Clear();

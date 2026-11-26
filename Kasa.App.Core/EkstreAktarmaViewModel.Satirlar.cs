@@ -223,6 +223,8 @@ public partial class EkstreAktarmaViewModel
         {
             if (!EditorMu || !VeriHazir || Belge is null || !YenidenOkunabilir)
                 return;
+            // Pencereden istenir (pencere açık): önceki kapanışın durdurması bu okumaya geçmez; okuma sürerken kapanırsa yine durur.
+            YapayZekaDurdurmayiKaldir();
             var id = Belge.Id;
             var g = new EkstreYenidenOkuYaz(Guid.Empty, Belge.Surum);
             var b = await api.EkstreYenidenOkuAsync(id, g with { IstekId = _yenidenOkuKey.Al(new { id, g }) });

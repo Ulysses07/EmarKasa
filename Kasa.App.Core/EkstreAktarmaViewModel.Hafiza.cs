@@ -73,7 +73,9 @@ public partial class EkstreAktarmaViewModel
                 if (s.OneriUygulanabilir && !s.OneriyiUygula(toplu: true))
                     continue;
                 s.KendiligindenIsaretlendi = true;
-                s.SistemIsaretle(s.Hazirla().Yaz is not null);
+                // Kullanıcının hazırlıktan önce dokunduğu kutu onun seçimidir: öneri alanlara yazılır, işaret değişmez.
+                if (!s.IsaretElleDegisti)
+                    s.SistemIsaretle(s.Hazirla().Yaz is not null);
                 degisti = true;
             }
             // Kendiliğinden işaretlenip artık hazır olmayan satır (hafıza unutuldu, öneri kalktı) kayıt kümesinde kalmaz; kullanıcının dokunduğu ya da
