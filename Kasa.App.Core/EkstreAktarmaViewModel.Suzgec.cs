@@ -22,7 +22,7 @@ public partial class EkstreAktarmaViewModel
     public int KapananSayisi => _uyelik.Values.Count(u => u == EkstreSuzgec.Kapanan);
 
     private static readonly (EkstreSuzgec Suzgec, string Ad)[] SuzgecAdlari =
-        [(EkstreSuzgec.Tumu, "Tümü"), (EkstreSuzgec.Hazir, "Hazır"), (EkstreSuzgec.Kontrol, "Kontrol edin"), (EkstreSuzgec.Kapanan, "Kapanan")];
+        [(EkstreSuzgec.Tumu, "Tümü"), (EkstreSuzgec.Hazir, "Hazır"), (EkstreSuzgec.Kontrol, "Kontrol edin"), (EkstreSuzgec.Kapanan, nameof(EkstreSuzgec.Kapanan))];
     /// <summary>Pencerenin süzgeç çipleri, sayılarıyla ("Hazır 462").</summary>
     public ObservableCollection<EkstreSekmeCipi> SuzgecCipleri { get; } = [new(), new(), new(), new()];
 
