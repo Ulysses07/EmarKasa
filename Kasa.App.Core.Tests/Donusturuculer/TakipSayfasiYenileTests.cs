@@ -3,7 +3,7 @@ using Microsoft.Maui;
 
 namespace Kasa.App.Core.Tests;
 
-/// <summary>Kodla yazılmış takip sayfalarının "Yenile / tekrar dene" düğmesi (görev 14-19 incelemesi): Kartlar, Çekler,
+/// <summary>Kodla yazılmış takip sayfalarının başlıktaki "Yenile" düğmesi (görev 14-19 incelemesi): Kartlar, Çekler,
 /// Krediler ve Aylık giderler yenilemede izlenen formu artık korur (son veri koruma), bu yüzden düğme onay sormaz.</summary>
 public class TakipSayfasiYenileTests
 {
@@ -17,7 +17,7 @@ public class TakipSayfasiYenileTests
         protected override void OturumTemizle() { }
     }
 
-    private sealed class DenemeSayfasi(DirtyVm vm, Func<Task> yukle) : TakipSayfasi<DirtyVm>(vm, "Deneme", "Açıklama", yukle);
+    private sealed class DenemeSayfasi(DirtyVm vm, Func<Task> yukle) : TakipSayfasi<DirtyVm>(vm, "Deneme", yukle);
 
     [Fact]
     public void Yenile_kirli_formu_koruyarak_yukler_onay_sormaz()
@@ -28,7 +28,7 @@ public class TakipSayfasiYenileTests
         vm.BirakmaOnayi = _ => { sorulan++; return Task.FromResult(true); };
         var yukleSayisi = 0;
         var sayfa = new DenemeSayfasi(vm, () => { yukleSayisi++; return Task.CompletedTask; });
-        var dugme = sayfa.GetVisualTreeDescendants().OfType<Button>().Single(b => b.Text == "Yenile / tekrar dene");
+        var dugme = sayfa.GetVisualTreeDescendants().OfType<Button>().Single(b => b.Text == "Yenile");
 
         ((IButtonController)dugme).SendClicked();
 

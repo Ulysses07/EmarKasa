@@ -3,36 +3,37 @@ using Microsoft.Maui;
 
 namespace Kasa.App.Core.Tests;
 
-/// <summary>Kodla yazılmış takip sayfalarında son veri (tasarım 2026-10-02 §3): hiç yükleme yokken "Henüz yüklenmedi.", yükleme
-/// hata verse de son veri görünür ve soluk, son güncelleme satırı "güncel olmayabilir" der.</summary>
+/// <summary>Kodla yazılmış takip sayfalarında son veri (tasarım 2026-10-02 §3): yükleme hata verse de son veri görünür ve soluk; başlıkta
+/// "Son güncelleme" yalnız veri eskiyken görünür ve "güncel olmayabilir" der (docs/specs/2026-11-26-slop-temizligi.md §3).</summary>
 public class TakipSayfasiSonVeriTests
 {
-    private sealed class DenemeSayfasi(AyarlarViewModel vm) : TakipSayfasi<AyarlarViewModel>(vm, "Deneme", "Açıklama", () => Task.CompletedTask)
+    private sealed class DenemeSayfasi(AyarlarViewModel vm) : TakipSayfasi<AyarlarViewModel>(vm, "Deneme", () => Task.CompletedTask)
     {
         public VerticalStackLayout GovdeAlani => Govde;
     }
 
     [Fact]
-    public void Govde_son_veri_varken_gorunur_eski_veride_soluk_zaman_satiri_durumu_soyler()
+    public void Govde_son_veri_varken_gorunur_eski_veride_soluk_son_guncelleme_yalniz_eskiyken()
     {
         GorunumOrtami.Kur();
         var api = new SahteApi();
         var vm = new AyarlarViewModel(api, new AuthViewModel(api));
         var sayfa = new DenemeSayfasi(vm);
-        var zaman = sayfa.GetVisualTreeDescendants().OfType<Label>().Single(l => l.Text?.Contains("yüklenmedi") == true || l.Text?.StartsWith("Son güncelleme") == true);
+        static bool Gorunur(Element e) => e is not VisualElement { IsVisible: false } && (e.Parent is null || Gorunur(e.Parent));
+        string? Zaman() => sayfa.GetVisualTreeDescendants().OfType<Label>().SingleOrDefault(l => Gorunur(l) && l.Text?.StartsWith("Son güncelleme") == true)?.Text;
 
-        Assert.Equal("Henüz yüklenmedi.", zaman.Text);
+        Assert.Null(Zaman());
         Assert.False(sayfa.GovdeAlani.IsVisible);
 
         vm.SonGuncelleme = new DateTimeOffset(2026, 10, 2, 14, 5, 0, TimeSpan.FromHours(3));
         vm.VeriEski = true;
         Assert.True(sayfa.GovdeAlani.IsVisible);
         Assert.Equal(TakipUi.EskiVeriOpakligi, sayfa.GovdeAlani.Opacity);
-        Assert.Equal("Son güncelleme: 02.10.2026 14:05 · güncel olmayabilir", zaman.Text);
+        Assert.Equal("Son güncelleme: 02.10.2026 14:05 · güncel olmayabilir", Zaman());
 
         vm.VeriEski = false;
         Assert.Equal(1, sayfa.GovdeAlani.Opacity);
-        Assert.Equal("Son güncelleme: 02.10.2026 14:05", zaman.Text);
+        Assert.Null(Zaman());
     }
 
     /// <summary>Kasalar alt bölümlerinin gövdesi: hiç yükleme yokken gizli, son veri varken (yükleme hata verse de) görünür ve

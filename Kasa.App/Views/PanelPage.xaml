@@ -15,13 +15,9 @@
         <VerticalStackLayout x:Name="PanelAlani" Padding="{OnIdiom Desktop='28,22', Default='16,14'}" Spacing="20"
                              MaximumWidthRequest="1160">
 
-            <VerticalStackLayout Spacing="3">
-                <Label Text="Kasalar" Style="{StaticResource LblPageTitle}" />
-                <Label Text="Kasa özeti ve kanal bakiyeleri" Style="{StaticResource LblPageSub}" />
-            </VerticalStackLayout>
+            <ctl:SayfaBasligi Baslik="Kasalar" Mesgul="{Binding Mesgul}" Hata="{Binding Hata}" VeriEski="{Binding VeriEski}"
+                              SonGuncellemeMetni="{Binding SonGuncellemeMetni}" YenileCommand="{Binding YenileCommand}" />
 
-            <ctl:DurumSeridi Mesgul="{Binding Mesgul}" Hata="{Binding Hata}"
-                             SonGuncellemeMetni="{Binding SonGuncellemeMetni}" YenileCommand="{Binding YenileCommand}" />
 
             <!-- Takipte olmayan kart ve krediler: hatırlatmaları eski kayıtlarla sınırlı; geçiş yapılana kadar kalıcı uyarı. -->
             <Border Style="{StaticResource CardForm}" IsVisible="{Binding TakipsizVar}">

@@ -118,7 +118,7 @@ public partial class EkstreAktarmaTests
         var (vm, _, _) = await Hazir();
         var pencere = Pencere(vm);
         var kaydet = pencere.GetVisualTreeDescendants().OfType<Button>().Single(b => b.Text == "Etkisini göster ve kaydet");
-        var toplu = pencere.GetVisualTreeDescendants().OfType<Button>().Single(b => b.Text == "Toplu tür / kanal");
+        var toplu = pencere.GetVisualTreeDescendants().OfType<Button>().Single(b => b.Text == "Toplu düzenle");
         var cubuk = (Grid)kaydet.Parent;
         (int, int, int, int) Yer(View v) => (Grid.GetColumn(v), Grid.GetRow(v), Grid.GetColumnSpan(v), cubuk.ColumnDefinitions.Count);
         ((IView)cubuk).Arrange(new Rect(0, 0, 360, 160));
@@ -191,7 +191,7 @@ public partial class EkstreAktarmaTests
         var pencere = Pencere(vm);
         vm.SeciliSatir = vm.Satirlar[0];
         Assert.Equal(1, BirincilDugmeSayisi(pencere));
-        ((IButtonController)PanelDugmesi(pencere, "Toplu tür / kanal")).SendClicked();
+        ((IButtonController)PanelDugmesi(pencere, "Toplu düzenle")).SendClicked();
         Assert.Equal(1, BirincilDugmeSayisi(pencere));
     }
 

@@ -15,10 +15,8 @@
     <ScrollView>
         <VerticalStackLayout x:Name="AylikAlani" Padding="{OnIdiom Desktop='28,22', Default='16,14'}" Spacing="20"
                              MaximumWidthRequest="1160">
-            <VerticalStackLayout Spacing="3">
-                <Label Text="Aylık" Style="{StaticResource LblPageTitle}" />
-                <Label Text="Kanal bazlı ay sonucu" Style="{StaticResource LblPageSub}" />
-            </VerticalStackLayout>
+            <ctl:SayfaBasligi Baslik="Aylık" Mesgul="{Binding Mesgul}" Hata="{Binding Hata}" VeriEski="{Binding VeriEski}"
+                              SonGuncellemeMetni="{Binding SonGuncellemeMetni}" YenileCommand="{Binding YenileCommand}" />
 
             <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
                 <Button Text="‹" Command="{Binding OncekiAyCommand}" Style="{StaticResource BtnSecondary}"
@@ -33,8 +31,6 @@
                         WidthRequest="44" Padding="0" FontSize="20" VerticalOptions="Center" />
             </Grid>
 
-            <ctl:DurumSeridi Mesgul="{Binding Mesgul}" Hata="{Binding Hata}"
-                             SonGuncellemeMetni="{Binding SonGuncellemeMetni}" YenileCommand="{Binding YenileCommand}" />
 
             <Border Style="{StaticResource Card}" IsVisible="{Binding VeriVar}">
                 <!-- Son yükleme hata verdiyse son başarılı veri soluk gösterilir (tasarım 2026-10-02 §3; HD-01). -->

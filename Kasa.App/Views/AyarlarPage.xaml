@@ -15,10 +15,7 @@
     <ScrollView x:Name="AyarlarKaydirici">
         <VerticalStackLayout x:Name="AyarlarAlani" Padding="{OnIdiom Desktop='28,22', Default='16,14'}" Spacing="20"
                              MaximumWidthRequest="1160">
-            <VerticalStackLayout Spacing="3">
-                <Label Text="Ayarlar" Style="{StaticResource LblPageTitle}" />
-                <Label Text="Genel ayar, izleyici şifresi ve kanallar" Style="{StaticResource LblPageSub}" />
-            </VerticalStackLayout>
+            <ctl:SayfaBasligi Baslik="Ayarlar" Mesgul="{Binding Mesgul}" VeriEski="{Binding VeriEski}" SonGuncellemeMetni="{Binding SonGuncellemeMetni}" />
             <!-- Sunucunun yanlış vekil ayarı uyarısı (hız sınırları tüm istemcileri tek IP sayabilir). -->
             <Label Text="{Binding VekilUyarisi}" Style="{StaticResource LblError}"
                    IsVisible="{Binding VekilUyarisi, Converter={StaticResource DoluIse}}" />

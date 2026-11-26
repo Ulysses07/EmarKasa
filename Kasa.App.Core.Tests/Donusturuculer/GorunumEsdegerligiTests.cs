@@ -14,8 +14,6 @@ namespace Kasa.App.Core.Tests;
 /// dosyasındaki bileşen kullanımı aynı uygulama kaynaklarıyla (Colors.xaml, Styles.xaml) yüklenir, aynı bağlam verilir ve
 /// çözümlenmiş görsel özellik ağaçları (<see cref="GorunumOrtami.Dok"/>) birebir karşılaştırılır:
 /// <list type="bullet">
-/// <item>DurumSeridi: Kasalar, Haftalık, Aylık (eski RaporDurumu), İşlemler ve Alışlar durum başlıkları; yükleniyor, hata,
-/// ileti ve dağılım uyarısının bütün birleşimleri.</item>
 /// <item>CipGrubu: İşlemler'deki altı çip listesi; eski görünüme yakın düğme ölçüleri, komut ve erişilebilir seçim bilgisi.</item>
 /// <item>BosDurum: dört boş liste görünümü.</item>
 /// <item>Renk anahtarları: sayfalardaki doğrudan onaltılık renklerin yerine geçen anahtarlar aynı rengi verir.</item>
@@ -92,109 +90,6 @@ public partial class GorunumEsdegerligiTests
         var m = Regex.Match(GorunumOrtami.Oku("Views/" + sayfa), desen, RegexOptions.Singleline);
         Assert.True(m.Success, $"{sayfa}: '{desen}' bulunamadı.");
         return m.Value;
-    }
-
-    // ---------------------------------------------------------------- DurumSeridi
-
-    /// <summary>Eski RaporDurumu.xaml (Kasalar, Haftalık, Aylık); sayfada ContentView içinde, 20 aralıklı yığında.</summary>
-    private const string EskiRaporDurumu = """
-        <VerticalStackLayout Spacing="8">
-            <HorizontalStackLayout Spacing="8" IsVisible="{Binding Mesgul}">
-                <ActivityIndicator IsRunning="{Binding Mesgul}" WidthRequest="20" HeightRequest="20" />
-                <Label Text="Veriler yükleniyor…" Style="{StaticResource LblPageSub}" VerticalOptions="Center" />
-            </HorizontalStackLayout>
-            <Label Text="{Binding Hata}" Style="{StaticResource LblError}"
-                   IsVisible="{Binding Hata, Converter={StaticResource DoluIse}}" />
-            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
-                <Label Text="{Binding SonGuncellemeMetni}" Style="{StaticResource LblPageSub}" VerticalOptions="Center" />
-                <Button Grid.Column="1" Text="Yenile / tekrar dene" Style="{StaticResource BtnSecondary}"
-                        Command="{Binding YenileCommand}" IsEnabled="{Binding Mesgul, Converter={StaticResource TersIse}}" />
-            </Grid>
-        </VerticalStackLayout>
-        """;
-
-    [Theory]
-    [MemberData(nameof(Durumlar))]
-    public void Rapor_sayfalarinin_durum_seridi_eski_RaporDurumu_ile_ayni(bool mesgul, bool hata, bool mesaj, bool dagilim)
-    {
-        foreach (var sayfa in new[] { "PanelPage.xaml", "HaftalikPage.xaml", "AylikPage.xaml" })
-        {
-            string Sar(string orta) => $"""
-                <VerticalStackLayout Spacing="20">
-                    <Label Text="Başlık" Style="{"{StaticResource LblPageTitle}"}" />
-                    {orta}
-                    <Label Text="Kart" />
-                </VerticalStackLayout>
-                """;
-            var yeni = SayfaParcasi(sayfa, @"<ctl:DurumSeridi\b[^>]*/>");
-            Esit(Sar("<ContentView>" + EskiRaporDurumu + "</ContentView>"), Sar(yeni), Baglam(mesgul, hata, mesaj, dagilim));
-        }
-    }
-
-    /// <summary>Eski İşlemler liste başlığı: şerit öğeleri bölüm etiketi ve süzgeçlerle aynı 10 aralıklı yığındaydı.</summary>
-    [Theory]
-    [MemberData(nameof(Durumlar))]
-    public void Islemler_durum_seridi_eski_duz_yerlesimle_ayni(bool mesgul, bool hata, bool mesaj, bool dagilim)
-    {
-        const string eski = """
-            <HorizontalStackLayout Spacing="8" IsVisible="{Binding ListeYukleniyor}">
-                <ActivityIndicator IsRunning="{Binding ListeYukleniyor}" WidthRequest="20" HeightRequest="20" />
-                <Label Text="İşlemler yükleniyor…" Style="{StaticResource LblPageSub}" VerticalOptions="Center" />
-            </HorizontalStackLayout>
-            <Border Style="{StaticResource ErrorBox}"
-                    IsVisible="{Binding YuklemeHatasi, Converter={StaticResource DoluIse}}">
-                <Label Text="{Binding YuklemeHatasi}" Style="{StaticResource LblError}" />
-            </Border>
-            <Label Text="{Binding Mesaj}" Style="{StaticResource LblPageSub}" TextColor="{StaticResource Green}"
-                   IsVisible="{Binding Mesaj, Converter={StaticResource DoluIse}}" />
-            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
-                <Label Text="{Binding SonGuncellemeMetni}" Style="{StaticResource LblPageSub}" VerticalOptions="Center" />
-                <Button Grid.Column="1" Text="Yenile / tekrar dene" Style="{StaticResource BtnSecondary}"
-                        Command="{Binding YenileCommand}"
-                        IsEnabled="{Binding ListeYukleniyor, Converter={StaticResource TersIse}}" />
-            </Grid>
-            """;
-        static string Sar(string orta) => $"""
-            <VerticalStackLayout Padding="18,16,18,12" Spacing="10">
-                <Label Text="Son İşlemler" Style="{"{StaticResource LblSection}"}" />
-                {orta}
-                <Label Text="Süzgeç" />
-            </VerticalStackLayout>
-            """;
-        var yeni = SayfaParcasi("IslemlerPage.xaml", @"<ctl:DurumSeridi\b[^>]*/>");
-        Esit(Sar(eski), Sar(yeni), Baglam(mesgul, hata, mesaj, dagilim));
-    }
-
-    /// <summary>Eski Alışlar durum satırı (yığının tamamı; renkler o zamanki onaltılık değerleriyle). Şerit boşken gizlenir:
-    /// ileti ve dağılım kutusu eskisi gibi yığının başına kayar.</summary>
-    [Theory]
-    [MemberData(nameof(Durumlar))]
-    public void Alislar_durum_satiri_eski_yerlesimle_ayni(bool mesgul, bool hata, bool mesaj, bool dagilim)
-    {
-        const string eski = """
-            <VerticalStackLayout Grid.Row="1" Spacing="8">
-                <HorizontalStackLayout Spacing="8" IsVisible="{Binding Mesgul}">
-                    <ActivityIndicator IsRunning="{Binding Mesgul}" WidthRequest="20" HeightRequest="20" />
-                    <Label Text="İşlem tamamlanıyor…" Style="{StaticResource LblPageSub}" VerticalOptions="Center" />
-                </HorizontalStackLayout>
-                <Border Style="{StaticResource ErrorBox}" IsVisible="{Binding Hata, Converter={StaticResource DoluIse}}">
-                    <Label Text="{Binding Hata}" Style="{StaticResource LblError}" />
-                </Border>
-                <Label Text="{Binding Mesaj}" TextColor="{StaticResource Green}" IsVisible="{Binding Mesaj, Converter={StaticResource DoluIse}}" />
-                <Border BackgroundColor="#FFF2D9" Stroke="#E9C880" StrokeShape="RoundRectangle 10" Padding="14,10" IsVisible="{Binding DagilimBekliyor}">
-                    <Label TextColor="#765100">
-                        <Label.FormattedText><FormattedString>
-                            <Span Text="DAĞILIM BEKLİYOR  ·  " FontAttributes="Bold" />
-                            <Span Text="{Binding DagilimBekleyenTutar, Converter={StaticResource ParaBicim}}" FontAttributes="Bold" />
-                            <Span Text="  Ödemeler kaydedildi; onay tamamlanana kadar kanal raporları bu tutarı içermez." />
-                        </FormattedString></Label.FormattedText>
-                    </Label>
-                </Border>
-            </VerticalStackLayout>
-            """;
-        var yeni = SayfaParcasi("AlislarPage.xaml", @"<VerticalStackLayout Grid\.Row=""1"" Spacing=""8"">.*?</VerticalStackLayout>");
-        Assert.Contains("<ctl:DurumSeridi", yeni);
-        Esit(eski, yeni, Baglam(mesgul, hata, mesaj, dagilim));
     }
 
     // ---------------------------------------------------------------- CipGrubu

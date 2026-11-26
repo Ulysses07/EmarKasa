@@ -302,6 +302,48 @@
             </VisualStateGroupList>
         </Setter>
     </Style>
+    <!-- Bağlantı düğmesi: aşamalı gösterimin "Ayrıntılar"ı (TakipUi.Yardim). Kenarsız, zeminsiz, yeşil yazı. -->
+    <Style x:Key="BtnLink" TargetType="Button">
+        <Setter Property="BackgroundColor" Value="Transparent" />
+        <Setter Property="TextColor" Value="{StaticResource Green}" />
+        <Setter Property="BorderWidth" Value="0" />
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="FontAttributes" Value="None" />
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="HorizontalOptions" Value="Start" />
+        <Setter Property="HeightRequest">
+            <Setter.Value>
+                <OnPlatform x:TypeArguments="x:Double" Default="28">
+                    <On Platform="iOS" Value="44" />
+                </OnPlatform>
+            </Setter.Value>
+        </Setter>
+        <Setter Property="VisualStateManager.VisualStateGroups">
+            <VisualStateGroupList>
+                <VisualStateGroup x:Name="CommonStates">
+                    <VisualState x:Name="Normal" />
+                    <VisualState x:Name="PointerOver">
+                        <VisualState.Setters>
+                            <Setter Property="TextColor" Value="{StaticResource GreenDark}" />
+                        </VisualState.Setters>
+                    </VisualState>
+                </VisualStateGroup>
+            </VisualStateGroupList>
+        </Setter>
+    </Style>
+    <!-- Küçük ikincil düğme: sayfa başlığının Yenile'si (SayfaBasligi). iPhone'da dokunma hedefi 44. -->
+    <Style x:Key="BtnKucuk" TargetType="Button">
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="FontAttributes" Value="None" />
+        <Setter Property="Padding" Value="12,0" />
+        <Setter Property="HeightRequest">
+            <Setter.Value>
+                <OnPlatform x:TypeArguments="x:Double" Default="32">
+                    <On Platform="iOS" Value="44" />
+                </OnPlatform>
+            </Setter.Value>
+        </Setter>
+    </Style>
     <!-- Yıkıcı eylem (Sil, Seçili kuralı sil, Son hareketi geri al): ikincil düğme, kırmızı yazı; üzerine gelince açık kırmızı. -->
     <Style x:Key="BtnDanger" TargetType="Button">
         <Setter Property="TextColor" Value="{StaticResource Neg}" />
@@ -540,10 +582,11 @@
         <Setter Property="FontSize" Value="18" />
         <Setter Property="TextColor" Value="{StaticResource Ink}" />
     </Style>
+    <!-- Kalan kısa ipucu ve liste özeti ikincil metindir (gri): asıl içerikle yarışmaz (sadeleştirme §2). -->
     <Style x:Key="LblTakipMetin" TargetType="Label">
         <Setter Property="FontFamily" Value="{StaticResource YaziAilesi}" />
         <Setter Property="FontSize" Value="13" />
-        <Setter Property="TextColor" Value="{StaticResource Ink}" />
+        <Setter Property="TextColor" Value="{StaticResource Sub}" />
     </Style>
     <Style x:Key="LblTakipKucuk" TargetType="Label">
         <Setter Property="FontFamily" Value="{StaticResource YaziAilesi}" />

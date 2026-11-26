@@ -59,6 +59,6 @@ public partial class MauiKayitTutarliligiTests
         Assert.Equal(2, Regex.Matches(panel, @"TakipUi\.SonVeriGovdesi\(").Count);   // takip içeriği ve çek satırları
         Assert.DoesNotContain("VeriHazir", panel);
         Assert.Contains("SonVeriGovdesi(govde)", kontrol);
-        Assert.Contains("Durum(vm, vm.YukleAsync, body, sonVeri: true)", kontrol);
+        Assert.Contains("Durum(vm, body, sonVeri: true)", kontrol);
     }
 }

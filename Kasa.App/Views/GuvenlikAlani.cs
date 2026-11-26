@@ -11,7 +11,7 @@ public sealed class GuvenlikAlani : ContentView
         BindingContext = vm;
         var stack = new VerticalStackLayout { Spacing = 12 };
         stack.Add(Baslik("Hesap güvenliği"));
-        stack.Add(Yazi("Şifre değişince yeniden giriş yapmanız gerekir. Şifre değişince mevcut kurtarma kodu da geçersiz olur; yeni kod oluşturun. Kurtarma kodunu uygulama dışında güvenli bir yerde saklayın."));
+        stack.Add(Yazi("Şifre değişince yeniden giriş yaparsınız ve kurtarma kodu geçersiz olur."));
         stack.Add(Girdi("Mevcut şifre", nameof(vm.MevcutSifre)));
         var yeni = Girdi("Yeni şifre (en az 12 karakter)", nameof(vm.YeniSifre));
         var tekrar = Girdi("Yeni şifre (tekrar)", nameof(vm.YeniSifreTekrar));
@@ -19,7 +19,7 @@ public sealed class GuvenlikAlani : ContentView
         stack.Add(tekrar);
         stack.Add(SifreyiGoster(nameof(vm.YeniSifreyiGoster), yeni, tekrar));
         stack.Add(Dugme("Şifremi değiştir", nameof(vm.SifreDegistirCommand)));
-        stack.Add(Dugme("Tek kullanımlık kurtarma kodu oluştur", nameof(vm.KurtarmaKoduOlusturCommand)));
+        stack.Add(Dugme("Kurtarma kodu oluştur", nameof(vm.KurtarmaKoduOlusturCommand)));
         var kod = new Label { FontSize = 22, FontAttributes = FontAttributes.Bold };
         kod.SetBinding(Label.TextProperty, nameof(vm.KurtarmaKodu));
         stack.Add(kod);

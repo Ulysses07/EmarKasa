@@ -13,6 +13,21 @@ internal static class TakipUi
 {
     public static Label Metin(string text) => new() { Text = text, Style = (Style)Application.Current!.Resources["LblTakipMetin"] };
 
+    /// <summary>Aşamalı gösterim (docs/specs/2026-11-26-slop-temizligi.md §2): uzun kural açıklaması varsayılan olarak gizlidir, küçük
+    /// "Ayrıntılar" bağlantısıyla açılır ve kapanır. Ekranda yalnız gerektiğinde okunan bilgi paragraf olarak durmaz.</summary>
+    public static View Yardim(string metin)
+    {
+        var aciklama = new Label { Text = metin, Style = (Style)Application.Current!.Resources["LblTakipMetin"], IsVisible = false };
+        var dugme = new Button { Text = "Ayrıntılar", Style = (Style)Application.Current!.Resources["BtnLink"] };
+        SemanticProperties.SetHint(dugme, "Açıklamayı gösterir ya da gizler");
+        dugme.Clicked += (_, _) =>
+        {
+            aciklama.IsVisible = !aciklama.IsVisible;
+            dugme.Text = aciklama.IsVisible ? "Ayrıntıları gizle" : "Ayrıntılar";
+        };
+        return new VerticalStackLayout { Spacing = 4, Children = { dugme, aciklama } };
+    }
+
     /// <summary>Bağlı gövde metni (örtük Label stili).</summary>
     public static Label Bagli(string yol) => Bagla(new Label(), yol);
 
@@ -211,25 +226,34 @@ internal static class TakipUi
     }
 
     public static View Benzerlik(string yol, string command)
-        => Goster(Kart("Benzer kayıt kontrolü", Bagli(yol + ".Uyari"), Dugme("Ayrı bir işlem, devam et", command)), yol + ".UyariVar");
+        => Goster(Kart("Benzer kayıt kontrolü", Bagli(yol + ".Uyari"), Dugme("Ayrı işlem olarak kaydet", command)), yol + ".UyariVar");
 
-    /// <summary>Kodla yazılmış sayfaların durum satırları (Yenile ve sağında yükleniyor göstergesi, hata, isteğe bağlı ileti, son
-    /// güncelleme): TakipSayfasi, Kasa kontrolü ve Dışa aktar aynı sırayı ve stilleri kullanır. Bağlam modelinde Mesgul,
-    /// Hata (ya da <paramref name="hataYolu"/>) ve SonGuncellemeMetni beklenir (hiç yükleme yokken "Henüz yüklenmedi.", veri
-    /// eskiyse " · güncel olmayabilir" ekiyle; OturumluViewModel). Kartlar ekranı hatayı form açıkken formun içinde
-    /// gösterdiği için buraya SayfaHatasi'nı bağlar. Hata ve ileti yalnız doluyken yer kaplar (boşken Yenile ile son güncelleme
-    /// arasında ~130 px boşluk kalıyordu). Dönen değer hata satırıdır (sayfa onu görünür yere kaydırabilir).</summary>
-    public static Label DurumSatirlari(Layout hedef, View yenile, Label? mesaj = null, string hataYolu = "Hata")
+    /// <summary>Gömülü bölümün durumu (Kasalar'daki kasa kontrolü, Ayarlar'daki alt limitler, Aylık'taki ay kilidi; tasarım
+    /// docs/specs/2026-11-26-slop-temizligi.md §3): yalnız meşgulken gösterge, yalnız doluyken hata ve ileti. Yenile düğmesi yoktur:
+    /// bölüm sayfa başlığındaki Yenile ile (sayfanın yenilemesi) yenilenir. Bağlam modelinde Mesgul ve Hata (ya da
+    /// <paramref name="hataYolu"/>) beklenir.</summary>
+    public static void BolumDurumu(Layout hedef, Label? mesaj = null, string hataYolu = "Hata")
     {
-        hedef.Add(YenileSatiri(yenile));
-        var hata = DoluysaGoster(BagliHata(hataYolu));
-        hedef.Add(hata);
+        var gosterge = new ActivityIndicator { WidthRequest = 20, HeightRequest = 20, HorizontalOptions = LayoutOptions.Start };
+        gosterge.SetBinding(ActivityIndicator.IsRunningProperty, "Mesgul");
+        gosterge.SetBinding(VisualElement.IsVisibleProperty, "Mesgul");
+        hedef.Add(gosterge);
+        hedef.Add(DoluysaGoster(BagliHata(hataYolu)));
         if (mesaj is not null)
             hedef.Add(DoluysaGoster(mesaj));
-        var zaman = new Label { Style = (Style)Application.Current!.Resources["LblTakipKucuk"] };
-        zaman.SetBinding(Label.TextProperty, nameof(OturumluViewModel.SonGuncellemeMetni));
-        hedef.Add(zaman);
-        return hata;
+    }
+
+    /// <summary>Sayfa başlığı (Controls.SayfaBasligi) bağlam modeline bağlı: Mesgul, Hata (ya da <paramref name="hataYolu"/>), Mesaj,
+    /// SonGuncellemeMetni ve VeriEski (OturumluViewModel).</summary>
+    public static Controls.SayfaBasligi SayfaBasligi(string baslik, string hataYolu = "Hata")
+    {
+        var b = new Controls.SayfaBasligi { Baslik = baslik };
+        b.SetBinding(Controls.SayfaBasligi.MesgulProperty, "Mesgul");
+        b.SetBinding(Controls.SayfaBasligi.HataProperty, hataYolu);
+        b.SetBinding(Controls.SayfaBasligi.MesajProperty, "Mesaj");
+        b.SetBinding(Controls.SayfaBasligi.SonGuncellemeMetniProperty, nameof(OturumluViewModel.SonGuncellemeMetni));
+        b.SetBinding(Controls.SayfaBasligi.VeriEskiProperty, nameof(OturumluViewModel.VeriEski));
+        return b;
     }
 
     /// <summary>Kendi başına duran yükleme göstergesi (Yenile satırının dışında, ör. Kasalar'daki "Kart ve kredi takibi"
@@ -242,19 +266,6 @@ internal static class TakipUi
         gosterge.SetBinding(ActivityIndicator.IsRunningProperty, mesgulYolu);
         gosterge.SetBinding(VisualElement.IsVisibleProperty, mesgulYolu);
         return (gosterge, DoluysaGoster(BagliHata(hataYolu)));
-    }
-
-    /// <summary>Yenile düğmesi ve sağında, yalnız meşgulken, gösterge ile "İşleniyor…" (yükleme de kayıt/dışa aktarma da): gösterge ayrı satırdayken
-    /// görününce bütün içerik 48 px aşağı kayıyordu. Gösterge 24 px'tir, satırın yüksekliğini Yenile düğmesi belirler.</summary>
-    private static HorizontalStackLayout YenileSatiri(View yenile)
-    {
-        var gosterge = new ActivityIndicator { WidthRequest = 24, HeightRequest = 24, VerticalOptions = LayoutOptions.Center };
-        gosterge.SetBinding(ActivityIndicator.IsRunningProperty, "Mesgul");
-        gosterge.SetBinding(VisualElement.IsVisibleProperty, "Mesgul");
-        var metin = Metin("İşleniyor…");
-        metin.VerticalOptions = LayoutOptions.Center;
-        metin.SetBinding(VisualElement.IsVisibleProperty, "Mesgul");
-        return new Controls.UyumluSatir { Spacing = 12, Children = { yenile, gosterge, metin } };
     }
 
     /// <summary>Eski veri soluk (opaklık <see cref="EskiVeriOpakligi"/>): bağlamın VeriEski'si doğruyken (tasarım 2026-10-02 §3).</summary>
@@ -437,12 +448,13 @@ public abstract class TakipSayfasi<T> : ContentPage, Controls.IYenilenebilir whe
     protected readonly ScrollView Kaydirici;
     /// <summary>Sayfanın kaydırma yardımcısı (açılan ayrıntı, form ve ilk hatalı alan görünür yere kaydırılır).</summary>
     protected readonly Controls.GorunurYapici Gorunur;
-    /// <summary>Sayfa başındaki hata satırı (DurumSatirlari).</summary>
+    /// <summary>Sayfa başlığındaki hata satırı (SayfaBasligi).</summary>
     protected readonly Label HataSatiri;
     /// <summary>Sayfa başındaki ileti satırı (Mesaj; başarılı kayıt).</summary>
     protected readonly Label MesajSatiri;
     private readonly Func<Task> _yukle;
-    protected TakipSayfasi(T vm, string title, string aciklama, Func<Task> yukle, string hataYolu = nameof(TemelViewModel.Hata))
+    /// <summary>Sayfa: başlık satırı (başlık ve Yenile; açıklama paragrafı yok, docs/specs/2026-11-26-slop-temizligi.md §2-3) ve gövde.</summary>
+    protected TakipSayfasi(T vm, string title, Func<Task> yukle, string hataYolu = nameof(TemelViewModel.Hata))
     {
         Vm = vm;
         BindingContext = vm;
@@ -451,13 +463,11 @@ public abstract class TakipSayfasi<T> : ContentPage, Controls.IYenilenebilir whe
         BackgroundColor = (Color)Application.Current!.Resources["AppBg"];
         var root = new VerticalStackLayout { Padding = new Thickness(28, 22), Spacing = 16, MaximumWidthRequest = 1160 };
         root.SizeChanged += (_, _) => root.Padding = root.Width < 600 ? new Thickness(16, 14) : new Thickness(28, 22);
-        root.Add(new Label { Text = title, Style = (Style)Application.Current!.Resources["LblTakipSayfaBaslik"] });
-        root.Add(TakipUi.Metin(aciklama));
-        var mesaj = new Label { Style = (Style)Application.Current!.Resources["LblTakipMesaj"] };
-        mesaj.SetBinding(Label.TextProperty, nameof(vm.Mesaj));
-        MesajSatiri = mesaj;
-        // Yenileme artık izlenen formu koruduğu için (son veri koruma, 2026-10-03) onay sormaz.
-        HataSatiri = TakipUi.DurumSatirlari(root, TakipUi.Tikla("Yenile / tekrar dene", yukle), mesaj, hataYolu: hataYolu);
+        // Yenileme izlenen formu koruduğu için (son veri koruma, 2026-10-03) onay sormaz; başlığın Yenile'si YenileAsync'tir.
+        var baslik = TakipUi.SayfaBasligi(title, hataYolu);
+        root.Add(baslik);
+        HataSatiri = baslik.HataEtiketi;
+        MesajSatiri = baslik.MesajEtiketi;
         // Yükleme hata verse de son başarılı veri görünür kalır ve soluk gösterilir (tasarım 2026-10-02 §3).
         TakipUi.SonVeriGovdesi(Govde);
         Govde.SetBinding(IsEnabledProperty, nameof(vm.Mesgul), converter: new Converters.TersIseConverter());
