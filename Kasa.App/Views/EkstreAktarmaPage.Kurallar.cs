@@ -19,14 +19,14 @@ public sealed partial class EkstreAktarmaPage
             Goster(Tikla("+ Kural ekle", () => { KuralFormunuKur(null); return Task.CompletedTask; }), nameof(Vm.KurallarDestekleniyor)),
             picker,
             Tikla("Seçili kuralı düzenle / kapat", () => { if (picker.SelectedItem is EkstreKuralDto rule) KuralFormunuKur(rule); return Task.CompletedTask; }),
-            Tikla("Seçili kuralı sil", async () =>
+            Tehlikeli(Tikla("Seçili kuralı sil", async () =>
             {
                 if (picker.SelectedItem is not EkstreKuralDto rule || !Vm.EditorMu || Vm.Mesgul)
                     return;
                 var epoch = Vm.OturumNesli;
                 if (await DisplayAlertAsync("Kuralı sil", $"{rule.Ad}\nBu kural silinecek. Önceden kaydedilen hareketler korunur.", "Sil", "Vazgeç"))
                     await Vm.KuralSilAsync(rule, epoch);
-            }), _kuralFormu)));
+            })), _kuralFormu)));
         HafizaBolumunuKur();
         YapayZekaKartiniKur();
         Vm.PropertyChanged += (_, e) =>
@@ -102,7 +102,7 @@ public sealed partial class EkstreAktarmaPage
         UpdateSource();
         var desiredAllocation = rule?.DagilimTuru ?? remembered?.DagilimTuru;
         allocation.SelectedItem = allocation.ItemsSource.Cast<EkstreSecenek>().FirstOrDefault(o => o.Kod == desiredAllocation) ?? allocation.SelectedItem;
-        var error = new Label { TextColor = Colors.Red };
+        var error = new Label { TextColor = (Color)Application.Current!.Resources["Neg"] };
         var form = Kart(rule is null ? "Yeni kişisel kural" : $"Kuralı düzenle: {rule.Ad}",
             Alan("Kural adı", name), Alan("Açıklamada geçen sözcük / ifade", phrase),
             Metin("En az üç harfli bir sözcük kullanın. Türkçe harf ve noktalama farkları sadeleştirilir; sözcük sınırı korunur. Örneğin MIGROS, MIGROSAN ile eşleşmez."),
@@ -112,7 +112,7 @@ public sealed partial class EkstreAktarmaPage
             new HorizontalStackLayout { Children = { enabled, Metin("Kural etkin (kapatmak için işareti kaldırın)") } }, error);
         var key = new TekrarAnahtari();
         var actions = new HorizontalStackLayout { Spacing = 8 };
-        actions.Add(Tikla("Kuralı kaydet", async () =>
+        actions.Add(Birincil(Tikla("Kuralı kaydet", async () =>
         {
             if (_kuralFormu.Content != form || Vm.OturumNesli != epoch || !Vm.EditorMu)
                 return;
@@ -128,7 +128,7 @@ public sealed partial class EkstreAktarmaPage
             await Vm.KuralKaydetAsync(rule?.Id, write, epoch);
             if (_kuralFormu.Content == form && Vm.OturumNesli == epoch && string.IsNullOrEmpty(Vm.Hata))
                 _kuralFormu.Content = null;
-        }));
+        })));
         actions.Add(Tikla("Vazgeç", () => { if (_kuralFormu.Content == form) _kuralFormu.Content = null; return Task.CompletedTask; }));
         ((VerticalStackLayout)form.Content!).Add(actions);
         _kuralFormu.Content = form;

@@ -34,10 +34,11 @@ public class CipGrubu : FlexLayout
         cip.SetBinding(Button.CommandParameterProperty, new Binding("."));
         cip.SetBinding(MarginProperty, new Binding(nameof(CipKenari), source: this));
         var secili = new DataTrigger(typeof(Button)) { Binding = new Binding("Secili"), Value = true };
+        // Seçili çip açık yeşil zemin, yeşil kenar ve yazı: dolu yeşil ana düğmeyle karışmaz (docs/specs/2026-11-26-slop-temizligi.md §1).
         var yesil = Application.Current!.Resources["Green"];
-        secili.Setters.Add(new Setter { Property = VisualElement.BackgroundColorProperty, Value = yesil });
+        secili.Setters.Add(new Setter { Property = VisualElement.BackgroundColorProperty, Value = Application.Current!.Resources["GreenSoft"] });
         secili.Setters.Add(new Setter { Property = Button.BorderColorProperty, Value = yesil });
-        secili.Setters.Add(new Setter { Property = Button.TextColorProperty, Value = Colors.White });
+        secili.Setters.Add(new Setter { Property = Button.TextColorProperty, Value = yesil });
         secili.Setters.Add(new Setter { Property = SemanticProperties.HintProperty, Value = "Seçili" });
         cip.Triggers.Add(secili);
         return cip;

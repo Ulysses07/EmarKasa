@@ -114,6 +114,20 @@ internal static class TakipUi
         return b;
     }
 
+    /// <summary>Ana düğme (BtnPrimary): açık formun kaydetmesi ya da sayfanın tek asıl işi. Düğme varsayılan olarak ikincildir.</summary>
+    public static Button Birincil(Button b)
+    {
+        b.Style = (Style)Application.Current!.Resources["BtnPrimary"];
+        return b;
+    }
+
+    /// <summary>Yıkıcı eylem (BtnDanger): kırmızı yazılı ikincil düğme.</summary>
+    public static Button Tehlikeli(Button b)
+    {
+        b.Style = (Style)Application.Current!.Resources["BtnDanger"];
+        return b;
+    }
+
     /// <summary>Açık formun düğmesinin kenar rengi (Colors.xaml anahtarı): beyaz kart zeminine karşı en az 3:1 (kontrast testi).</summary>
     public const string AcikFormKenari = "Ink";
 
@@ -126,8 +140,7 @@ internal static class TakipUi
     {
         var dugme = Dugme(metin, komut);
         dugme.CommandParameter = form;
-        if (!birincil)
-            dugme.Style = (Style)Application.Current!.Resources["BtnSecondary"];
+        dugme.Style = (Style)Application.Current!.Resources[birincil ? "BtnPrimary" : "BtnSecondary"];
         dugme.BorderWidth = 2;
         var kapaliKenar = birincil ? (Color)Application.Current!.Resources["Green"] : (Color)Application.Current!.Resources["Border"];
         dugme.SetBinding(Button.BorderColorProperty, acikYol,

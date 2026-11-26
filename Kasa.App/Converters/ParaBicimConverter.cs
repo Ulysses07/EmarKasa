@@ -3,11 +3,20 @@ using Kasa.App.Core;
 
 namespace Kasa.App.Converters;
 
-/// <summary>decimal → tr-TR para metni (Bicim.Tl). Görünümde para etiketleri için.</summary>
+/// <summary>decimal → tr-TR para metni (Bicim.Tl). Görünümde para etiketleri için. Parametre <see cref="Gider"/> ise tutar yönüyle
+/// yazılır: gider "−1.334,44", iade (negatif gider) "+50,00", sıfır işaretsiz (ekstre penceresiyle aynı eksi işareti).</summary>
 public sealed class ParaBicimConverter : IValueConverter
 {
+    public const string Gider = nameof(Gider);
+
     public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
-        => value is decimal d ? Bicim.Tl(d) : value?.ToString() ?? string.Empty;
+    {
+        if (value is not decimal d)
+            return value?.ToString() ?? string.Empty;
+        if (parameter as string != Gider)
+            return Bicim.Tl(d);
+        return d switch { > 0 => "−" + Bicim.Tl(d), < 0 => "+" + Bicim.Tl(-d), _ => Bicim.Tl(0) };
+    }
 
     public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
         => throw new NotSupportedException();

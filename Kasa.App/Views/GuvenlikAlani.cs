@@ -43,7 +43,7 @@ public sealed class GuvenlikAlani : ContentView
         yedek.SetBinding(Label.TextProperty, nameof(vm.YedekBilgisi));
         stack.Add(yedek);
         // Sunucunun yedek hatası ya da rotasyon uyarısı (silinemeyen eski yedek) ayrı ve kırmızı gösterilir.
-        var yedekUyarisi = new Label { FontSize = 13, TextColor = Colors.DarkRed };
+        var yedekUyarisi = new Label { FontSize = 13, TextColor = (Color)Application.Current!.Resources["Neg"] };
         yedekUyarisi.SetBinding(Label.TextProperty, nameof(vm.YedekUyarisi));
         yedekUyarisi.SetBinding(IsVisibleProperty, nameof(vm.YedekUyarisi), converter: new Converters.DoluIseConverter());
         stack.Add(yedekUyarisi);
@@ -58,7 +58,7 @@ public sealed class GuvenlikAlani : ContentView
         yedekIptal.SetBinding(Button.CommandProperty, nameof(vm.YedekIptalCommand));
         yedekIptal.SetBinding(IsVisibleProperty, nameof(vm.YedekIndiriliyor));
         stack.Add(yedekIptal);
-        var hata = new Label { TextColor = Colors.DarkRed };
+        var hata = new Label { TextColor = (Color)Application.Current!.Resources["Neg"] };
         hata.SetBinding(Label.TextProperty, nameof(vm.Hata));
         stack.Add(hata);
         Content = new Border { Style = (Style)Application.Current!.Resources["CardForm"], Content = stack };

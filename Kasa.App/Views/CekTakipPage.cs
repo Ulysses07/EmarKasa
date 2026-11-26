@@ -158,7 +158,7 @@ public sealed partial class CekTakipPage : TakipSayfasi<CekTakipViewModel>, IQue
                 Goster(Alan("Kasa (kanal)", Secim(nameof(vm.KasaSecenekleri), nameof(vm.HareketKasasi), "."), h, nameof(vm.HareketKasasi)), nameof(vm.KasaGerekli)),
                 Goster(Alan("Ciro edilen kişi / banka ya da faktoring", Girdi(nameof(vm.Karsi)), h, nameof(vm.Karsi)), nameof(vm.KarsiGerekli)),
                 Goster(Alan("Hesaba geçen tutar", Girdi(nameof(vm.NetTutar), para: true), h, nameof(vm.NetTutar)), nameof(vm.NetGerekli)),
-                Bagli(nameof(vm.MasrafMetni)), Dugme("Hareketi kaydet", nameof(vm.HareketKaydetCommand)),
+                Bagli(nameof(vm.MasrafMetni)), Birincil(Dugme("Hareketi kaydet", nameof(vm.HareketKaydetCommand))),
             },
         }, nameof(vm.HareketFormuAcik));
     }
@@ -171,12 +171,12 @@ public sealed partial class CekTakipPage : TakipSayfasi<CekTakipViewModel>, IQue
             Children =
             {
                 Cipler(nameof(vm.HareketCipleri), nameof(vm.SecHareketCommand)), hareketFormu,
-                Goster(Tikla("Son hareketi geri al", () => OnayliAsync("Son hareketi geri al", "Çekin son hareketi silinir; kasa etkisi de kalkar.", vm.GeriAlAsync)),
+                Goster(Tehlikeli(Tikla("Son hareketi geri al", () => OnayliAsync("Son hareketi geri al", "Çekin son hareketi silinir; kasa etkisi de kalkar.", vm.GeriAlAsync))),
                     nameof(vm.GeriAlinabilir)),
                 Dugme("Çeki düzelt", nameof(vm.DuzeltCommand)),
             },
         };
-        var sil = new Button { Text = "Çeki sil", HorizontalOptions = LayoutOptions.Start, Style = (Style)Application.Current!.Resources["BtnSecondary"] };
+        var sil = Tehlikeli(new Button { Text = "Çeki sil", HorizontalOptions = LayoutOptions.Start });
         sil.Clicked += async (_, _) => await SilmeOnayi.GosterAsync(this, sil, vm.AcikOzet, vm.SilAsync);
         duzenleme.Add(sil);
         return Goster(new Border
@@ -210,7 +210,7 @@ public sealed partial class CekTakipPage : TakipSayfasi<CekTakipViewModel>, IQue
         }, nameof(vm.AyniCekVar));
         var baslik = Bagli(nameof(vm.FormBasligi));
         baslik.FontAttributes = FontAttributes.Bold;
-        var kaydet = Dugme("Kaydet", nameof(vm.KaydetCommand));
+        var kaydet = Birincil(Dugme("Kaydet", nameof(vm.KaydetCommand)));
         kaydet.SetBinding(Button.TextProperty, nameof(vm.KaydetMetni));
         var kart = Kart("Çek / senet bilgileri",
             baslik, hataKutusu,

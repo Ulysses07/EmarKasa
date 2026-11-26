@@ -12,7 +12,7 @@ public class CarilerViewModelTests
     private static ErpCariHareketDto Hareket(string durum, decimal borc = 0, decimal alacak = 0, string? tur = null, int? id = null) =>
         new(1, 2, 3, Gun, "Havale", "B1", "Kasım", borc, alacak, durum, tur, id);
 
-    private sealed class Sahte : IErpApi
+    internal sealed class Sahte : IErpApi
     {
         public IReadOnlyList<ErpCariDto> Liste = [Cari("AHMET YILMAZ", "120.01", 12_000, 5_000, 1), Cari("İNCİ KIRTASİYE", null, 350)];
         public IReadOnlyList<ErpCariHareketDto> Hareketler = [Hareket(ErpHareketDurumlari.Bekliyor, borc: 10)];

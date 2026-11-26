@@ -177,7 +177,7 @@ public sealed partial class EkstreHareketPenceresi : ContentPage
         var toplu = Ikincil(Tikla("Toplu tür / kanal", () => { PaneliAc(PanelKipi.Toplu); return Task.CompletedTask; }));
         var yokSay = Ikincil(Tikla("Yok say", SecilenleriYokSayAsync));
         yokSay.SetBinding(IsVisibleProperty, nameof(_vm.YokSayDestekleniyor));
-        var kaydet = _etkiDugmesi = Tikla("Etkisini göster ve kaydet", () => _vm.OnizleCommand.ExecuteAsync(null));
+        var kaydet = _etkiDugmesi = Birincil(Tikla("Etkisini göster ve kaydet", () => _vm.OnizleCommand.ExecuteAsync(null)));
         var cubuk = new Grid
         {
             Padding = new Thickness(0, 10, 0, 14),

@@ -178,9 +178,8 @@ public partial class EkstreAktarmaTests
 
     private static int BirincilDugmeSayisi(Page pencere)
     {
-        var ikincil = (Style)Application.Current!.Resources["BtnSecondary"];
-        var cip = (Style)Application.Current!.Resources["ChipButton"];
-        return pencere.GetVisualTreeDescendants().OfType<Button>().Count(b => Gorunur(b) && !ReferenceEquals(b.Style, ikincil) && !ReferenceEquals(b.Style, cip));
+        var ana = (Style)Application.Current!.Resources["BtnPrimary"];
+        return pencere.GetVisualTreeDescendants().OfType<Button>().Count(b => Gorunur(b) && ReferenceEquals(b.Style, ana));
     }
 
     /// <summary>Ekranda tek birincil düğme: satır ve toplu panelde alt çubuğun "Etkisini göster ve kaydet"i, kayıt özetinde "Kaydet".</summary>

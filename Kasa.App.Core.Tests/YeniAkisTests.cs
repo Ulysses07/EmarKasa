@@ -464,7 +464,7 @@ public class YeniAkisTests
         Assert.Contains("ulaşılamadı", vm.Hata);
     }
 
-    private sealed class Sahte : IAlisOdemeApi, IYonetimApi, IAlisApi
+    internal sealed class Sahte : IAlisOdemeApi, IYonetimApi, IAlisApi
     {
         public AlisYaz? SonAlis;
         public AlisDto? IlkAlis;

@@ -47,7 +47,13 @@
                 <VerticalStackLayout Spacing="0">
                     <Label Text="GENEL KASA" Style="{StaticResource LblHeroLabel}" />
                     <Label Text="{Binding GuncelKasa, Converter={StaticResource ParaBicim}}"
-                           Style="{StaticResource LblHeroAmount}" Margin="0,8,0,0" />
+                           Style="{StaticResource LblHeroAmount}" Margin="0,8,0,0">
+                        <Label.Triggers>
+                            <DataTrigger TargetType="Label" Binding="{Binding GuncelKasaEksi}" Value="True">
+                                <Setter Property="TextColor" Value="{StaticResource HeroNeg}" />
+                            </DataTrigger>
+                        </Label.Triggers>
+                    </Label>
                     <Label Text="Takip başlangıcı ve açılış devri dahil"
                            Style="{StaticResource LblHeroSub}" Margin="0,10,0,0" />
                     <VerticalStackLayout IsVisible="{Binding DagilimBekliyor}" Spacing="4" Margin="0,14,0,0">

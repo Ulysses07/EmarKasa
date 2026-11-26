@@ -90,7 +90,7 @@ public sealed class KartTakipPage : TakipSayfasi<KartTakipViewModel>, IQueryAttr
             Children =
             {
                 Bagli(nameof(vm.OdemeOnizleme)),
-                Goster(Dugme("Onayla ve kaydet", nameof(vm.OdemeKaydetCommand)), nameof(vm.OdemeOnizlemeGuncel)),
+                Goster(Birincil(Dugme("Onayla ve kaydet", nameof(vm.OdemeKaydetCommand))), nameof(vm.OdemeOnizlemeGuncel)),
             },
         };
         _formAlani = FormAlani(vm);
@@ -175,7 +175,7 @@ public sealed class KartTakipPage : TakipSayfasi<KartTakipViewModel>, IQueryAttr
         {
             Binding = new Binding(nameof(vm.GecisUyarisiTehlikeli)),
             Value = true,
-            Setters = { new Setter { Property = Label.TextColorProperty, Value = (Color)Application.Current!.Resources["KoyuKirmizi"] } }
+            Setters = { new Setter { Property = Label.TextColorProperty, Value = (Color)Application.Current!.Resources["Neg"] } }
         });
         return new VerticalStackLayout
         {
@@ -197,9 +197,9 @@ public sealed class KartTakipPage : TakipSayfasi<KartTakipViewModel>, IQueryAttr
     {
         Children =
         {
-            Goster(DugmeSirasi(FormDugmesi("Ödeme kaydet", KartFormu.Odeme, birincil: true), FormDugmesi("Harcama ekle", KartFormu.Harcama),
+            Goster(DugmeSirasi(FormDugmesi("Ödeme kaydet", KartFormu.Odeme), FormDugmesi("Harcama ekle", KartFormu.Harcama),
                 FormDugmesi("Faiz / masraf", KartFormu.Masraf), FormDugmesi("Kartı düzenle", KartFormu.KartBilgisi)), nameof(vm.YeniTakip)),
-            Goster(DugmeSirasi(FormDugmesi("Yeni takibe al", KartFormu.Gecis, birincil: true), FormDugmesi("Kartı düzenle", KartFormu.KartBilgisi)),
+            Goster(DugmeSirasi(FormDugmesi("Yeni takibe al", KartFormu.Gecis), FormDugmesi("Kartı düzenle", KartFormu.KartBilgisi)),
                 nameof(vm.EskiTakip)),
         },
     };
@@ -265,7 +265,7 @@ public sealed class KartTakipPage : TakipSayfasi<KartTakipViewModel>, IQueryAttr
             })));
         var baslik = Bagli(nameof(vm.KartFormuBasligi));
         baslik.Style = (Style)Application.Current!.Resources["LblTakipKartBaslik"];
-        var kaydet = Dugme("Kartı kaydet", nameof(vm.KaydetCommand));
+        var kaydet = Birincil(Dugme("Kartı kaydet", nameof(vm.KaydetCommand)));
         kaydet.SetBinding(Button.TextProperty, nameof(vm.KartKaydetMetni));
         return new VerticalStackLayout
         {
@@ -331,7 +331,7 @@ public sealed class KartTakipPage : TakipSayfasi<KartTakipViewModel>, IQueryAttr
             Spacing = 10,
             Children = { Metin(HarcamaPayNotu), Paylar(vm.HarcamaPaylari, () => vm.PayEkle(vm.HarcamaPaylari)) }
         }, nameof(vm.HarcamaGirisi)),
-        Dugme("Kart hareketini kaydet", nameof(vm.HarcamaKaydetCommand)),
+        Birincil(Dugme("Kart hareketini kaydet", nameof(vm.HarcamaKaydetCommand))),
         Benzerlik(nameof(vm.HarcamaBenzerlik), nameof(vm.HarcamayiAyriKaydetCommand)));
 
     private static View Masraf(KartTakipViewModel vm) => Form("Faiz / masrafı kalan borca dağıt",
@@ -340,13 +340,13 @@ public sealed class KartTakipPage : TakipSayfasi<KartTakipViewModel>, IQueryAttr
         Alan("Tarih", Tarih(nameof(vm.MasrafTarihi))), Alan("Bankanın bildirdiği faiz / masraf", Girdi(nameof(vm.MasrafTutari), true)),
         Alan("Açıklama", Girdi(nameof(vm.MasrafAciklama))),
         Dugme("Kanal dağılımını göster", nameof(vm.MasrafOnizleCommand)), Bagli(nameof(vm.MasrafOnizleme)),
-        Dugme("Gösterilen masrafı kaydet", nameof(vm.MasrafKaydetCommand)));
+        Birincil(Dugme("Gösterilen masrafı kaydet", nameof(vm.MasrafKaydetCommand))));
 
     private static View Ekstre(KartTakipViewModel vm) => Form("Ekstre bilgisi",
         Metin(EkstreNotu),
         Alan("Son ödeme tarihi", Tarih(nameof(vm.EkstreSonOdeme))),
         Onay("Banka asgari ödeme tutarı girildi", nameof(vm.AsgariVar)), Alan("Asgari ödeme", Girdi(nameof(vm.AsgariTutar), true)),
-        Alan("Açıklama", Girdi(nameof(vm.Gerekce))), Dugme("Ekstreyi kaydet", nameof(vm.EkstreKaydetCommand)));
+        Alan("Açıklama", Girdi(nameof(vm.Gerekce))), Birincil(Dugme("Ekstreyi kaydet", nameof(vm.EkstreKaydetCommand))));
 
     private static View Gecis(KartTakipViewModel vm)
     {
@@ -365,7 +365,7 @@ public sealed class KartTakipPage : TakipSayfasi<KartTakipViewModel>, IQueryAttr
             Paylar(vm.GecisPaylari, () => vm.PayEkle(vm.GecisPaylari)), Alan("Geçiş açıklaması", Girdi(nameof(vm.GecisAciklama))),
             Dugme("Geçiş farkını göster", nameof(vm.GecisOnizleCommand)), Bagli(nameof(vm.GecisOnizleme)),
             Goster(gecisEngeli, nameof(vm.GecisEngeli), true), Goster(gecisOnerisi, nameof(vm.GecisOneriVar)), gecisOnayi,
-            Dugme("Yeni takibi aç", nameof(vm.GecisiOnaylaCommand)));
+            Birincil(Dugme("Yeni takibi aç", nameof(vm.GecisiOnaylaCommand))));
     }
 
     // ---- Sekmeler ----

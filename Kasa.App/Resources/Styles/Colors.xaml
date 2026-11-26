@@ -53,12 +53,11 @@
     <!-- Yeşil hero kart üzerindeki açık metin ve uyarı -->
     <Color x:Key="HeroAcik">#CBE6D5</Color>
     <Color x:Key="HeroUyari">#FFDA91</Color>
+    <!-- Yeşil özet kutusunda eksi genel kasa (Green zeminde en az 4,5:1) -->
+    <Color x:Key="HeroNeg">#FFC2BA</Color>
     <!-- Alış kalemi düzenleyicisi ve ödeme kanal payları zeminleri -->
     <Color x:Key="KalemZemin">#F8F8F3</Color>
     <Color x:Key="PayZemin">#F1F5EE</Color>
-    <!-- Kodla yazılmış takip sayfalarının hata ve bilgi metni (MAUI adlı renkleri Colors.DarkRed / Colors.DarkGreen) -->
-    <Color x:Key="KoyuKirmizi">DarkRed</Color>
-    <Color x:Key="KoyuYesil">DarkGreen</Color>
 
     <!-- Kart kutuları (KartKutusu; Kasa.App.Core KartRengi): banka renk ailesi başına açık zemin, kenar (doluluk çubuğunun izi)
          ve koyu yazı (çubuğun dolgusu). Yazı zeminine en az 4,5:1, çubuk dolgusu izine en az 3:1 verir; Kasa.App.Core.Tests sınar.

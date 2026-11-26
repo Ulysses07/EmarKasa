@@ -41,7 +41,7 @@ public sealed partial class CekTakipPage
             Alan("Yapıştırılacak satırlar", yapistir, h, nameof(vm.Yapistirilan)), IkincilDugme("Yapıştırılanı ekle", nameof(vm.YapistirilaniEkleCommand)),
             AltBaslik("Satırlar"), TopluSatirListesi(vm), IkincilDugme("Boş satır ekle", nameof(vm.TopluSatirEkleCommand)),
             BagliBuyuk(nameof(vm.TopluToplam)), ayni,
-            new UyumluSatir { Spacing = 12, Children = { Dugme("Hepsini kaydet", nameof(vm.TopluKaydetCommand)), IkincilDugme("Vazgeç", nameof(vm.TopluKapatCommand)) } });
+            new UyumluSatir { Spacing = 12, Children = { Birincil(Dugme("Hepsini kaydet", nameof(vm.TopluKaydetCommand))), IkincilDugme("Vazgeç", nameof(vm.TopluKapatCommand)) } });
     }
 
     private static UyumluIzgara SeriAlanlari(CekTakipViewModel vm, string h)

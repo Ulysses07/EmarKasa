@@ -36,6 +36,16 @@
     <Compile Include="..\Kasa.App\Views\EkstreAktarmaPage*.cs" Link="Kontroller\%(Filename)%(Extension)" />
     <Compile Include="..\Kasa.App\Views\EkstreHareketPenceresi*.cs" Link="Kontroller\%(Filename)%(Extension)" />
     <Compile Include="..\Kasa.App\Views\DosyaIslemleri.cs" Link="Kontroller\DosyaIslemleri.cs" />
+    <Compile Include="..\Kasa.App\Views\AylikGiderPage.cs" Link="Kontroller\%(Filename)%(Extension)" />
+    <Compile Include="..\Kasa.App\Views\BildirimPage.cs" Link="Kontroller\%(Filename)%(Extension)" />
+    <Compile Include="..\Kasa.App\Views\CarilerPage.cs" Link="Kontroller\%(Filename)%(Extension)" />
+    <Compile Include="..\Kasa.App\Views\CekTakipPage*.cs" Link="Kontroller\%(Filename)%(Extension)" />
+    <Compile Include="..\Kasa.App\Views\DisariAktarPage.cs" Link="Kontroller\%(Filename)%(Extension)" />
+    <Compile Include="..\Kasa.App\Views\GuvenlikAlani.cs" Link="Kontroller\%(Filename)%(Extension)" />
+    <Compile Include="..\Kasa.App\Views\KartTakipPage.cs" Link="Kontroller\%(Filename)%(Extension)" />
+    <Compile Include="..\Kasa.App\Views\KasaKontrolAlanlari.cs" Link="Kontroller\%(Filename)%(Extension)" />
+    <Compile Include="..\Kasa.App\Views\KrediTakipPage.cs" Link="Kontroller\%(Filename)%(Extension)" />
+    <Compile Include="..\Kasa.App\Views\SilmeOnayi.cs" Link="Kontroller\%(Filename)%(Extension)" />
     <Compile Include="..\Kasa.App\Views\DosyaSecimTurleri.cs" Link="Kontroller\DosyaSecimTurleri.cs" />
     <Compile Include="..\Kasa.App\Services\UygulamaIciBildirimler.cs" Link="Platformlar\UygulamaIciBildirimler.cs" />
   </ItemGroup>

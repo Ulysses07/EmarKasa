@@ -152,13 +152,8 @@ public sealed partial class EkstreHareketPenceresi
         };
     }
 
-    private void EtkiDugmesiniAyarla()
-    {
-        if (_kip == PanelKipi.KayitOzeti)
-            _etkiDugmesi.Style = Stil("BtnSecondary");
-        else
-            _etkiDugmesi.ClearValue(StyleProperty);
-    }
+    /// <summary>Kayıt özeti açıkken ana düğme özetin "Kaydet"idir; alt çubuğun düğmesi ikincile düşer.</summary>
+    private void EtkiDugmesiniAyarla() => _etkiDugmesi.Style = Stil(_kip == PanelKipi.KayitOzeti ? "BtnSecondary" : "BtnPrimary");
 
     private View KayitEylemleri() => Goster(new VerticalStackLayout
     {
@@ -167,7 +162,7 @@ public sealed partial class EkstreHareketPenceresi
         {
             Goster(Onay("Benzer kayıt / belirsizlik uyarılarını kontrol ettim; ayrı hareket olarak kaydedilsin.", nameof(_vm.TekrarOnay)), nameof(_vm.TekrarOnayGerekli)),
             Onay("Seçilen satırları, kanal paylarını ve kasa etkisini kontrol ettim.", nameof(_vm.Onay)),
-            Dugme("Kaydet", nameof(_vm.KaydetCommand)),
+            Birincil(Dugme("Kaydet", nameof(_vm.KaydetCommand))),
             FormHatasi(nameof(_vm.KayitHatasi)),
         }
     }, nameof(_vm.OnizlemeVar));

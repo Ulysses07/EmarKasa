@@ -18,7 +18,9 @@ public partial class PanelViewModel : RaporViewModel
         TakipsizUyari = "";
     }
 
-    [ObservableProperty] private decimal _guncelKasa;
+    [ObservableProperty][NotifyPropertyChangedFor(nameof(GuncelKasaEksi))] private decimal _guncelKasa;
+    /// <summary>Genel kasa eksidedir: özet kutusunda tutar ayrı renkle (HeroNeg) yazılır.</summary>
+    public bool GuncelKasaEksi => GuncelKasa < 0;
     [ObservableProperty] private decimal _buHaftaSonucu;
     [ObservableProperty] private decimal _buAySonucu;
     [ObservableProperty]

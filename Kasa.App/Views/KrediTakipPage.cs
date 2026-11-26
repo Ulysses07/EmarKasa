@@ -71,7 +71,7 @@ public sealed class KrediTakipPage : TakipSayfasi<KrediTakipViewModel>, IQueryAt
             Alan("Aylık taksit tutarı", Girdi(nameof(vm.AylikOdeme), true), h, nameof(vm.AylikOdeme)),
             Metin("Tek kanal seçerseniz tutarın tamamı o kanala gider. Birden fazla kanalda kredi girişi ve her taksit eşit, kuruşları korunarak bölünür. Seçili kanallar sonradan kendiliğinden değişmez."),
             Alan("Kanallar", KanalSecimleri(nameof(vm.Kanallar)), h, nameof(vm.Kanallar)), Dugme("Tüm aktif kanalları seç", nameof(vm.TumKanallariSecCommand)),
-            Metin("Yeni kredi genel kasaya bir kez girer; kanal payları aynı girişin dağılımıdır."), Dugme("Krediyi kaydet", nameof(vm.KaydetCommand)));
+            Metin("Yeni kredi genel kasaya bir kez girer; kanal payları aynı girişin dağılımıdır."), Birincil(Dugme("Krediyi kaydet", nameof(vm.KaydetCommand))));
         vm.Hatalar.GosterIstendi += (_, _) => Gorunur.HatayaGit(_yeniKredi, vm.Hatalar, _hataKutusu);
         Govde.Add(Editor(Goster(_yeniKredi, nameof(vm.YeniKredi))));
         Govde.Add(Editor(Goster(Kart("Eski krediyi yeni takibe al",
@@ -80,7 +80,7 @@ public sealed class KrediTakipPage : TakipSayfasi<KrediTakipViewModel>, IQueryAt
             Dugme("Tüm aktif kanalları seç", nameof(vm.TumKanallariSecCommand)), Alan("Geçiş açıklaması", Girdi(nameof(vm.GecisAciklama))),
             Dugme("Geçiş farkını göster", nameof(vm.GecisOnizleCommand)), Bagli(nameof(vm.GecisOnizleme)),
             Onay("Kasa ve kanal farkını inceledim; geçişi onaylıyorum.", nameof(vm.GecisOnay)),
-            Dugme("Yeni takibi aç", nameof(vm.GecisiOnaylaCommand))),
+            Birincil(Dugme("Yeni takibi aç", nameof(vm.GecisiOnaylaCommand)))),
             nameof(vm.EskiTakip))));
         Govde.Add(Goster(Kart("Taksit planı", Metin("Kalan planlı ödeme, kalan anapara değildir. Bankadan anapara/faiz ayrımı girilmediği için anapara tahmini yapılmaz."),
             Liste<TaksitSatiri>(nameof(vm.Taksitler), s => { vm.TaksitSecCommand.Execute(s); return Task.CompletedTask; }, "Planı düzenle / not ekle", _ => vm.EditorMu && vm.YeniTakip)),
@@ -93,7 +93,7 @@ public sealed class KrediTakipPage : TakipSayfasi<KrediTakipViewModel>, IQueryAt
         };
         tarihTutar.SetBinding(IsEnabledProperty, nameof(vm.TaksitDuzenlenebilir));
         Govde.Add(Editor(Goster(Kart("Taksit bilgisi", Metin("Kasaya işlenmiş taksidin tarih/tutarı değişmez. Not veya dekont referansı eklemek ikinci çıkış oluşturmaz."), tarihTutar,
-            Alan("Not / dekont referansı", Girdi(nameof(vm.TaksitNotu))), Alan("Değişiklik açıklaması", Girdi(nameof(vm.Gerekce))), Dugme("Taksiti kaydet", nameof(vm.TaksitKaydetCommand))),
+            Alan("Not / dekont referansı", Girdi(nameof(vm.TaksitNotu))), Alan("Değişiklik açıklaması", Girdi(nameof(vm.Gerekce))), Birincil(Dugme("Taksiti kaydet", nameof(vm.TaksitKaydetCommand)))),
             nameof(vm.DuzenlenenTaksit), true)));
         Govde.Add(Editor(Goster(Kart("Erken kapama", Alan("Kapama tarihi", Tarih(nameof(vm.KapatmaTarihi))), Alan("Bankanın kapama tutarı", Girdi(nameof(vm.KapatmaTutari), true)),
             Alan("Kapama açıklaması", Girdi(nameof(vm.Gerekce))), Bagli(nameof(vm.KapatmaOzeti)),

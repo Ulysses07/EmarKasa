@@ -1,6 +1,5 @@
 # maui-lint.sh tabanı: (b) doğrudan hex renk ve (c) 200 karakteri aşan satır sayısı, dosya başına (tür<TAB>dosya<TAB>sayı).
 # Sayılar yalnız azalır: artış CI'ı kırar. Düzeltmeden sonra: bash .github/scripts/maui-lint.sh --tabani-guncelle
-hex	Kasa.App/Converters/ParaRenkConverter.cs	2
 satir	Kasa.App/Platforms/Android/MainActivity.cs	1
 satir	Kasa.App/Views/AlislarPage.xaml	2
 satir	Kasa.App/Views/AyarlarPage.xaml	1

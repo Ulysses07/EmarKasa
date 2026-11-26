@@ -229,9 +229,10 @@ public partial class GorunumEsdegerligiTests
             Assert.Equal(1, dugme.BorderWidth);
             Assert.Equal(dugme.Text, SemanticProperties.GetDescription(dugme));
             Assert.Equal(sira == 1 ? "Seçili" : "Seçili değil", SemanticProperties.GetHint(dugme));
-            Assert.Equal(sira == 1 ? (Color)Application.Current!.Resources["Green"] : Colors.White, dugme.BackgroundColor);
+            // Seçili çip açık yeşil zemin, yeşil kenar ve yazı (sadeleştirme §1; önce dolu yeşil ve beyaz yazıydı).
+            Assert.Equal(sira == 1 ? (Color)Application.Current!.Resources["GreenSoft"] : Colors.White, dugme.BackgroundColor);
             Assert.Equal((Color)Application.Current!.Resources[sira == 1 ? "Green" : "Border"], dugme.BorderColor);
-            Assert.Equal(sira == 1 ? Colors.White : (Color)Application.Current!.Resources["Ink"], dugme.TextColor);
+            Assert.Equal((Color)Application.Current!.Resources[sira == 1 ? "Green" : "Ink"], dugme.TextColor);
         }
     }
 
@@ -342,13 +343,5 @@ public partial class GorunumEsdegerligiTests
         GorunumOrtami.Kur();
         var beklenen = (SolidColorBrush)new BrushTypeConverter().ConvertFromInvariantString(onaltilik)!;
         Assert.Equal(beklenen.Color, ((SolidColorBrush)Application.Current!.Resources[anahtar]).Color);
-    }
-
-    [Fact]
-    public void Koyu_renk_anahtarlari_MAUI_adli_renkleriyle_ayni()
-    {
-        GorunumOrtami.Kur();
-        Assert.Equal(Colors.DarkRed, (Color)Application.Current!.Resources["KoyuKirmizi"]);
-        Assert.Equal(Colors.DarkGreen, (Color)Application.Current!.Resources["KoyuYesil"]);
     }
 }
