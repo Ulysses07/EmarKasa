@@ -1513,11 +1513,12 @@ uç sayısı: 153
   ad: - / rota adı: -
   yetki: politika=Editor roller=- şemalar=-
   hız sınırı: -
-  meta veri (7):
-    - System.Reflection.RuntimeMethodInfo: imza Microsoft.AspNetCore.Http.IResult~ (System.Int32 id, Kasa.Api.Data.KasaDbContext db, Kasa.Api.YapayZeka.YapayZekaServisi yz)
+  meta veri (8):
+    - System.Reflection.RuntimeMethodInfo: imza Microsoft.AspNetCore.Http.IResult~ (System.Int32 id, System.Nullable<System.Boolean> yalnizSorulmamis, Kasa.Api.Data.KasaDbContext db, Kasa.Api.YapayZeka.YapayZekaServisi yz)
     - Microsoft.AspNetCore.Routing.HttpMethodMetadata: yöntemler=GET cors=False
     - Microsoft.AspNetCore.Authorization.AuthorizeAttribute: politika=Editor roller=- şemalar=-
     - Microsoft.AspNetCore.Http.Metadata.ParameterBindingMetadata: ad=id tür=System.Int32 TryParse=True BindAsync=False isteğe bağlı=False
+    - Microsoft.AspNetCore.Http.Metadata.ParameterBindingMetadata: ad=yalnizSorulmamis tür=System.Nullable<System.Boolean> TryParse=True BindAsync=False isteğe bağlı=True
     - Microsoft.AspNetCore.Http.Metadata.ParameterBindingMetadata: ad=db tür=Kasa.Api.Data.KasaDbContext TryParse=False BindAsync=False isteğe bağlı=False
     - Microsoft.AspNetCore.Http.Metadata.ParameterBindingMetadata: ad=yz tür=Kasa.Api.YapayZeka.YapayZekaServisi TryParse=False BindAsync=False isteğe bağlı=False
     - Microsoft.AspNetCore.Routing.RouteEndpointBuilder+RouteDiagnosticsMetadata: Route: /api/ekstre-aktar/{id:int}/yapay-zeka

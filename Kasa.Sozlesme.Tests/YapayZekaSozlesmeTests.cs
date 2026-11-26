@@ -22,7 +22,9 @@ public class YapayZekaSozlesmeTests : SozlesmeTemeli
         var belge = await Yukle([Bugun, "AHMET KARGO", -50m]);
         var onizleme = await o.Ekstre.YapayZekaOnizlemeAsync(belge.Id);
         Assert.Equal("1 | CIKIS | 0-100 | [1] KARGO", Assert.Single(onizleme.Satirlar));
-        var sonuc = await o.Ekstre.YapayZekaSorAsync(belge.Id, new YapayZekaSorYaz(Guid.NewGuid()));
+        // Kendiliğinden doldurmanın bayrağı sorguda ve gövdede sunucuya ulaşır (docs/specs/2026-11-26-ekstre-hareket-penceresi.md §3).
+        Assert.Equal(onizleme.Satirlar, (await o.Ekstre.YapayZekaOnizlemeAsync(belge.Id, yalnizSorulmamis: true)).Satirlar);
+        var sonuc = await o.Ekstre.YapayZekaSorAsync(belge.Id, new YapayZekaSorYaz(Guid.NewGuid(), YalnizSorulmamis: true));
         Assert.Equal((1, 1, 0, 0.0003m, (string?)null), (sonuc.Sorulan, sonuc.Onerilen, sonuc.KalanSatir, sonuc.MaliyetUsd, sonuc.Not));
         var oneri = Assert.Single(await o.Ekstre.EkstreOnerilerAsync(belge.Id));
         Assert.Equal(("YapayZekaOnerisi", "Gider", "Genel", new EkstreYapayZekaOnerisi("Yuksek", "kargo", "AHMET kargo")), (oneri.Durum, oneri.IslemTuru, oneri.DagilimTuru, oneri.YapayZeka));

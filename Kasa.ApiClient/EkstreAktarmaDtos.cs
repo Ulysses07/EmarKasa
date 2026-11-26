@@ -54,7 +54,7 @@ public interface IEkstreAktarmaApi
     /// <summary>Yapay zekânın durumu, harcaması ve doğruluğu.</summary>
     Task<YapayZekaDurumDto> YapayZekaDurumuAsync() => Task.FromException<YapayZekaDurumDto>(new KasaApiException(System.Net.HttpStatusCode.NotFound));
     /// <summary>Belgeden gönderilecek maskeli metin; hiçbir şey gönderilmez.</summary>
-    Task<YapayZekaOnizlemeDto> YapayZekaOnizlemeAsync(int id) => Task.FromException<YapayZekaOnizlemeDto>(new KasaApiException(System.Net.HttpStatusCode.NotFound));
+    Task<YapayZekaOnizlemeDto> YapayZekaOnizlemeAsync(int id, bool yalnizSorulmamis = false) => Task.FromException<YapayZekaOnizlemeDto>(new KasaApiException(System.Net.HttpStatusCode.NotFound));
     /// <summary>Tanınmayan satırları sorar; öneriler <see cref="EkstreOnerilerAsync"/> ile gelir.</summary>
     Task<YapayZekaSonucDto> YapayZekaSorAsync(int id, YapayZekaSorYaz g) => Task.FromException<YapayZekaSonucDto>(new KasaApiException(System.Net.HttpStatusCode.NotFound));
     /// <summary>Geçmiş kararlarla doğruluk ölçümü.</summary>

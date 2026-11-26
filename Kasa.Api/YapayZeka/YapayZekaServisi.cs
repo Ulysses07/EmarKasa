@@ -88,17 +88,18 @@ public sealed partial class YapayZekaServisi(YapayZekaAyarlari ayarlar, IYapayZe
     /// <summary>Belgenin kural ve hafızayla tanınmayan, önerisi olmayan bekleyen TL satırlarından istek. Para birimi okunamayan satır da sorulur
     /// (uygulama onu TL sayıp seçtirir; kart ekstrelerinde çoğu satır böyledir); dövizli satır sorulmaz. Tür için tarih ve kesin tutar gerekmez:
     /// tutarı okunamayan satırın aralığı "?" gider.</summary>
-    internal static Hazirlik Hazirla(KasaDbContext db, EkstreBelgeEntity belge)
+    /// <param name="yalnizSorulmamis">Daha önce sorulmuş (yanıt alamamış) satırlar dışarıda kalır.</param>
+    internal static Hazirlik Hazirla(KasaDbContext db, EkstreBelgeEntity belge, bool yalnizSorulmamis = false)
     {
         var satirlar = Read<EkstreOkunanSatir>(belge.SatirlarJson).ToDictionary(r => r.No);
-        var acik = EkstreKuralServisi.Oneriler(db, belge).Where(o => o.Durum == "Yok").Select(o => satirlar[o.SatirNo])
+        // Öneri gelmemiş satır yeniden sorulabilir ama hiç sorulmamışlardan sonra; yoksa kalan satırlara hiç sıra gelmezdi (Codex incelemesi, EmarKasa#65).
+        var sorulmus = db.YapayZekaOneriler.AsNoTracking().Where(o => o.BelgeId == belge.Id).ToDictionary(o => o.SatirNo, o => o.CagriId);
+        var acik = EkstreKuralServisi.Oneriler(db, belge).Where(o => o.Durum == "Yok" && !(yalnizSorulmamis && sorulmus.ContainsKey(o.SatirNo))).Select(o => satirlar[o.SatirNo])
             .Where(r => r.ParaBirimi is "TRY" or "TL" or "Belirsiz" && r.Tutar is null or > 0).ToList();
         var maske = new YapayZekaMaskesi();
         var kanallar = Kanallar(db, maske);
         var ornekler = Ornekler(Kararlar(db, belge.Kaynak).Take(YapayZekaAyarlari.EnCokOrnek), maske);
         var ornekYerTutuculari = ornekler.SelectMany(o => YerTutucu().Matches(o).Select(m => m.Value)).ToHashSet(StringComparer.Ordinal);
-        // Öneri gelmemiş satır yeniden sorulabilir ama hiç sorulmamışlardan sonra; yoksa kalan satırlara hiç sıra gelmezdi (Codex incelemesi, EmarKasa#65).
-        var sorulmus = db.YapayZekaOneriler.AsNoTracking().Where(o => o.BelgeId == belge.Id).ToDictionary(o => o.SatirNo, o => o.CagriId);
         var gruplar = acik.Select(r => (Satir: r, Metin: maske.Maskele(r.Aciklama), Aralik: YapayZekaMaskesi.TutarAraligi(r.Tutar)))
             // Hiç açık sözcüğü olmayan ve örneklerde geçmeyen satır modele bir şey söylemez.
             .Where(x => x.Metin.Metin.Split(' ').Any(s => s.Any(char.IsLetter) || ornekYerTutuculari.Contains(s)))

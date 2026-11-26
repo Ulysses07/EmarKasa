@@ -197,6 +197,45 @@ public class YapayZekaTests
         Assert.Contains("sorulacak satır yok", (await SorHata(c, yeni.Id)).Hata);
     }
 
+    /// <summary>Kendiliğinden doldurma yalnız hiç sorulmamış satırları sorar (docs/specs/2026-11-26-ekstre-hareket-penceresi.md §3): yanıt alamamış
+    /// satır pencere her açıldığında yeniden ücretlendirilmez; bayraksız istek onu yine sorar.</summary>
+    [Fact]
+    public async Task Yalniz_sorulmamis_istegi_yanitsiz_satiri_yeniden_sormaz()
+    {
+        await using var f = Ac();
+        using var c = await Editor(f);
+        var d = await Banka(c, S(G(3), "KARGO ODEMESI", -120), S(G(3), "ELEKTRIK FATURASI", -900));
+        f.Istemci.Yanitlari(Y(1, "Gider", "Genel"));
+        Assert.Equal((2, 1), ((await Sor(c, d.Id)).Sorulan, (await Oneriler(c, d.Id)).Count(o => o.Durum == YapayZekaDurumlari.Oneri)));
+        Assert.Single(f.Istemci.Istekler);
+
+        var (kod, hata) = await Hata(c, $"/api/ekstre-aktar/{d.Id}/yapay-zeka", new YapayZekaSorYaz(Guid.NewGuid(), YalnizSorulmamis: true));
+        Assert.Equal(HttpStatusCode.Conflict, kod);
+        Assert.Contains("sorulacak satır yok", hata);
+        Assert.Single(f.Istemci.Istekler);
+        var onizleme = (await c.GetFromJsonAsync<YapayZekaOnizlemeDto>($"/api/ekstre-aktar/{d.Id}/yapay-zeka?yalnizSorulmamis=true", Ct))!;
+        Assert.Equal((0, 0), (onizleme.SatirSayisi, onizleme.KalanSatir));
+
+        // Bayraksız istek yanıt alamamış satırı yine sorar.
+        f.Istemci.Yanitlari(Y(2, "Gider", "Genel"));
+        Assert.Equal(1, (await Sor(c, d.Id)).Sorulan);
+        Assert.Equal(2, f.Istemci.Istekler.Count);
+    }
+
+    /// <summary>Yeniden okunan belgenin önerileri silinir: satırlar yeniden "hiç sorulmamış" olur ve kendiliğinden doldurma bir kez daha sorar.</summary>
+    [Fact]
+    public async Task Yeniden_okunan_belgede_satirlar_yeniden_sorulur()
+    {
+        await using var f = Ac();
+        using var c = await Editor(f);
+        var d = await Banka(c, S(G(3), "KARGO ODEMESI", -120), S(G(3), "ELEKTRIK FATURASI", -900));
+        f.Istemci.Yanitlari(Y(1, "Gider", "Genel"), Y(2, "Gider", "Genel"));
+        Assert.Equal(2, (await Sor(c, d.Id)).Sorulan);
+        d = await Post<EkstreBelgeDto>(c, $"/api/ekstre-aktar/{d.Id}/yeniden-oku", new EkstreYenidenOkuYaz(Guid.NewGuid(), d.Surum));
+        var sonuc = await Post<YapayZekaSonucDto>(c, $"/api/ekstre-aktar/{d.Id}/yapay-zeka", new YapayZekaSorYaz(Guid.NewGuid(), YalnizSorulmamis: true));
+        Assert.Equal(2, sonuc.Sorulan);
+    }
+
     [Fact]
     public async Task Bir_cagrida_en_cok_60_farkli_satir_sorulur_kalani_sonrakine_kalir()
     {
