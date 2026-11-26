@@ -32,8 +32,8 @@
                 </Border.Triggers>
                 <VerticalStackLayout Spacing="0">
                     <ctl:UyumluIzgara Padding="18,16,18,12" ColumnDefinitions="*,Auto" RowSpacing="8">
-                        <Label Text="DÖNEM" Style="{StaticResource LblSection}" />
-                        <Label Grid.Column="1" Text="KASA SONUCU" Style="{StaticResource LblSection}" />
+                        <Label Text="Dönem" Style="{StaticResource LblRowSecondary}" />
+                        <Label Grid.Column="1" Text="Kasa sonucu" Style="{StaticResource LblRowSecondary}" />
                     </ctl:UyumluIzgara>
                     <CollectionView ItemsSource="{Binding Donemler}" SelectionMode="None">
                         <CollectionView.ItemTemplate>
@@ -43,12 +43,8 @@
                                     <!-- Yalnız dağılım bekleyen tutar sıfırdan farklıyken; metin satır modelinde (Bicim.Tl). -->
                                     <Label Text="{Binding DagilimBekleyenMetni}" IsVisible="{Binding DagilimBekliyor}" TextColor="{StaticResource UyariMetin}" FontSize="12" Margin="18,5,18,0" />
                                     <ctl:UyumluIzgara Padding="18,0" MinimumHeightRequest="54"
-                                          ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12" DarSutunlar="Auto,*" RowSpacing="8">
-                                        <Border Style="{StaticResource DateChip}" VerticalOptions="Center">
-                                            <Label Text="{Binding Donem.Start, StringFormat='{0:dd MMM}'}"
-                                                   Style="{StaticResource LblDateChip}" />
-                                        </Border>
-                                        <VerticalStackLayout Grid.Column="1" ctl:UyumluIzgara.DarSatir="0" ctl:UyumluIzgara.DarSutun="1" Spacing="2" VerticalOptions="Center">
+                                          ColumnDefinitions="*,Auto" ColumnSpacing="12" DarSutunlar="*" RowSpacing="8">
+                                        <VerticalStackLayout ctl:UyumluIzgara.DarSatir="0" Spacing="2" VerticalOptions="Center">
                                             <Label Style="{StaticResource LblRowPrimary}">
                                                 <Label.FormattedText>
                                                     <FormattedString>
@@ -68,7 +64,7 @@
                                                 </Label.FormattedText>
                                             </Label>
                                         </VerticalStackLayout>
-                                        <Label Grid.Column="2" ctl:UyumluIzgara.DarSatir="1" ctl:UyumluIzgara.DarSutun="1"
+                                        <Label Grid.Column="1" ctl:UyumluIzgara.DarSatir="1"
                                                Text="{Binding KasaSonucu, Converter={StaticResource ParaBicim}}"
                                                Style="{StaticResource LblMoney}"
                                                TextColor="{Binding KasaSonucu, Converter={StaticResource ParaRenk}}"

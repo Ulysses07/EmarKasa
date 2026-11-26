@@ -128,5 +128,6 @@ public partial class PanelViewModel : RaporViewModel
 
 public record KanalKasaSatiri(string Kanal, decimal Bakiye, int? KanalId, decimal? KartBorcu = null)
 {
-    public string KartBorcuMetni => KartBorcu is { } borc ? $"Kalan kart borcu {Bicim.Tl(borc)} ₺" : "Kart borcu bilgisi alınmadı.";
+    /// <summary>Kanal satırının alt satırı: sıfır borçta boştur (satır gizlenir), borç bilinmiyorsa söyler.</summary>
+    public string KartBorcuMetni => KartBorcu switch { null => "Kart borcu bilgisi alınmadı.", 0 => "", var borc => $"Kalan kart borcu {Bicim.Tl(borc.Value)} ₺" };
 }

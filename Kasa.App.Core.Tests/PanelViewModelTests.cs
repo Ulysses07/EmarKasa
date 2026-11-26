@@ -19,6 +19,15 @@ public class PanelViewModelTests
         Assert.Single(vm.Kanallar);
         Assert.Equal("MEZAT", vm.Kanallar[0].Kanal);
     }
+    /// <summary>Kanal satırının kart borcu alt satırı sıfırken boştur (satır gizlenir); bilinmiyorsa söyler.</summary>
+    [Fact]
+    public void Kanal_satirinin_sifir_kart_borcu_yazilmaz()
+    {
+        Assert.Equal("", new KanalKasaSatiri("MEZAT", 10m, 1, 0m).KartBorcuMetni);
+        Assert.Equal("Kalan kart borcu 1.500,00 ₺", new KanalKasaSatiri("MEZAT", 10m, 1, 1500m).KartBorcuMetni);
+        Assert.Equal("Kart borcu bilgisi alınmadı.", new KanalKasaSatiri("MEZAT", 10m, 1).KartBorcuMetni);
+    }
+
     /// <summary>Eksi genel kasa özet kutusunda ayrı renkle işaretlenir (docs/specs/2026-11-26-slop-temizligi.md §4).</summary>
     [Fact]
     public async Task Eksi_genel_kasa_isaretlenir()

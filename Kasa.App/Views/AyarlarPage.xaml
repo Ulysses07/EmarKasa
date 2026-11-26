@@ -27,7 +27,7 @@
                 <!-- Genel ayar -->
                 <Border Style="{StaticResource CardForm}">
                     <VerticalStackLayout Spacing="12">
-                        <Label Text="GENEL AYAR" Style="{StaticResource LblSection}" />
+                        <Label Text="Genel ayar" Style="{StaticResource LblSection}" />
                         <VerticalStackLayout Spacing="0">
                             <Label Text="Takip başlangıcı" Style="{StaticResource LblField}" />
                             <Border Style="{StaticResource FieldBorder}">
@@ -53,8 +53,8 @@
                         Grid.Column="{OnIdiom Desktop=1, Default=0}"
                         Grid.Row="{OnIdiom Desktop=0, Default=1}">
                     <VerticalStackLayout Spacing="12">
-                        <Label Text="İZLEYİCİ ŞİFRESİ" Style="{StaticResource LblSection}" />
-                        <Label Text="İzleyici bu şifreyle salt-okunur girer; formlar ve Ayarlar gizlenir."
+                        <Label Text="İzleyici şifresi" Style="{StaticResource LblSection}" />
+                        <Label Text="İzleyici bu şifreyle yalnız görüntüler."
                                Style="{StaticResource LblPageSub}" />
                         <!-- Kayıtlı şifrenin kurala uymadığı bir izleyici girişinde görüldüyse sunucu bildirir. -->
                         <Label Text="{Binding IzleyiciSifreUyarisi}" Style="{StaticResource LblError}"
@@ -64,8 +64,6 @@
                             <Border Style="{StaticResource FieldBorder}">
                                 <Entry Text="{Binding YeniIzleyiciSifre}" IsPassword="True" Placeholder="En az 12 karakter" />
                             </Border>
-                            <Label Text="En az 12 karakter kullanın."
-                                   Style="{StaticResource LblPageSub}" Margin="0,6,0,0" />
                         </VerticalStackLayout>
                         <Button Text="Şifreyi kaydet" Command="{Binding IzleyiciSifreKaydetCommand}"
                                 HorizontalOptions="Start" />
@@ -81,10 +79,9 @@
             <Border Style="{StaticResource Card}">
                 <VerticalStackLayout Spacing="0">
                     <VerticalStackLayout x:Name="KanalFormu" Padding="18,18,18,0" Spacing="12">
-                        <Label Text="KANALLAR" Style="{StaticResource LblSection}" />
+                        <Label Text="Kanallar" Style="{StaticResource LblSection}" />
                         <!-- Kanal ve dönem kilidi (web kanal diyaloğu ile aynı kural): tamamlanmış ayların kanal kümesi dondurulur. -->
-                        <Label Text="Ortak giderler aylık raporda o ayın aktif kanallarına sıralarına göre bölünür. Tamamlanmış ayların kanal kümesi dondurulur: kanal eklemek, pasife almak ya da sırasını değiştirmek yalnız içinde bulunulan ve sonraki ayların Ortak dağılımını etkiler, tamamlanmış ayların raporu değişmez; bu değişiklikler ay kilidi varken de yapılabilir. Açılış devri takip başlangıcından itibaren kanal bakiyesini değiştirir; ay kilidi varken değiştirilemez. Geçmiş kaydı olan ya da tamamlanmış bir ayın kanal kümesinde yer alan kanal silinemez; silmek yerine pasife alın."
-                               Style="{StaticResource LblPageSub}" />
+                        <ctl:Ayrinti Metin="Ortak giderler aylık raporda o ayın aktif kanallarına sıralarına göre bölünür. Tamamlanmış ayların kanal kümesi dondurulur: kanal eklemek, pasife almak ya da sırasını değiştirmek yalnız içinde bulunulan ve sonraki ayların Ortak dağılımını etkiler, tamamlanmış ayların raporu değişmez; bu değişiklikler ay kilidi varken de yapılabilir. Açılış devri takip başlangıcından itibaren kanal bakiyesini değiştirir; ay kilidi varken değiştirilemez. Geçmiş kaydı olan ya da tamamlanmış bir ayın kanal kümesinde yer alan kanal silinemez; silmek yerine pasife alın." />
                         <!-- Kanal formunun genel hatası formun en üstünde, alan hataları alanın altında (tasarım 2026-10-02 §1). -->
                         <Border x:Name="KanalHataKutusu" Style="{StaticResource ErrorBox}"
                                 IsVisible="{Binding KanalHatalari.Genel, Converter={StaticResource DoluIse}}">
@@ -140,20 +137,10 @@
                                 <VerticalStackLayout>
                                     <BoxView Style="{StaticResource RowSeparator}" />
                                     <ctl:UyumluIzgara Padding="18,0" MinimumHeightRequest="52"
-                                          ColumnDefinitions="Auto,*,Auto" DarSutunlar="Auto,*" ColumnSpacing="12" RowSpacing="8">
-                                        <Border WidthRequest="24" HeightRequest="24" StrokeThickness="1"
-                                                Stroke="{StaticResource BrushDateChipBorder}"
-                                                StrokeShape="RoundRectangle 7" VerticalOptions="Center">
-                                            <Border.Background>
-                                                <SolidColorBrush Color="{StaticResource DateChipBg}" />
-                                            </Border.Background>
-                                            <Label Text="{Binding Sira}" FontAttributes="Bold" FontSize="12"
-                                                   TextColor="{StaticResource Sub}"
-                                                   HorizontalOptions="Center" VerticalOptions="Center" />
-                                        </Border>
-                                        <Label Grid.Column="1" ctl:UyumluIzgara.DarSatir="0" ctl:UyumluIzgara.DarSutun="1" Text="{Binding Ad}"
+                                          ColumnDefinitions="*,Auto" DarSutunlar="*" ColumnSpacing="12" RowSpacing="8">
+                                        <Label ctl:UyumluIzgara.DarSatir="0" Text="{Binding Ad}"
                                                Style="{StaticResource LblRowPrimary}" VerticalOptions="Center" />
-                                        <HorizontalStackLayout Grid.Column="2" ctl:UyumluIzgara.DarSatir="1" ctl:UyumluIzgara.DarSutun="1" Spacing="6" VerticalOptions="Center">
+                                        <HorizontalStackLayout Grid.Column="1" ctl:UyumluIzgara.DarSatir="1" Spacing="6" VerticalOptions="Center">
                                             <Button Text="Düzenle" Style="{StaticResource BtnRowEdit}"
                                                     Command="{Binding BindingContext.KanalDuzenleCommand, Source={x:Reference Sayfa}}"
                                                     CommandParameter="{Binding .}" />

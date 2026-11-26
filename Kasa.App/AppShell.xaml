@@ -27,8 +27,8 @@
             </Border>
             <Label Grid.Column="1" Text="Emar Kasa" FontAttributes="Bold" FontSize="15.5"
                    TextColor="{StaticResource SidebarTitle}" />
-            <Label Grid.Column="1" Grid.Row="1" Text="KASA DEFTERİ" FontSize="10.5"
-                   CharacterSpacing="1" TextColor="{StaticResource SidebarMuted}" />
+            <Label Grid.Column="1" Grid.Row="1" Text="Kasa defteri" FontSize="12"
+                   TextColor="{StaticResource SidebarMuted}" />
         </Grid>
     </Shell.FlyoutHeader>
 

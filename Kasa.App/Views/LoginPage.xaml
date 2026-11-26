@@ -29,7 +29,7 @@
             </Border>
             <Label Text="Emar Kasa" FontAttributes="Bold" FontSize="24"
                    TextColor="{StaticResource Ink}" HorizontalTextAlignment="Center" Margin="0,14,0,0" />
-            <Label Text="Kasa defteri · nakit akışı takibi" Style="{StaticResource LblPageSub}"
+            <Label Text="Kasa defteri" Style="{StaticResource LblPageSub}"
                    FontSize="13" HorizontalTextAlignment="Center" Margin="0,4,0,0" />
 
             <!-- Giriş kartı -->
@@ -69,7 +69,7 @@
                             IsEnabled="{Binding Mesgul, Converter={StaticResource TersIse}}" />
                     <Button Text="Şifremi unuttum" Command="{Binding KurtarmayiAcKapatCommand}" Style="{StaticResource BtnSecondary}" Margin="0,10,0,0" />
                     <VerticalStackLayout IsVisible="{Binding KurtarmaAcik}" Spacing="10" Margin="0,14,0,0">
-                        <Label Text="Editör hesabınızın daha önce oluşturduğunuz tek kullanımlık kurtarma kodunu girin. Alıcı hesabı için editörünüzle görüşün." Style="{StaticResource LblPageSub}" />
+                        <Label Text="Daha önce oluşturduğunuz kurtarma kodunu girin." Style="{StaticResource LblPageSub}" />
                         <Border Style="{StaticResource FieldBorder}">
                             <Entry Text="{Binding KurtarmaKodu}" Placeholder="Kurtarma kodu" IsPassword="True"
                                    SemanticProperties.Description="Kurtarma kodu" />
@@ -77,15 +77,15 @@
                         <!-- "Yeni şifreyi göster" yalnız yeni şifre alanlarını açar (kurtarma kodu maskeli kalır); durum görünüm
                              modelindedir, form kapanınca, başarıda ve oturum değişiminde kapanır. -->
                         <Border Style="{StaticResource FieldBorder}">
-                            <Entry Text="{Binding KurtarmaYeniSifre}" Placeholder="Yeni şifre (en az 12 karakter)"
+                            <Entry Text="{Binding KurtarmaYeniSifre}" Placeholder="Yeni şifre, en az 12 karakter"
                                    IsPassword="{Binding KurtarmaSifresiniGoster, Converter={StaticResource TersIse}}"
-                                   SemanticProperties.Description="Yeni şifre (en az 12 karakter)" />
+                                   SemanticProperties.Description="Yeni şifre, en az 12 karakter" />
                         </Border>
                         <!-- Kurtarma kodu tek kullanımlık: tekrar uyuşmazsa istek gönderilmez, kod harcanmaz. -->
                         <Border Style="{StaticResource FieldBorder}">
-                            <Entry Text="{Binding KurtarmaYeniSifreTekrar}" Placeholder="Yeni şifre (tekrar)"
+                            <Entry Text="{Binding KurtarmaYeniSifreTekrar}" Placeholder="Yeni şifre tekrar"
                                    IsPassword="{Binding KurtarmaSifresiniGoster, Converter={StaticResource TersIse}}"
-                                   SemanticProperties.Description="Yeni şifre (tekrar)" />
+                                   SemanticProperties.Description="Yeni şifre tekrar" />
                         </Border>
                         <Grid ColumnDefinitions="Auto,*" ColumnSpacing="6">
                             <CheckBox IsChecked="{Binding KurtarmaSifresiniGoster}" SemanticProperties.Description="Yeni şifreyi göster" />
@@ -105,7 +105,7 @@
                 </VerticalStackLayout>
             </Border>
 
-            <Label Text="Alıcılar kendilerine verilen hesapla giriş yapar. İzleyici girişi için kullanıcı adını boş bırakın."
+            <Label Text="İzleyici girişi için kullanıcı adını boş bırakın."
                    Style="{StaticResource LblRowSecondary}" FontSize="12"
                    HorizontalTextAlignment="Center" Margin="0,16,0,0" />
             <Button Text="Uygulama güncellemeleri" Clicked="GuncellemelerTiklandi" Style="{StaticResource BtnSecondary}"
