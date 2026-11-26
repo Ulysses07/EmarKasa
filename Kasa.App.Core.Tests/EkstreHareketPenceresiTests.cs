@@ -103,6 +103,24 @@ public partial class EkstreAktarmaTests
         Assert.Same(vm.Satirlar[1], Assert.Single(vm.Gorunenler));
     }
 
+    /// <summary>Belge açılınca (geçmişten, yüklemeyle, kaynağa gitmeyle) pencere istenir; sayfa yenilemesi istemez.</summary>
+    [Fact]
+    public async Task Belge_acilinca_pencere_istenir_yenilemede_istenmez()
+    {
+        var (vm, _, _) = await Hazir(new() { Veri = DurumBelgesi(Satir(1)) });
+        var istek = 0;
+        vm.PencereAcIstendi += (_, _) => istek++;
+        await vm.BelgeAcAsync(1);
+        Assert.Equal(1, istek);
+        await vm.YukleAsync();
+        Assert.Equal(1, istek);
+        vm.Kaynak = vm.Kaynaklar.Single(k => k.Kod == "Banka");
+        vm.Banka = vm.Bankalar[0];
+        vm.HesapAdi = "Ana hesap";
+        await vm.PdfYukleAsync([1], "a.pdf", vm.YuklemeSecimi()!);
+        Assert.Equal(2, istek);
+    }
+
     [Fact]
     public async Task Pencere_basligi_belgeyi_tek_satirda_soyler_uyarilar_ayri()
     {

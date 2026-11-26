@@ -15,7 +15,7 @@ public sealed partial class EkstreHareketPenceresi : ContentPage
     private static Style Stil(string anahtar) => (Style)Application.Current!.Resources[anahtar];
     private static Color Renk(string anahtar) => (Color)Application.Current!.Resources[anahtar];
 
-    private EkstreHareketPenceresi(EkstreAktarmaViewModel vm, EkstreAktarmaPage sayfa)
+    internal EkstreHareketPenceresi(EkstreAktarmaViewModel vm, EkstreAktarmaPage sayfa)
     {
         _vm = vm;
         _sayfa = sayfa;

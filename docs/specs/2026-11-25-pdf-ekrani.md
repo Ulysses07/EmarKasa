@@ -22,6 +22,10 @@ sunucu iletisi satır numarası taşımıyor, bazı durumlarda hiçbir şey yaz�
 
 ## 2. Bekleyen / Kapanan
 
+> **26.11.2026:** Masaüstünde hareketler artık [hareket penceresinde](2026-11-26-ekstre-hareket-penceresi.md) incelenir: Bekleyen/Kapanan sekmeleri yerine
+> Tümü · Hazır · Kontrol edin · Kapanan süzgeçleri, satır formu sağ panelde, etki ve kayıt alttaki "Etkisini göster ve kaydet" ile. Aşağıdaki kurallar
+> (etki, yok sayma, giriş/çıkış) aynen geçerlidir.
+
 - Satır **kapalıdır**: iptal edilmemiş kaydı (eşleştirme dahil) varsa ya da yok sayıldıysa. Diğerleri bekler.
 - Belgede "Bekleyen (n)" ve "Kapanan (n)" sekmeleri; geçmiş listesinde "n bekliyor · n kapandı".
 - Kapanan satırda sonucu (kayıt, eşleşme, yok sayıldı) ve düğmesi görünür: kaydı gerekçeyle iptal et ya da yok saymayı geri al.

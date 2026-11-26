@@ -47,6 +47,8 @@ public partial class EkstreAktarmaViewModel(IEkstreAktarmaApi api, IKasaApi fina
     public bool OnizlemeVar => _onizleme is not null;
     public bool TekrarOnayGerekli => _onizleme?.TekrarOnayGerekli ?? false;
     public string BelgeOzeti => Belge is { } b ? $"{b.DosyaAdi} · {EkstreGecmisSatiri.Kimlik(b.Banka, b.Kaynak, b.KartId is { } id ? (Kartlar.FirstOrDefault(k => k.Id == id)?.Ad ?? "Kart") + $" (#{id})" : b.HesapAdi)}\n{b.Satirlar.Count} satır; {Satirlar.Count(s => s.Secili)} seçildi. Hiçbir satır kendiliğinden kaydedilmez.\n" + string.Join("\n", b.Uyarilar) : "";
+    /// <summary>Belge incelemeye açıldı (geçmişten, yüklemeyle ya da kaynağa gitmeyle): sayfa hareket penceresini açar. Yenileme istemez.</summary>
+    public event EventHandler? PencereAcIstendi;
     /// <summary>Hareket penceresinin başlığı (dosya adı) ve tek satırlık alt bilgisi; belge uyarıları ⋯ menüsündedir.</summary>
     public string PencereBasligi => Belge?.DosyaAdi ?? "";
     public string PencereAltBilgisi => Belge is { } b ? $"{BelgeKimligi(b)} · {b.Satirlar.Count} hareket" : "";
@@ -231,6 +233,7 @@ public partial class EkstreAktarmaViewModel(IEkstreAktarmaApi api, IKasaApi fina
             return;
         BelgeyiYansit(b);
         Tamamlandi();
+        PencereAcIstendi?.Invoke(this, EventArgs.Empty);
         await KurallariAlAsync(n);
         await YapayZekaDoldurAsync(n);
         if (!Gecerli(n))
@@ -265,6 +268,7 @@ public partial class EkstreAktarmaViewModel(IEkstreAktarmaApi api, IKasaApi fina
         if (!Gecerli(n))
             return;
         BelgeyiYansit(b, koru: true);
+        PencereAcIstendi?.Invoke(this, EventArgs.Empty);
         await KurallariAlAsync(n);
         await YapayZekaDoldurAsync(n);
     });
@@ -279,6 +283,7 @@ public partial class EkstreAktarmaViewModel(IEkstreAktarmaApi api, IKasaApi fina
         BelgeyiYansit(b, koru: true);
         // Aranan kayıt (ya da iptali) Kapanan sekmesindedir.
         SeciliSekme = EkstreSekmesi.Kapanan;
+        PencereAcIstendi?.Invoke(this, EventArgs.Empty);
         await KurallariAlAsync(n);
         await YapayZekaDoldurAsync(n);
         if (Gecerli(n) && Kapananlar.FirstOrDefault(s => s.Kayit?.Veri.Id == kayitId) is { } satir)

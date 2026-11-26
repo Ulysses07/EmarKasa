@@ -63,7 +63,7 @@ public sealed partial class EkstreHareketPenceresi
         (_panelBasligi.Text, _panelIcerigi.Content) = kip switch
         {
             PanelKipi.Satir when satir is not null => ($"Satır {satir.Kaynak.No}", satir.Kapali ? KapananSatirFormu(satir) : SatirFormu(satir)),
-            PanelKipi.Toplu => ("Toplu tür / kanal", _toplu ??= EkstreAktarmaPage.TopluBolum(_vm)),
+            PanelKipi.Toplu => ("Toplu tür / kanal", _toplu ??= TopluBolum()),
             PanelKipi.KayitOzeti => ("Kayıt özeti", _kayitOzeti ??= KayitOzeti()),
             _ => ("", null),
         };
@@ -183,7 +183,7 @@ public sealed partial class EkstreHareketPenceresi
             Children =
             {
                 kaynak, Bagli(nameof(s.Uyarilar)), Bagli(nameof(s.OneriMetni)), eylemler, Dolu(Etiket("LblTakipMesaj"), nameof(s.FormMesaji)),
-                EkstreAktarmaPage.SatirAlanlari(Alan("Tarih (yıl-ay-gün)", Girdi(nameof(s.TarihMetni))), Alan("Tutar (pozitif TL)", Girdi(nameof(s.TutarMetni)))),
+                SatirAlanlari(Alan("Tarih (yıl-ay-gün)", Girdi(nameof(s.TarihMetni))), Alan("Tutar (pozitif TL)", Girdi(nameof(s.TutarMetni)))),
                 Alan("Açıklama", Girdi(nameof(s.Aciklama))),
                 Alan("İşlem türü", Secim(nameof(s.IslemTurleri), nameof(s.IslemTuru))),
                 Goster(Alan("Kanal dağılımı", Secim(nameof(s.DagilimTurleri), nameof(s.DagilimTuru))), nameof(s.DagilimGorunur)),
@@ -209,6 +209,43 @@ public sealed partial class EkstreHareketPenceresi
         };
         icerik.BindingContext = s;
         return icerik;
+    }
+
+    /// <summary>İşaretli satırlara toplu tür ve kanal dağılımı: doldurur, kaydetmez.</summary>
+    private View TopluBolum() => new VerticalStackLayout
+    {
+        Spacing = 8,
+        Children =
+        {
+            Metin("İşaretli satırların türünü ve kanal dağılımını doldurur; kaydetmez."),
+            Alan("Toplu işlem türü", Secim(nameof(_vm.TopluTurler), nameof(_vm.TopluTur))),
+            Alan("Toplu kanal dağılımı", Secim(nameof(_vm.TopluDagilimlar), nameof(_vm.TopluDagilim))),
+            Goster(KanalSecimleri(nameof(_vm.TopluKanallar)), nameof(_vm.TopluKanalGorunur)),
+            Dugme("Seçilenlere uygula", nameof(_vm.TopluUygulaCommand)),
+            Dolu(Etiket("LblTakipMesaj"), nameof(_vm.TopluMesaji)), Dolu(Etiket("LblTakipHata"), nameof(_vm.TopluHatasi)),
+        }
+    };
+
+    /// <summary>İki alan: panel genişse yan yana, darsa alt alta.</summary>
+    private static Grid SatirAlanlari(View sol, View sag)
+    {
+        var grid = new Grid { ColumnSpacing = 12, RowSpacing = 8, ColumnDefinitions = { new(GridLength.Star) }, RowDefinitions = { new(GridLength.Auto), new(GridLength.Auto) } };
+        grid.Add(sol);
+        grid.Add(sag, 0, 1);
+        grid.SizeChanged += (_, _) =>
+        {
+            var genis = grid.Width >= 540;
+            if (grid.ColumnDefinitions.Count != (genis ? 2 : 1))
+            {
+                if (genis)
+                    grid.ColumnDefinitions.Add(new(GridLength.Star));
+                else
+                    grid.ColumnDefinitions.RemoveAt(1);
+            }
+            Grid.SetColumn(sag, genis ? 1 : 0);
+            Grid.SetRow(sag, genis ? 0 : 1);
+        };
+        return grid;
     }
 
     private Task SatirHafizasiniUnutAsync(EkstreSatirEditor s) => _vm.Belge is { } belge && s.Oneri?.Hafiza is { } hafiza

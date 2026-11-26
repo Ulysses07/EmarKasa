@@ -66,6 +66,8 @@ da silinmiş; kanal tutarları satıra özeldi; kart takipte değil; iade kayna�
 ## Ekran (Windows ve iPhone)
 
 - Satır özetinin altında hafıza notu. Satır düzenleyicisinde not ve "Bu hafızayı unut".
+- **26.11.2026:** "Hazırları işaretle" düğmesi kalktı; hazır satırlar [hareket penceresinde](2026-11-26-ekstre-hareket-penceresi.md) kendiliğinden işaretli gelir
+  (kullanıcının kaldırdığı işaret ve elle değiştirdiği satır yeniden işaretlenmez). Aşağıdaki kutu tarifi eski ekrana aittir.
 - "Hazır öneriler" kutusu (Bekleyen): `12 satır · Giriş + 1.500,00 ₺ (3 satır) · Çıkış − 8.250,00 ₺ (9 satır)`; "Hazırları işaretle ve etkisini
   göster". Kişisel kural önerileri de buraya girer. "Daha önce yok sayılanları yok say (4)" ayrı düğmedir ve onay ister.
 - Elle değiştirilmiş satır hafızadan ezilmez.
