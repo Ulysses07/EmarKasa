@@ -65,6 +65,12 @@ sunucu iletisi satır numarası taşımıyor, bazı durumlarda hiçbir şey yaz�
   havale/EFT'nin açıklaması karşı tarafındır: yalnız işlemin kendi masrafı ("EFT ücreti", "havale komisyonu") yön verir. "Maaş", "çek tahsilatı", "POS satışı", yalın "faiz",
   müşterinin de yazabileceği "fatura ödemesi" ve iade/iptal geçen satırlar iki anlamlıdır, belirsiz kalır. İki yöne de uyan açıklama
   belirsizdir.
+- **Bölünmüş açıklama:** bazı bankalar (QNB hesap hareketi) açıklama hücresini tarih satırına göre dikey ortalar; iki satırlık açıklamanın
+  biri tarih satırının üstüne, biri altına düşer ve tarih satırında açıklama kolonu boş kalır. Sayfanın tablo başlığından sonraki tarihsiz,
+  tutarsız metin satırları (sayfa numarası hariç) her harekete üstte ve altta eşit sayıda düşecek biçimde paylaştırılır. Bu paylaşım iki
+  koşulla uygulanır: satır alan hareketler tam olarak açıklama kolonu boş olanlardır ve son metin satırları son harekete tam yeter. Açıklama
+  "sol kolonlar + üst satırlar + alt satırlar" olur, kaynak satırı da PDF sırasıyla gösterilir. Tutar ve bakiye yalnız tarih satırından okunur.
+  Paylaşım tutmayan sayfaya (aşağı taşan açıklama, sayfa altı notu, satırlara bölünmüş hareket) dokunulmaz ve belge uyarısı sayfa sayısını söyler.
 - **Atlanan satırlar:** tutar içerdiği hâlde harekete alınmayan satırlar nedeniyle saklanır (en çok 300) ve belgede açılıp görülür.
 - **PDF'yi yeniden oku:** yalnız hiç kaydı (iptal edilmişler dahil) ve yok sayılan satırı olmayan belgede; saklanan PDF yeniden okunur.
   Eski belgeler kendiliğinden değişmez.

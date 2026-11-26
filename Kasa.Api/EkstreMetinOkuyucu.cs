@@ -65,7 +65,16 @@ public static class EkstreMetinOkuyucu
     // UnreadSign: tutarın yanında okunamayan bir eksi/parantez işareti var ("-₺500,00", "(300,00)"); bakiye olarak kullanılmaz.
     private sealed record Token(decimal Value, int Start, int End, string Direction, bool ExplicitSign, bool UnreadSign);
     // InstallmentColumn: tablo başlığındaki "Taksit" kolonunun başlangıcı (yoksa null).
-    private sealed record Segment(string Raw, List<Column> Columns, int Page, int? InstallmentColumn, string? SectionCurrency);
+    // Line: hareketin sayfadaki ilk satırı. Above/Below: tarih satırının üstüne ve altına düşmüş açıklama satırları (CenteredDescriptions).
+    private sealed record Segment(string Raw, List<Column> Columns, int Page, int? InstallmentColumn, string? SectionCurrency, int Line = 0,
+        IReadOnlyList<string>? Above = null, IReadOnlyList<string>? Below = null)
+    {
+        /// <summary>Hareketin PDF sırasıyla bütün metni (kaynak satırı için); tutar ve bakiye yalnız <see cref="Raw"/>'dan okunur.</summary>
+        public string Text => Above is null ? Raw : string.Join('\n', [.. Above, Raw, .. Below!]);
+        /// <summary>Sınıflandırma ve yön için metin: üst ve alt satırlar birleşik okunur ("KENDI HESAPLAR" + "ARASI AKTARIM"); araya tarih
+        /// satırının kanal ve tutarları girmez (Codex incelemesi, EmarKasa#69).</summary>
+        public string Words => Above is null ? Raw : Raw + " " + string.Join(' ', [.. Above, .. Below!]);
+    }
     // Direction yalnız Borç/Alacak kolonu veya B/A sonekiyle kesinleşir; işaretten okunan yön Sign'da (+1/-1) kalır.
     // UnreadSign: tutarın yanında okunamayan bir işaret var; açıklamadaki sözcük tek başına yön vermez.
     private sealed record Amount(decimal? Value, string Direction, int Sign, int TokenCount, bool UnreadSign = false);
@@ -93,6 +102,7 @@ public static class EkstreMetinOkuyucu
         var summaryCount = 0;
         var skipped = new List<EkstreAtlananSatir>();
         var skippedCount = 0;
+        var centeredPages = 0;
         // Belge sırası: hareketler (segment sırası) ve aralarındaki devir bakiyeleri.
         var balances = new List<BakiyeDugumu>();
         var accounts = new Dictionary<string, string>();
@@ -117,6 +127,8 @@ public static class EkstreMetinOkuyucu
             List<Column> columns = [];
             int? installmentColumn = null;
             var pageStart = segments.Count;
+            // Tablo başlığından sonraki tarihsiz, tutarsız metin satırları (açıklamanın tarih satırına düşmeyen parçaları olabilir).
+            var orphans = new List<int>();
             // Sayfada numarası okunamayan bir hesap başlığı var: önceki sayfanın hesabının sürdüğü bilinmez.
             var unknownAccount = false;
             // Sayfanın ilerleyen bölümündeki döviz başlığı, önceki kodsuz satırları geriye dönük etiketlemez.
@@ -144,10 +156,13 @@ public static class EkstreMetinOkuyucu
                         balances.Add(BakiyeDugumu.Kopma);
                     columns = ColumnsRx.Matches(normalized).Select(m => new Column(m.Value.Contains("BAKIYE") ? "Balance" : m.Value.Contains("ALACAK") ? "Credit" : m.Value.Contains("BORC") ? "Debit" : "Amount", m.Index)).ToList();
                     installmentColumn = normalized.IndexOf("TAKSIT", StringComparison.Ordinal) is var taksit and >= 0 ? taksit : null;
+                    orphans.Clear();
                     continue;
                 }
                 var hasDate = DateRx.Match(line) is { Success: true } dateMatch && dateMatch.Index < 18;
                 var shortDate = ShortDateRx.IsMatch(line);
+                if (!hasDate && !shortDate && !MoneyRx.IsMatch(MaskDates(line)) && !normalized.Contains("SAYFA") && Collapse(normalized).Length > 1)
+                    orphans.Add(index);
                 if (!hasDate && !shortDate && !MoneyRx.IsMatch(MaskDates(line)) && AccountWordRx.IsMatch(normalized))
                 {
                     if (AccountRx.Match(normalized) is { Success: true } account)
@@ -180,6 +195,7 @@ public static class EkstreMetinOkuyucu
                 if (normalized.Contains('%') && !hasDate && !shortDate)
                 { Skip(line, pageIndex + 1, "Oran bilgisi"); continue; }
                 var raw = line;
+                var start = index;
                 // PDF tables sometimes wrap a transaction onto following description/amount lines.
                 for (var continuation = 0; continuation < 2 && index + 1 < lines.Length; continuation++)
                 {
@@ -198,7 +214,7 @@ public static class EkstreMetinOkuyucu
                     if (MoneyRx.IsMatch(next))
                         break;
                 }
-                var segment = new Segment(raw, columns, pageIndex + 1, installmentColumn, sectionCurrency);
+                var segment = new Segment(raw, columns, pageIndex + 1, installmentColumn, sectionCurrency, start);
                 if (unknownAccount && segments.Count > 0)
                     balances.Add(BakiyeDugumu.Kopma);
                 unknownAccount = false;
@@ -207,6 +223,8 @@ public static class EkstreMetinOkuyucu
                 if (segments.Count > 1500)
                     throw new PdfOkumaException("Bir dosyada en fazla 1500 hareket okunabilir. Daha kısa tarih aralığı seçin.");
             }
+            if (CenteredDescriptions(lines, segments, pageStart, orphans))
+                centeredPages++;
         }
         // Kart ekstresinde eksi/artı işaretinin anlamı bankaya göre değişir; satırlar yorumlanmadan önce belgeden çıkarılır.
         var creditSign = kaynak == EkstreKaynaklari.Kart ? CreditSign(segments) : 0;
@@ -222,6 +240,8 @@ public static class EkstreMetinOkuyucu
         }
         var rows = segments.Select((s, i) => Parse(s, kaynak, s.SectionCurrency ?? pageCurrencies[s.Page - 1] ?? documentFallback, i + 1, creditSign,
             chain.Baglar.GetValueOrDefault(i), chain.YalnizTutar.TryGetValue(i, out var only) ? only : null, rejected.GetValueOrDefault(i))).ToList();
+        if (centeredPages > 0)
+            warnings.Add($"{centeredPages} sayfada açıklaması tarih satırının üstüne ve altına bölünmüş hareketler birleştirildi; açıklamaları PDF ile karşılaştırın.");
         if (summaryCount > 0)
             warnings.Add($"{summaryCount} toplam, devir, limit veya ekstre bilgi satırı mali hareket olarak alınmadı.");
         if (skippedCount > 0)
@@ -253,7 +273,7 @@ public static class EkstreMetinOkuyucu
         {
             var read = ReadAmount(segments[index].Raw, segments[index].Columns);
             var written = read.Direction != "Belirsiz" ? read.Direction == "Giris" ? 1 : -1 : read.Sign != 0 ? read.Sign : link.Yazilan.Yon;
-            var normalized = Collapse(Normalize(segments[index].Raw));
+            var normalized = Collapse(Normalize(segments[index].Words));
             var evidence = written != 0 ? written
                 : normalized.Contains("IADE") || normalized.Contains("IPTAL") ? 0
                 : DirectionalTransferRx.Match(normalized) is { Success: true } way ? way.Groups["way"].Value == "GELEN" ? 1 : -1 : 0;
@@ -297,11 +317,55 @@ public static class EkstreMetinOkuyucu
         var day = DateRx.Match(segment.Raw) is { Success: true } date ? date.Value : ShortDateRx.Match(segment.Raw) is { Success: true } shortDate ? shortDate.Value.Trim() : null;
         return new(index, balance?.Value, balance is null ? 0 : BalanceSuffix(balance), amounts, hasColumn, day);
     }
+    /// <summary>
+    /// Açıklama hücresi tarih satırına göre dikey ortalanan tablolar (QNB hesap hareketi): iki satırlık açıklamanın biri tarih satırının üstüne,
+    /// biri altına düşer; tarih satırında açıklama kolonu boş kalır (yalnız kanal gibi sol kolonlar). Sayfanın tarihsiz, tutarsız metin satırları
+    /// her harekete üstte ve altta eşit sayıda düşecek biçimde paylaştırılır. Paylaşım yalnız şu durumda uygulanır: satır alan hareketler tam
+    /// olarak açıklama kolonu boş olanlardır ve sayfanın son metin satırları son harekete tam yeter. Tutmazsa sayfaya dokunulmaz (satırlar eskisi
+    /// gibi atlanır); açıklaması aşağı taşan ya da sayfa altında not olan düzen bu kurala uymaz.
+    /// </summary>
+    private static bool CenteredDescriptions(string[] lines, List<Segment> segments, int pageStart, List<int> orphans)
+    {
+        var rows = Enumerable.Range(pageStart, segments.Count - pageStart).ToList();
+        if (orphans.Count == 0 || rows.Count == 0 || rows.Any(i => segments[i].Raw.Contains('\n')))
+            return false;
+        // Açıklama kolonu metin satırlarının en sol başlangıcıdır; tarih satırında bu kolonda tarih ve tutar dışında yazı yoksa açıklaması boştur.
+        var column = Math.Max(0, orphans.Min(i => lines[i].Length - lines[i].TrimStart().Length) - 2);
+        bool Empty(Segment s) => MoneyRx.Replace(MaskDates(s.Raw), m => new string(' ', m.Length)) is var rest
+            && (rest.Length <= column || string.IsNullOrWhiteSpace(rest[column..]));
+        var gaps = new List<List<int>>();
+        for (var k = 0; k <= rows.Count; k++)
+        {
+            var from = k == 0 ? -1 : segments[rows[k - 1]].Line;
+            var to = k == rows.Count ? int.MaxValue : segments[rows[k]].Line;
+            gaps.Add(orphans.Where(i => i > from && i < to).ToList());
+        }
+        var above = new int[rows.Count];
+        var below = 0;
+        for (var k = 0; k < rows.Count; k++)
+        {
+            above[k] = gaps[k].Count - below;
+            if (above[k] < 0 || above[k] > 0 != Empty(segments[rows[k]]))
+                return false;
+            below = above[k];
+        }
+        if (gaps[^1].Count != below || above.All(a => a == 0))
+            return false;
+        string Clean(int i) => Collapse(lines[i]);
+        for (var k = 0; k < rows.Count; k++)
+            if (above[k] > 0)
+                segments[rows[k]] = segments[rows[k]] with
+                {
+                    Above = gaps[k].Skip(gaps[k].Count - above[k]).Select(Clean).ToList(),
+                    Below = gaps[k + 1].Take(above[k]).Select(Clean).ToList(),
+                };
+        return true;
+    }
     private static int BalanceSuffix(Token t) => t.Direction switch { "B" => -1, "A" => 1, _ => 0 };
 
     private static EkstreOkunanSatir Parse(Segment segment, string source, string documentCurrency, int number, int creditSign, BakiyeBagi? link, BakiyeTutari? onlyAmount, BakiyeBagi? rejected)
     {
-        var (raw, columns, page, installmentColumn, _) = segment;
+        var (raw, columns, page, installmentColumn, _, _, _, _) = segment;
         var warnings = new List<string>();
         var dates = DateRx.Matches(raw);
         var date = FirstDate(dates);
@@ -309,7 +373,7 @@ public static class EkstreMetinOkuyucu
             warnings.Add("İşlem tarihi tam okunamadı; yılıyla birlikte girin.");
         if (dates.Count > 1)
             warnings.Add("Birden fazla tarih var; işlem tarihinin doğru olduğunu kontrol edin.");
-        var normalized = Normalize(raw);
+        var normalized = Normalize(segment.Words);
         var (amount, direction, sign, tokenCount, unreadSign) = ReadAmount(raw, columns);
         // Tutarı okunamayan (tutar + bakiye) satırda bakiyenin doğruladığı tutar, yazıdaki işareti ya da B/A ekiyle alınır.
         if (amount is null && (link?.Yazilan ?? onlyAmount) is { } written)
@@ -388,15 +452,19 @@ public static class EkstreMetinOkuyucu
         if (direction == "Belirsiz")
             warnings.Add("Giriş/çıkış yönü kesin okunamadı; işlem türünü seçin.");
         var description = ShortDateRx.Replace(DateRx.Replace(raw, " "), " ");
+        // Tarih satırında kalan sol kolonlar (kanal kodu gibi) önce, sonra üstteki ve alttaki açıklama satırları.
+        if (segment.Above is not null)
+            description += " " + DateRx.Replace(string.Join(' ', [.. segment.Above, .. segment.Below!]), " ");
         description = MoneyRx.Replace(description, " ");
         // PDF metni kullanıcı girdisi değildir: kontrol karakteri ve geçersiz Unicode reddedilmez, kullanıcı
         // girdisiyle aynı kuralla (GirdiDogrulama) temizlenir; kısaltma bir vekil çiftini bölerse o da temizlenir.
         description = Regex.Replace(GirdiDogrulama.Temizle(description), @"\s+", " ", RegexOptions.CultureInvariant, RegexLimit).Trim(' ', '-', '+');
         if (description.Length == 0)
             description = "PDF hareketi";
-        if (raw.Length > 2000)
+        if (segment.Text.Length > 2000)
             warnings.Add("Uzun kaynak satırı kısaltıldı; asıl PDF'yi kontrol edin.");
-        return new(number, page, GirdiDogrulama.Temizle(raw[..Math.Min(raw.Length, 2000)]), date,
+        var fullText = segment.Text;
+        return new(number, page, GirdiDogrulama.Temizle(fullText[..Math.Min(fullText.Length, 2000)]), date,
             GirdiDogrulama.Temizle(description[..Math.Min(description.Length, 500)]).TrimEnd(), amount,
             direction, proposal, classification, currency, warnings, directionSource);
     }
@@ -581,7 +649,7 @@ public static class EkstreMetinOkuyucu
             var read = ReadAmount(segment.Raw, segment.Columns);
             if (read.Sign == 0)
                 continue;
-            var normalized = Normalize(segment.Raw);
+            var normalized = Normalize(segment.Words);
             var classification = Classify(normalized);
             var key = CardKey(normalized, classification);
             var fee = IsFee(classification);

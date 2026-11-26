@@ -96,7 +96,7 @@ public static partial class EkstreAktarmaEndpoints
             if (YapayZekaTekrari(db, dto.IstekId, YapayZekaCagriTurleri.Satir, id, c => Results.Content(c.SonucJson ?? "null", "application/json")) is { } onceki)
                 return onceki;
             var hazirlik = YapayZekaHazirla(db, yz, belge);
-            Require(hazirlik.Istek is not null, "Yapay zekâya sorulacak satır yok: bekleyen satırlar kural ya da hafızayla tanınıyor, önerisi var ya da yalnız ad ve sayıdan oluşuyor.", 409);
+            Require(hazirlik.Istek is not null, "Yapay zekâya sorulacak satır yok: bekleyen satırlar kural ya da hafızayla tanınıyor, önerisi var, dövizli ya da yalnız ad ve sayıdan oluşuyor.", 409);
             Require(hazirlik.Istek.Karakter <= YapayZekaAyarlari.EnCokGirdiKarakteri, "İstek çok uzun.", 409);
             cagri = yz.Ayir(db, dto.IstekId, YapayZekaCagriTurleri.Satir, id, hazirlik.Satirlar.Sum(s => s.Satirlar.Count), hazirlik.Istek);
             Require(cagri is not null, YapayZekaSinirda(yz), 409);
