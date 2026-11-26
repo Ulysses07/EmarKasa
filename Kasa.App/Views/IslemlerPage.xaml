@@ -20,7 +20,7 @@
                           YenileCommand="{Binding YenileCommand}" />
 
         <ctl:UyumluBolmeler x:Name="IslemBolmeleri" Grid.Row="1" GenisSutunlar="360,*" ColumnSpacing="20"
-                           IlkBaslik="İşlem / gelir" IkinciBaslik="Kayıtlar" DarSeciliBolme="1"
+                           IlkBaslik="İşlem" IkinciBaslik="Kayıtlar" DarSeciliBolme="1"
                            IlkKullanilabilir="{Binding EditorMu}">
 
             <!-- SOL: editör form sütunu -->
@@ -41,8 +41,8 @@
                             <ctl:FormAlani Baslik="Tarih" Alan="DuzenTarih" Hata="{Binding Hatalar[DuzenTarih]}">
                                 <DatePicker Date="{Binding DuzenTarih}" />
                             </ctl:FormAlani>
-                            <ctl:FormAlani Baslik="Açıklama / ödeme yapılan yer" Alan="DuzenCari" Hata="{Binding Hatalar[DuzenCari]}">
-                                <Entry Text="{Binding DuzenCari}" Placeholder="Örn. Yılmaz Gıda — mal alımı" />
+                            <ctl:FormAlani Baslik="Açıklama" Alan="DuzenCari" Hata="{Binding Hatalar[DuzenCari]}">
+                                <Entry Text="{Binding DuzenCari}" Placeholder="Örn. Yılmaz Gıda" />
                             </ctl:FormAlani>
                             <ctl:FormAlani Baslik="Tutar" Alan="DuzenTutar" Hata="{Binding Hatalar[DuzenTutar]}">
                                 <ctl:ParaGirisi Tutar="{Binding DuzenTutar}" Placeholder="0,00 ₺" />
@@ -55,7 +55,7 @@
                             </ctl:FormAlani>
                             <VerticalStackLayout Spacing="0" IsVisible="{Binding KartSeciciGorunur}">
                                 <Label Text="{Binding KartUyarisi}" TextColor="{StaticResource UyariMetin}" IsVisible="{Binding KartUyarisi, Converter={StaticResource DoluIse}}" />
-                                <ctl:FormAlani Baslik="Kart (yeni takipteki kartlar)" Alan="DuzenKrediKartiId" Hata="{Binding Hatalar[DuzenKrediKartiId]}" Cerceveli="False">
+                                <ctl:FormAlani Baslik="Kart" Alan="DuzenKrediKartiId" Hata="{Binding Hatalar[DuzenKrediKartiId]}" Cerceveli="False">
                                     <ctl:CipGrubu BindableLayout.ItemsSource="{Binding KartCipleri}" SecCommand="{Binding SecKartCommand}" />
                                 </ctl:FormAlani>
                             </VerticalStackLayout>
@@ -66,8 +66,8 @@
                                 </ctl:FormAlani>
                                 <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
                                     <Switch IsToggled="{Binding DuzenIlkKesimVar}"
-                                            SemanticProperties.Description="İlk kesim tarihini belirt (isteğe bağlı)" />
-                                    <Label Grid.Column="1" Text="İlk kesim tarihini belirt (isteğe bağlı)" VerticalOptions="Center" />
+                                            SemanticProperties.Description="İlk kesim tarihi belirt" />
+                                    <Label Grid.Column="1" Text="İlk kesim tarihi belirt" VerticalOptions="Center" />
                                 </Grid>
                                 <ctl:FormAlani Alan="DuzenIlkKesimTarihi" Hata="{Binding Hatalar[DuzenIlkKesimTarihi]}" IsVisible="{Binding DuzenIlkKesimVar}">
                                     <DatePicker Date="{Binding DuzenIlkKesimTarihi}" />
@@ -87,7 +87,7 @@
                             <Border Style="{StaticResource CardForm}" IsVisible="{Binding GiderBenzerlik.UyariVar}">
                                 <VerticalStackLayout Spacing="8">
                                     <Label Text="{Binding GiderBenzerlik.Uyari}" />
-                                    <Button Text="Ayrı bir işlem, devam et" Command="{Binding GideriAyriKaydetCommand}" IsEnabled="{Binding Mesgul, Converter={StaticResource TersIse}}" />
+                                    <Button Text="Ayrı işlem olarak kaydet" Command="{Binding GideriAyriKaydetCommand}" IsEnabled="{Binding Mesgul, Converter={StaticResource TersIse}}" />
                                 </VerticalStackLayout>
                             </Border>
                             <!-- Formdan bağımsız işlem hataları (silme, gelir formu) -->
@@ -101,10 +101,8 @@
                     <!-- Bölüm 2 · Gelen (kanal geliri) -->
                     <Border Style="{StaticResource Card}" Padding="0">
                         <VerticalStackLayout Spacing="0">
-                            <BoxView HeightRequest="3" Color="{StaticResource Green}" />
                             <VerticalStackLayout Padding="18" Spacing="12">
-                                <Label Text="GELEN · KANAL GELİRİ" Style="{StaticResource LblSection}"
-                                       TextColor="{StaticResource Green}" />
+                                <Label Text="Kanal geliri" Style="{StaticResource LblSection}" />
                                 <!-- Gelir dönem toplamıdır: kayıt varsa yeni tutar öncekinin yerine geçer (web ile aynı). -->
                                 <VerticalStackLayout Spacing="0">
                                     <Label Text="Kasa dönemi" Style="{StaticResource LblField}" />
@@ -120,10 +118,10 @@
                                     <ctl:CipGrubu BindableLayout.ItemsSource="{Binding GelenKanallari}" SecCommand="{Binding SecGelenKanalCommand}" />
                                 </VerticalStackLayout>
                                 <VerticalStackLayout Spacing="0">
-                                    <Label Text="Bu dönem için toplam gelir (₺)" Style="{StaticResource LblField}" />
+                                    <Label Text="Dönemin toplam geliri" Style="{StaticResource LblField}" />
                                     <Border Style="{StaticResource FieldBorder}">
                                         <ctl:ParaGirisi Tutar="{Binding GelenTutar}" Placeholder="0,00 ₺"
-                                                        SemanticProperties.Description="Bu dönem için toplam gelir (₺)"
+                                                        SemanticProperties.Description="Dönemin toplam geliri"
                                                         IsEnabled="{Binding GelenKaydedilebilir}" />
                                     </Border>
                                 </VerticalStackLayout>
@@ -142,7 +140,7 @@
             <Border Style="{StaticResource Card}">
                 <Grid RowDefinitions="Auto,*">
                     <VerticalStackLayout Padding="18,16,18,12" Spacing="10">
-                        <Label Text="SON İŞLEMLER" Style="{StaticResource LblSection}" />
+                        <Label Text="Son işlemler" Style="{StaticResource LblSection}" />
 
                         <!-- Filtre: kanal çipleri -->
                         <ctl:CipGrubu BindableLayout.ItemsSource="{Binding FiltreKanallari}" SecCommand="{Binding SecFiltreKanalCommand}" />

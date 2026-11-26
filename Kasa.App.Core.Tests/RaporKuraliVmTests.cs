@@ -22,7 +22,7 @@ public class RaporKuraliVmTests
         Assert.True(vm.KrediGirisiVar);
         Assert.Equal(170_000m, vm.KrediGirisiToplam);
         Assert.Equal(-20_000m, vm.GenelAySonucu); // kredi girişi ay sonucuna dahil değil
-        Assert.Equal("AY SONUCU (KREDİ HARİÇ)", vm.AySonucuBasligi);
+        Assert.Equal("Kredi hariç ay sonucu", vm.AySonucuBasligi);
         Assert.True(vm.VeriSagligiUyarisiVar);
         Assert.Equal("Takip başlangıcından önce tarihli 2 kayıt", vm.VeriSagligiUyarisi);
         Assert.False(vm.Dondurulmus);
@@ -41,7 +41,7 @@ public class RaporKuraliVmTests
         Assert.True(vm.Dondurulmus);
         Assert.Contains("kapatıldı", vm.DondurulmusMetni);
         Assert.Contains("Gelen ve Ay sonucu içindedir", vm.DondurulmusMetni);
-        Assert.Equal("AY SONUCU", vm.AySonucuBasligi);
+        Assert.Equal("Ay sonucu", vm.AySonucuBasligi);
         Assert.False(vm.KrediGirisiVar);
         Assert.Equal(100_000m, vm.GenelAySonucu);
         Assert.False(vm.VeriSagligiUyarisiVar);

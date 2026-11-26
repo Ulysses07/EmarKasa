@@ -50,28 +50,24 @@
                     </Border>
                     <Border BackgroundColor="{StaticResource UyariZemin}" StrokeThickness="0" Padding="18,12" IsVisible="{Binding DagilimBekliyor}">
                         <VerticalStackLayout Spacing="4">
-                            <Label Text="Dağılım bekliyor — kanal sonuçlarına henüz eklenmedi" TextColor="{StaticResource UyariMetin}" FontAttributes="Bold" />
+                            <Label Text="Dağılım bekliyor" TextColor="{StaticResource UyariMetin}" FontAttributes="Bold" />
                             <Label Text="{Binding Rapor.DagilimBekleyenTutar, Converter={StaticResource ParaBicim}}" TextColor="{StaticResource UyariMetin}" />
                         </VerticalStackLayout>
                     </Border>
                     <ctl:UyumluIzgara Padding="18,16,18,12" ColumnDefinitions="*,Auto" RowSpacing="8">
-                        <Label Text="KANAL" Style="{StaticResource LblSection}" />
-                        <Label Grid.Column="1" Text="{Binding AySonucuBasligi}" Style="{StaticResource LblSection}" />
+                        <Label Text="Kanal" Style="{StaticResource LblRowSecondary}" />
+                        <Label Grid.Column="1" Text="{Binding AySonucuBasligi}" Style="{StaticResource LblRowSecondary}" />
                     </ctl:UyumluIzgara>
                     <CollectionView ItemsSource="{Binding Rapor.Kanallar}" SelectionMode="None">
                         <CollectionView.ItemTemplate>
                             <DataTemplate x:DataType="api:KanalAylikDto">
                                 <VerticalStackLayout>
                                     <BoxView Style="{StaticResource RowSeparator}" />
-                                    <ctl:UyumluIzgara Padding="18,0" MinimumHeightRequest="54"
-                                          ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12" DarSutunlar="Auto,*" RowSpacing="8">
-                                        <Border Style="{StaticResource AvatarChip}" VerticalOptions="Center">
-                                            <Label Text="{Binding Kanal, Converter={StaticResource BasHarf}}"
-                                                   Style="{StaticResource LblAvatar}" />
-                                        </Border>
-                                        <Label Grid.Column="1" ctl:UyumluIzgara.DarSatir="0" ctl:UyumluIzgara.DarSutun="1" Text="{Binding Kanal}"
+                                    <ctl:UyumluIzgara Padding="18,0" MinimumHeightRequest="48"
+                                          ColumnDefinitions="*,Auto" ColumnSpacing="12" DarSutunlar="*" RowSpacing="8">
+                                        <Label ctl:UyumluIzgara.DarSatir="0" Text="{Binding Kanal}"
                                                Style="{StaticResource LblRowPrimary}" VerticalOptions="Center" />
-                                        <Label Grid.Column="2" ctl:UyumluIzgara.DarSatir="1" ctl:UyumluIzgara.DarSutun="1"
+                                        <Label Grid.Column="1" ctl:UyumluIzgara.DarSatir="1"
                                                Text="{Binding AySonucu, Converter={StaticResource ParaBicim}}"
                                                Style="{StaticResource LblMoney}"
                                                TextColor="{Binding AySonucu, Converter={StaticResource ParaRenk}}"
@@ -86,16 +82,16 @@
                         </CollectionView.EmptyView>
                     </CollectionView>
                     <ctl:UyumluIzgara Padding="18,12" ColumnDefinitions="*,Auto" IsVisible="{Binding GenelGiderVar}" RowSpacing="8">
-                        <Label Text="Yalnız genel kasa gideri (kanallara dağıtılmaz)" />
+                        <Label Text="Genel kasa gideri" />
                         <Label Grid.Column="1" Text="{Binding Rapor.GenelGider, Converter={StaticResource ParaBicim}}" />
                     </ctl:UyumluIzgara>
                     <ctl:UyumluIzgara Padding="18,12" ColumnDefinitions="*,Auto" IsVisible="{Binding GenelGelirVar}" RowSpacing="8">
-                        <Label Text="Yalnız genel kasa geliri (kanallara dağıtılmaz)" />
+                        <Label Text="Genel kasa geliri" />
                         <Label Grid.Column="1" Text="{Binding Rapor.GenelGelir, Converter={StaticResource ParaBicim}}" />
                     </ctl:UyumluIzgara>
                     <!-- K2: kredi girişi kasaya (takipli kredide kanal kasasına da) girer; ay sonucuna dahil değildir. -->
                     <ctl:UyumluIzgara Padding="18,12" ColumnDefinitions="*,Auto" IsVisible="{Binding KrediGirisiVar}" RowSpacing="8">
-                        <Label Text="Kredi girişi (kasaya girer, ay sonucuna dahil değil)" />
+                        <Label Text="Kredi girişi, ay sonucu dışında" />
                         <Label Grid.Column="1" Text="{Binding KrediGirisiToplam, Converter={StaticResource ParaBicim}}" />
                     </ctl:UyumluIzgara>
                     <ctl:UyumluIzgara Padding="18,16" ColumnDefinitions="*,Auto" RowSpacing="8">

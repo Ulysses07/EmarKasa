@@ -41,7 +41,7 @@ public class DonusturucuTests
     public void Kapsam_her_donusturucu_bu_sinifta_sinanir()
     {
         // Yeni dönüştürücü eklendiğinde (csproj onu kendiliğinden derler) buraya ve aşağıya testi eklenmeli.
-        var bilinen = new[] { typeof(AyAdiConverter), typeof(BasHarfConverter), typeof(BelgeAciklamasiConverter), typeof(DoluIseConverter), typeof(DonemBicimConverter),
+        var bilinen = new[] { typeof(AyAdiConverter), typeof(BelgeAciklamasiConverter), typeof(DoluIseConverter), typeof(DonemBicimConverter),
             typeof(EsitIseConverter), typeof(ParaBicimConverter), typeof(ParaRenkConverter), typeof(TersIseConverter) };
         var derlenen = typeof(AyAdiConverter).Assembly.GetTypes()
             .Where(t => t.Namespace == "Kasa.App.Converters" && (typeof(IValueConverter).IsAssignableFrom(t) || typeof(IMultiValueConverter).IsAssignableFrom(t)))
@@ -96,34 +96,6 @@ public class DonusturucuTests
         // Bağlama yalnız int ay alanlarına yapılır; sayı olmayan metin Convert.ToInt32'den hata olarak çıkar (bugünkü davranış).
         Assert.Throws<FormatException>(() => Cevir(new AyAdiConverter(), "Temmuz"));
     }
-
-    [Theory]
-    [InlineData("ahmet", "A")]
-    [InlineData("ismail", "İ")]   // tr-TR: noktalı büyük İ (en-US'te "I" olurdu)
-    [InlineData("ılgaz", "I")]    // tr-TR: noktasız ı → I
-    [InlineData("çağrı", "Ç")]
-    [InlineData("şule", "Ş")]
-    [InlineData("öykü", "Ö")]
-    [InlineData("ümit", "Ü")]
-    [InlineData("ğ", "Ğ")]
-    [InlineData("Zeynep", "Z")]
-    [InlineData("7 Numara", "7")]
-    public void BasHarf_turkce_buyuk_harf_kuralini_kullanir(string ad, string beklenen)
-    {
-        foreach (var kultur in BaglamaKulturleri)
-            Assert.Equal(beklenen, IngilizceKulturde(() => Cevir(new BasHarfConverter(), ad, kultur: kultur)));
-    }
-
-    [Theory]
-    [InlineData(null)]
-    [InlineData("")]
-    [InlineData(42)]
-    public void BasHarf_bos_ya_da_metin_olmayan_deger_soru_isareti(object? deger)
-        => Assert.Equal("?", Cevir(new BasHarfConverter(), deger));
-
-    [Fact]
-    public void BasHarf_bastaki_bosluk_kirpilmaz()
-        => Assert.Equal(" ", Cevir(new BasHarfConverter(), " ahmet")); // Bugünkü davranış: rozet boş görünür.
 
     [Theory]
     [InlineData(null, false)]
@@ -246,7 +218,7 @@ public class DonusturucuTests
     [Fact]
     public void Tek_yonlu_donusturuculer_geri_donusumu_reddeder()
     {
-        IValueConverter[] tekYonlu = [new AyAdiConverter(), new BasHarfConverter(), new BelgeAciklamasiConverter(), new DoluIseConverter(), new DonemBicimConverter(),
+        IValueConverter[] tekYonlu = [new AyAdiConverter(), new BelgeAciklamasiConverter(), new DoluIseConverter(), new DonemBicimConverter(),
             new ParaBicimConverter(), new ParaRenkConverter()];
         foreach (var d in tekYonlu)
             Assert.Throws<NotSupportedException>(() => d.ConvertBack("x", typeof(object), null, CultureInfo.InvariantCulture));

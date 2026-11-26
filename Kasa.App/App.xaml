@@ -13,7 +13,6 @@
             <conv:ParaBicimConverter x:Key="ParaBicim" />
             <conv:DoluIseConverter x:Key="DoluIse" />
             <conv:ParaRenkConverter x:Key="ParaRenk" />
-            <conv:BasHarfConverter x:Key="BasHarf" />
             <conv:TersIseConverter x:Key="TersIse" />
             <conv:AyAdiConverter x:Key="AyAdi" />
             <conv:DonemBicimConverter x:Key="DonemBicim" />

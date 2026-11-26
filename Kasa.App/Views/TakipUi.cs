@@ -13,20 +13,8 @@ internal static class TakipUi
 {
     public static Label Metin(string text) => new() { Text = text, Style = (Style)Application.Current!.Resources["LblTakipMetin"] };
 
-    /// <summary>Aşamalı gösterim (docs/specs/2026-11-26-slop-temizligi.md §2): uzun kural açıklaması varsayılan olarak gizlidir, küçük
-    /// "Ayrıntılar" bağlantısıyla açılır ve kapanır. Ekranda yalnız gerektiğinde okunan bilgi paragraf olarak durmaz.</summary>
-    public static View Yardim(string metin)
-    {
-        var aciklama = new Label { Text = metin, Style = (Style)Application.Current!.Resources["LblTakipMetin"], IsVisible = false };
-        var dugme = new Button { Text = "Ayrıntılar", Style = (Style)Application.Current!.Resources["BtnLink"] };
-        SemanticProperties.SetHint(dugme, "Açıklamayı gösterir ya da gizler");
-        dugme.Clicked += (_, _) =>
-        {
-            aciklama.IsVisible = !aciklama.IsVisible;
-            dugme.Text = aciklama.IsVisible ? "Ayrıntıları gizle" : "Ayrıntılar";
-        };
-        return new VerticalStackLayout { Spacing = 4, Children = { dugme, aciklama } };
-    }
+    /// <summary>Aşamalı gösterim: uzun kural açıklaması "Ayrıntılar" bağlantısının arkasında (Controls.Ayrinti).</summary>
+    public static View Yardim(string metin) => new Controls.Ayrinti { Metin = metin };
 
     /// <summary>Bağlı gövde metni (örtük Label stili).</summary>
     public static Label Bagli(string yol) => Bagla(new Label(), yol);

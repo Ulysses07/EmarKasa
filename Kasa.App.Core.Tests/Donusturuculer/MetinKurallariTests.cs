@@ -39,6 +39,23 @@ public partial class MetinKurallariTests
         Assert.True(uzun.Count == 0, string.Join("\n", uzun));
     }
 
+    [GeneratedRegex(@"<(?:Button|Label|Span)\b[^>]*?\bText=""(?<metin>[^""{]*)""", RegexOptions.Singleline)]
+    private static partial Regex XamlMetni();
+
+    /// <summary>XAML sayfalarının sabit metinleri: eğik çizgi, uzun tire yok; BÜYÜK HARF üst etiket ve numaralı başlık ("1 · …") yok.</summary>
+    [Fact]
+    public void Xaml_sabit_metinlerinde_egik_cizgi_uzun_tire_ve_buyuk_harf_etiket_yok()
+    {
+        var dosyalar = Directory.GetFiles(Path.Combine(GorunumOrtami.DepoKoku(), "Kasa.App", "Views"), "*.xaml")
+            .Append(Path.Combine(GorunumOrtami.DepoKoku(), "Kasa.App", "AppShell.xaml"));
+        var ihlal = dosyalar.SelectMany(f => XamlMetni().Matches(File.ReadAllText(f)).Select(m => m.Groups["metin"].Value)
+                .Where(m => m.Contains(" / ", StringComparison.Ordinal) || m.Contains('—') || Regex.IsMatch(m, @"^\d+ ·")
+                    || (m.Count(char.IsLetter) >= 3 && !m.Any(char.IsLower)))
+                .Select(m => $"{Path.GetFileName(f)}: {m}"))
+            .ToList();
+        Assert.True(ihlal.Count == 0, string.Join("\n", ihlal));
+    }
+
     [Fact]
     public void Takip_sayfasi_aciklama_paragrafi_almaz()
     {
