@@ -53,13 +53,21 @@ public class SayfaBasligi : VerticalStackLayout
         _baslik = new Label { Style = Stil("LblPageTitle"), VerticalOptions = LayoutOptions.Center };
         SemanticProperties.SetHeadingLevel(_baslik, SemanticHeadingLevel.Level1);
         _gosterge = new ActivityIndicator { WidthRequest = 20, HeightRequest = 20, VerticalOptions = LayoutOptions.Center };
-        _sonGuncelleme = new Label { Style = Stil("LblPageSub"), VerticalOptions = LayoutOptions.Center };
+        _sonGuncelleme = new Label { Style = Stil("LblPageSub") };
         YenileDugmesi = new Button { Text = "Yenile", Style = Stil("BtnKucuk"), VerticalOptions = LayoutOptions.Center };
         YenileDugmesi.Clicked += async (_, _) => await YenileAsync();
-        _sag = new HorizontalStackLayout { Spacing = 12, VerticalOptions = LayoutOptions.Center, Children = { _gosterge, _sonGuncelleme, YenileDugmesi } };
-        var ust = new Grid { ColumnSpacing = 16, ColumnDefinitions = { new(GridLength.Star), new(GridLength.Auto) } };
+        _sag = new HorizontalStackLayout { Spacing = 12, VerticalOptions = LayoutOptions.Center, Children = { _gosterge, YenileDugmesi } };
+        // "Son güncelleme … güncel olmayabilir" uzundur: düğmelerin yanında değil, başlığın altındaki satırda (dar ekranda başlığı ezmez).
+        var ust = new Grid
+        {
+            ColumnSpacing = 16,
+            ColumnDefinitions = { new(GridLength.Star), new(GridLength.Auto) },
+            RowDefinitions = { new(GridLength.Auto), new(GridLength.Auto) },
+        };
         ust.Add(_baslik);
         ust.Add(_sag, 1);
+        ust.Add(_sonGuncelleme, 0, 1);
+        Grid.SetColumnSpan(_sonGuncelleme, 2);
         HataEtiketi = new Label { Style = Stil("LblError") };
         _hataKutusu = new Border { Style = Stil("ErrorBox") };
         _hataYeri = new ContentView();
