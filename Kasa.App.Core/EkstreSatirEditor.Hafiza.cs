@@ -11,7 +11,7 @@ public partial class EkstreSatirEditor
 
     /// <summary>Satırın hafıza önerisi var (hazır ya da kontrol).</summary>
     public bool HafizaVar => !Kapali && Oneri?.Hafiza is not null;
-    /// <summary>Satırın yapay zekâ önerisi var (doldurulur, hazır sayılmaz).</summary>
+    /// <summary>Satırın yapay zekâ önerisi var (doldurulur; sunucu hazır dediyse kendiliğinden işaretlenir).</summary>
     public bool YapayZekaVar => !Kapali && Oneri?.YapayZeka is not null;
     /// <summary>Satır özetinin altındaki hafıza notu (ne yapılacağı ve dayanağı): "Gider · Yalnız genel kasa · Hafızadan: …"; yoksa boş.</summary>
     public string HafizaMetni => !Kapali && ErpOnerisi ? Oneri!.Aciklama
@@ -29,10 +29,22 @@ public partial class EkstreSatirEditor
     };
     /// <summary>Daha önce yok sayılmış hareket: toplu yok sayma önerisine girer.</summary>
     public bool YokSayOnerisi => YokSayilabilir && !ElleDegisti && Oneri is { Durum: EkstreHafizaDurumlari.Hazir, IslemTuru: EkstreIslemTurleri.Atla };
-    /// <summary>Toplu işaretlemeye girer: hafızadan eksiksiz doldu ya da kesin kişisel kural önerisi var; elle değiştirilmedi.</summary>
+    /// <summary>Kendiliğinden işaretlenir: hafızadan ya da hazır yapay zekâ önerisinden eksiksiz doldu, kesin ERP12 eşleşmesi ya da kesin kişisel
+    /// kural önerisi var; elle değiştirilmedi (docs/specs/2026-11-26-ekstre-hareket-penceresi.md §3).</summary>
     public bool HazirOneri => Secilebilir && !ElleDegisti && Oneri is { } o && o.IslemTuru != EkstreIslemTurleri.Atla
         && (o.Durum == EkstreHafizaDurumlari.Hazir ? _hafizadan && Hazirla().Yaz is not null
+            : o.Durum == YapayZekaDurumlari.Oneri ? o.YapayZeka is { Hazir: true } && _hafizadan && Hazirla().Yaz is not null
             : ErpOnerisi ? o.Durum == ErpOneriDurumlari.Eslesme && _erpden && Hazirla().Yaz is not null : OneriUygulanabilir);
+
+    /// <summary>Satır bir kez kendiliğinden işaretlendi: kullanıcı işareti kaldırırsa bir daha konmaz.</summary>
+    public bool KendiligindenIsaretlendi { get; internal set; }
+
+    /// <summary>Bekleyen satırın "Kontrol edin" nedeni (canlı); hazır, kapalı ya da kullanıcının eksiksiz tamamladığı satırda null.</summary>
+    public string? KontrolNedeni => Kapali || HazirOneri || ElleDegisti && Hazirla().Yaz is not null ? null
+        : Kaynak.Yon is not ("Giris" or "Cikis") ? "yön belirsiz"
+        : Oneri?.YapayZeka?.KontrolNedeni is { } neden ? neden
+        : IslemTuru?.Kod is EkstreIslemTurleri.Gelir or EkstreIslemTurleri.Gider or EkstreIslemTurleri.KartHarcama && Hazirla().Yaz is null ? "kanal seçin"
+        : Kaynak.Uyarilar.Count > 0 ? "uyarı var" : "kontrol edin";
 
     /// <summary>Gelen öneriyi (hafıza ya da ERP12 karşılığı) satıra yazar; kalkan önerinin izi önce silinir.</summary>
     public bool OneriyiKendiligindenUygula()
@@ -88,6 +100,7 @@ public partial class EkstreSatirEditor
     private void HafizaDayanaginiAl(EkstreSatirEditor eski)
     {
         _hafizadan = eski._hafizadan;
+        KendiligindenIsaretlendi = eski.KendiligindenIsaretlendi;
         _erpden = eski._erpden;
         _ilkTur = eski._ilkTur is { } tur ? IslemTurleri.FirstOrDefault(t => t.Kod == tur.Kod) : null;
     }

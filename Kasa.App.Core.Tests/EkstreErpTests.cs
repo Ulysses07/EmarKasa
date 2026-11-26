@@ -50,14 +50,14 @@ public partial class EkstreAktarmaTests
         Assert.Equal([41, null, null, null, 45], vm.Satirlar.Select(s => s.SeciliAday?.Veri.Id));
         Assert.Equal([2, 2, 0, 0, 1], vm.Satirlar.Select(s => s.EslesmeAdaylari.Count));
         Assert.Equal([true, false, false, false, false], vm.Satirlar.Select(s => s.HazirOneri));
-        Assert.All(vm.Satirlar, s => Assert.Equal((false, false, false), (s.ElleDegisti, s.Secili, s.KartSecimiGorunur)));
+        Assert.All(vm.Satirlar, s => Assert.Equal((false, false), (s.ElleDegisti, s.KartSecimiGorunur)));
         Assert.StartsWith("hesap.pdf · ERP12 cari hareketleri\n5 satır", vm.BelgeOzeti);
         Assert.StartsWith("Kasadaki karşılığı kesin olan", vm.HazirAciklamasi);
         Assert.Equal(("Havale · Belge 1", "ErpEslesme iletisi", "ErpBekle iletisi"), (vm.Satirlar[0].EkBilgi, vm.Satirlar[0].HafizaMetni, vm.Satirlar[3].HafizaMetni));
 
-        // Toplu işaretleme yalnız kesin karşılığı işaretler; kayıt hedefi taşır.
-        await vm.HazirlariIsaretleCommand.ExecuteAsync(null);
+        // Kendiliğinden işaretleme yalnız kesin karşılığı işaretler; kayıt hedefi taşır.
         Assert.Equal([true, false, false, false, false], vm.Satirlar.Select(s => s.Secili));
+        await vm.OnizleCommand.ExecuteAsync(null);
         vm.Onay = true;
         await vm.KaydetCommand.ExecuteAsync(null);
         var y = Assert.Single(Assert.Single(api.KaydetIstekleri).Satirlar);
@@ -85,7 +85,7 @@ public partial class EkstreAktarmaTests
     {
         var (vm, api, _) = await Hazir(new() { Veri = ErpBelge(ErpSatiri(1, "Gider"), ErpSatiri(2)), Oneriler = [ErpOneri(1, ErpOneriDurumlari.Eslesme, EkstreIslemTurleri.Eslestir, ErpAday(41))] });
         var s = vm.Satirlar[0];
-        await vm.HazirlariIsaretleCommand.ExecuteAsync(null);
+        await vm.OnizleCommand.ExecuteAsync(null);
         Assert.True(vm.OnizlemeVar);
         await vm.KurallariYenileAsync();
         Assert.Equal((true, 41, true), (vm.OnizlemeVar, s.SeciliAday!.Veri.Id, s.HazirOneri));

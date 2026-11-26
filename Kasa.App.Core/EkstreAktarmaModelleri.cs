@@ -69,11 +69,11 @@ public partial class EkstreSatirEditor : ObservableObject
         TutarMetni = kaynak.Tutar?.ToString("0.00", CultureInfo.GetCultureInfo("tr-TR")) ?? "";
         IslemTuru = IslemTurleri.FirstOrDefault(t => t.Kod == kaynak.OnerilenIslem);
         Kart = kartlar.FirstOrDefault(k => k.Id == belge.KartId);
-        Paylar.CollectionChanged += (_, e) => { if (e.NewItems is not null) foreach (TakipPayEditor p in e.NewItems) p.PropertyChanged += PayDegisti; if (e.OldItems is not null) foreach (TakipPayEditor p in e.OldItems) p.PropertyChanged -= PayDegisti; ElleDegisiklik(); _degisti(); };
+        Paylar.CollectionChanged += (_, e) => { if (e.NewItems is not null) foreach (TakipPayEditor p in e.NewItems) p.PropertyChanged += PayDegisti; if (e.OldItems is not null) foreach (TakipPayEditor p in e.OldItems) p.PropertyChanged -= PayDegisti; ElleDegisiklik(); _degisti(); OnPropertyChanged(nameof(KontrolNedeni)); };
         _degisti = degisti;
         _degisiklikIzle = true;
     }
-    private void PayDegisti(object? sender, PropertyChangedEventArgs e) { ElleDegisiklik(); _degisti(); }
+    private void PayDegisti(object? sender, PropertyChangedEventArgs e) { ElleDegisiklik(); _degisti(); OnPropertyChanged(nameof(KontrolNedeni)); }
     public void PayEkle() => Paylar.Add(new(Kanallar));
     partial void OnIslemTuruChanged(EkstreSecenek? value)
     {
@@ -125,6 +125,10 @@ public partial class EkstreSatirEditor : ObservableObject
             base.OnPropertyChanged(new PropertyChangedEventArgs(nameof(EtkinYon)));
             base.OnPropertyChanged(new PropertyChangedEventArgs(nameof(YonMetni)));
         }
+        // "Kontrol edin" nedeni satırın alanlarından hesaplanır (hareket penceresi): alan değişince yeniden okunur.
+        if (e.PropertyName is nameof(IslemTuru) or nameof(DagilimTuru) or nameof(Kart) or nameof(KaynakHarcama) or nameof(TarihMetni) or nameof(TutarMetni)
+            or nameof(Aciklama) or nameof(Oneri) or nameof(ElleDegisti) or nameof(SeciliAday))
+            base.OnPropertyChanged(new PropertyChangedEventArgs(nameof(KontrolNedeni)));
         // Öneri gelmesi gibi gösterim değişiklikleri önizlemeyi ve onayı geçersiz kılmaz; yalnız kaydedilecek alanlar ve seçim.
         if (e.PropertyName is nameof(Secili) or nameof(TarihMetni) or nameof(Aciklama) or nameof(TutarMetni) or nameof(IslemTuru) or nameof(DagilimTuru) or nameof(Kart) or nameof(KaynakHarcama) or nameof(SeciliAday))
             _degisti?.Invoke();

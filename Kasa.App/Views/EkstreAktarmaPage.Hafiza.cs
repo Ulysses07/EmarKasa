@@ -19,7 +19,6 @@ public sealed partial class EkstreAktarmaPage
             {
                 ozet,
                 Bagli(nameof(vm.HazirAciklamasi)),
-                Dugme("Hazırları işaretle ve etkisini göster", nameof(vm.HazirlariIsaretleCommand)),
             }
         };
         return new VerticalStackLayout { Spacing = 10, Children = { Goster(hazir, nameof(vm.HazirVar)), Goster(yokSay, nameof(vm.YokSayOneriVar)) } };

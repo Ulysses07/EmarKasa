@@ -14,7 +14,7 @@ public partial class EkstreAktarmaTests
     private static EkstreKuralOnerisi Yok(int no) => new(no, "Yok", [], null, null, [], "Eşleşen yok.");
 
     [Fact]
-    public async Task Yapay_zeka_onerisi_satiri_doldurur_hazir_saymaz_secmez_elle_degisen_ezilmez()
+    public async Task Hazir_olmayan_yapay_zeka_onerisi_satiri_doldurur_secmez_elle_degisen_ezilmez()
     {
         var (vm, api, _) = await Hazir(new()
         {
@@ -28,7 +28,7 @@ public partial class EkstreAktarmaTests
         // Kasa hareketi olmayabilir ve yönü okunamayan satırda tür doldurulmaz; öneri yazıdır.
         Assert.All([vm.Satirlar[2], vm.Satirlar[3]], x => Assert.Equal((true, "Yapay zekâ (yüksek güven): kargo. Kontrol edip kendiniz işaretleyin.", "Hareket " + x.Kaynak.No), (x.YapayZekaVar, x.HafizaMetni, x.Aciklama)));
         Assert.False(vm.Satirlar[2].YokSayOnerisi);
-        await vm.HazirlariIsaretleCommand.ExecuteAsync(null);
+        // Hafızanın hazır satırı kendiliğinden işaretlidir; sunucunun hazır demediği yapay zekâ önerisi işaretlenmez.
         Assert.Equal([false, true, false, false], vm.Satirlar.Select(x => x.Secili));
         // Kullanıcı kendisi işaretlerse öneriyle önizlenir.
         s.Secili = true;

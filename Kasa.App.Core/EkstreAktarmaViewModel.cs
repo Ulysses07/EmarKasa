@@ -101,6 +101,7 @@ public partial class EkstreAktarmaViewModel(IEkstreAktarmaApi api, IKasaApi fina
         HesapAdi = "";
         Satirlar.Clear();
         Kayitlar.Clear();
+        SuzgecleriHesapla();
         SekmeleriDoldur();
         SeciliSekme = EkstreSekmesi.Bekleyen;
         TopluTurler.Clear();
@@ -226,7 +227,7 @@ public partial class EkstreAktarmaViewModel(IEkstreAktarmaApi api, IKasaApi fina
         await KurallariAlAsync(n);
         if (!Gecerli(n))
             return;
-        Mesaj = HazirVar ? "Belge okundu. Hafızadan hazır satırlar var; kalanları tek tek kontrol edin." : "Belge okundu. Kaydetmek istediğiniz satırları tek tek seçip kontrol edin.";
+        Mesaj = HazirSayisi > 0 ? $"Belge okundu. {HazirSayisi} satır hazır ve işaretli; {KontrolSayisi} satırı kontrol edin." : "Belge okundu. Kaydetmek istediğiniz satırları tek tek seçip kontrol edin.";
     }, hataIsle: e => YuklemeHatasi = e is HttpRequestException ? Yurutucu.KayitBaglantiIletisi : HataMesaji(e));
     /// <summary>Yanlış yüklenen, işlenmemiş ERP12 belgesini siler (sayfa önce onay ister). Kasa değişmez.</summary>
     public Task ErpBelgeSilAsync() => YurutAsync(async n =>
@@ -242,6 +243,7 @@ public partial class EkstreAktarmaViewModel(IEkstreAktarmaApi api, IKasaApi fina
         Belge = null;
         Satirlar.Clear();
         Kayitlar.Clear();
+        SuzgecleriHesapla();
         SekmeleriDoldur();
         GirdiDegisti();
         Mesaj = "ERP12 belgesi ve hareketleri silindi; kasa değişmedi.";
@@ -319,6 +321,7 @@ public partial class EkstreAktarmaViewModel(IEkstreAktarmaApi api, IKasaApi fina
         OnPropertyChanged(nameof(BelgeOzeti));
         OnPropertyChanged(nameof(YonOzeti));
         OnPropertyChanged(nameof(SecimOzeti));
+        SuzgecleriHesapla();
     }
     /// <summary>Önizleme isteği; eksik varsa hepsini <see cref="OnizlemeHatalari"/>'na yazar ve null döner.</summary>
     private EkstreKaydetYaz? Girdi(EkstreBelgeDto belge)
