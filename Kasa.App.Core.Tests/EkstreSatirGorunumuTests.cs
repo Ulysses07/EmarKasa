@@ -37,9 +37,18 @@ public partial class EkstreAktarmaTests
         aciklama.Text = "Satır içinde düzeltilen açıklama";
         Assert.Equal(aciklama.Text, vm.Satirlar[0].Aciklama);
 
+        Assert.Equal(["Kapat", "İncele / düzenle"], new[] { ilk, ikinci }.Select(g => g.GetVisualTreeDescendants().OfType<Button>().First().Text));
         ((IButtonController)ikinci.GetVisualTreeDescendants().OfType<Button>().Single(b => b.Text == "İncele / düzenle")).SendClicked();
         Assert.Empty(SatirGirdileri(ilk));
         Assert.NotEmpty(SatirGirdileri(ikinci));
+        // Aynı satıra ikinci dokunuş düzenleyiciyi kapatır; mali seçim ve taslak korunur.
+        ((IButtonController)ikinci.GetVisualTreeDescendants().OfType<Button>().Single(b => b.Text == "Kapat")).SendClicked();
+        Assert.Null(vm.SeciliSatir);
+        Assert.Empty(SatirGirdileri(ikinci));
+        vm.SatiriAcKapat(vm.Satirlar[0]);
+        Assert.Equal(("Satır içinde düzeltilen açıklama", true), (SatirGirdileri(ilk).Single(e => e.Text == "Satır içinde düzeltilen açıklama").Text, vm.Satirlar[0].Secili));
+        vm.SatiriAcKapat(vm.Satirlar[0]);
+        Assert.Null(vm.SeciliSatir);
         Assert.True(vm.Satirlar[0].Secili);
         Assert.False(vm.Satirlar[1].Secili);
         Assert.Empty(api.KaydetIstekleri);
