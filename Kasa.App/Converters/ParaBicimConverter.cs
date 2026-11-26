@@ -8,12 +8,16 @@ namespace Kasa.App.Converters;
 public sealed class ParaBicimConverter : IValueConverter
 {
     public const string Gider = nameof(Gider);
+    /// <summary>İşaretli tutar (liste satırının tutar sütunu): artı "+1.500,00", eksi "−553,15", sıfır işaretsiz.</summary>
+    public const string Isaretli = nameof(Isaretli);
 
     public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
     {
         if (value is not decimal d)
             return value?.ToString() ?? string.Empty;
-        if (parameter as string != Gider)
+        if (parameter as string == Isaretli)
+            d = -d;
+        else if (parameter as string != Gider)
             return Bicim.Tl(d);
         return d switch { > 0 => "−" + Bicim.Tl(d), < 0 => "+" + Bicim.Tl(-d), _ => Bicim.Tl(0) };
     }

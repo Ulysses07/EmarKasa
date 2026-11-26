@@ -59,7 +59,8 @@ public class CekTopluTests
     {
         var (vm, _) = await Kur(CekTakipViewModelTests.Cek(1, CekYonleri.Verilen));
         Assert.Equal("Ödenecek", vm.DurumCipleri[0].Ad);
-        Assert.Equal("Çek Ziraat · 12345 · 50.000,00 ₺ · ödenecek", vm.Cekler[0].Ozet);
+        Assert.Equal("Çek Ziraat · 12345 · ödenecek", vm.Cekler[0].Ozet);
+        Assert.Equal(-50_000m, vm.Cekler[0].SatirTutari);   // verilen çek: eksi
         vm.SecCommand.Execute(vm.Cekler[0]);
         Assert.Contains("· ödenecek", vm.AcikOzet);
         await vm.SecYonCommand.ExecuteAsync(vm.YonCipleri[1]);

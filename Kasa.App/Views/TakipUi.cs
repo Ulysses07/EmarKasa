@@ -304,7 +304,7 @@ internal static class TakipUi
         Func<T, string>? actionText = null, bool bosMetin = true, Func<T, string>? aciklama = null, (object Kaynak, string Yol)? vurgu = null,
         string? bosMetinGizleYolu = null)
     {
-        var l = new VerticalStackLayout { Spacing = 10 };
+        var l = new VerticalStackLayout { Spacing = 0 };
         l.SetBinding(BindableLayout.ItemsSourceProperty, yol);
         if (bosMetin)
         {
@@ -313,11 +313,18 @@ internal static class TakipUi
                 bos.SetBinding(VisualElement.IsVisibleProperty, bosMetinGizleYolu, converter: new Converters.TersIseConverter());
             BindableLayout.SetEmptyView(l, bos);
         }
+        // Tablo satırı (docs/specs/2026-11-26-slop-temizligi.md §6): solda başlık ve gri özet, sağda işaretli tutar sütunu (ITutarliSatir) ve
+        // en çok bir hafif eylem bağlantısı; satırda ağır düğme yok.
         BindableLayout.SetItemTemplate(l, new DataTemplate(() =>
         {
-            var row = new VerticalStackLayout { Spacing = 6, Padding = new Thickness(0, 10) };
+            var satir = new Grid
+            {
+                ColumnSpacing = 16,
+                Padding = new Thickness(0, 8),
+                ColumnDefinitions = { new(GridLength.Star), new(GridLength.Auto), new(GridLength.Auto) },
+            };
             if (vurgu is { } v)
-                row.Triggers.Add(new DataTrigger(typeof(VerticalStackLayout))
+                satir.Triggers.Add(new DataTrigger(typeof(Grid))
                 {
                     Binding = new MultiBinding
                     {
@@ -329,20 +336,36 @@ internal static class TakipUi
                 });
             var baslik = Bagli("Baslik");
             baslik.FontAttributes = FontAttributes.Bold;
-            row.Add(baslik);
-            row.Add(BagliMetin("Ozet"));
+            satir.Add(new VerticalStackLayout { Spacing = 2, VerticalOptions = LayoutOptions.Center, Children = { baslik, BagliMetin("Ozet") } });
+            satir.Add(SatirTutari(), 1);
             if (ac is not null)
-                row.Add(ListeDugmesi(ac, action, gorunur, actionText, aciklama));
-            row.Add(new BoxView { Style = (Style)Application.Current!.Resources["TakipAyirici"] });
-            return row;
+                satir.Add(ListeDugmesi(ac, action, gorunur, actionText, aciklama), 2);
+            return new VerticalStackLayout { Spacing = 0, Children = { satir, new BoxView { Style = (Style)Application.Current!.Resources["TakipAyirici"] } } };
         }));
         return l;
+    }
+
+    /// <summary>Satırın tutar sütunu: ITutarliSatir satırında işaretli ve renkli (gider eksi kırmızı, gelir artı yeşil, sıfır gri).</summary>
+    private static Label SatirTutari()
+    {
+        var tutar = new Label { Style = (Style)Application.Current!.Resources["LblMoney"], VerticalOptions = LayoutOptions.Center };
+        tutar.BindingContextChanged += (_, _) =>
+        {
+            if (tutar.BindingContext is ITutarliSatir s)
+            {
+                tutar.Text = (string)new Converters.ParaBicimConverter().Convert(s.SatirTutari, typeof(string), Converters.ParaBicimConverter.Isaretli,
+                    System.Globalization.CultureInfo.CurrentCulture);
+                tutar.TextColor = (Color)new Converters.ParaRenkConverter().Convert(s.SatirTutari, typeof(Color), null, System.Globalization.CultureInfo.CurrentCulture);
+            }
+            tutar.IsVisible = tutar.BindingContext is ITutarliSatir;
+        };
+        return tutar;
     }
 
     private static Button ListeDugmesi<T>(Func<T, Task> ac, string action, Func<T, bool>? gorunur, Func<T, string>? actionText,
         Func<T, string>? aciklama)
     {
-        var b = new Button { Text = action, HorizontalOptions = LayoutOptions.Start, Style = (Style)Application.Current!.Resources["BtnSecondary"] };
+        var b = new Button { Text = action, VerticalOptions = LayoutOptions.Center, Style = (Style)Application.Current!.Resources["BtnLink"] };
         b.BindingContextChanged += (_, _) =>
         {
             b.IsVisible = b.BindingContext is T item && (gorunur?.Invoke(item) ?? true);
