@@ -7,14 +7,17 @@ Kararlar (25.11.2026): satırlar **maskeli** gönderilir (IBAN, kart no, kişi a
 önce örneklerle ölçüm; aylık harcama sınırı; model Claude Haiku 5.5.
 
 Bu belge `docs/ekstre-kurallari.md`'deki "yapay zekâ kullanmaz" ve `docs/deploy/kasa-2.3.md`'deki "belge yapay zekâya gönderilmez" kararlarını şöyle
-değiştirir: **belge (PDF/Excel) yine gönderilmez.** Özellik kapalı gelir; sunucuya anahtar girilip açılırsa kullanıcı düğmeye bastığında yalnız aşağıdaki
-maskeli metin gönderilir.
+değiştirir: **belge (PDF/Excel) yine gönderilmez.** Özellik kapalı gelir; sunucuya anahtar girilip açılırsa yalnız aşağıdaki maskeli metin gönderilir:
+26.11.2026'dan beri belge açılınca hiç sorulmamış satırlar için kendiliğinden, onay penceresi olmadan (en çok 10 tur; [hareket penceresi](2026-11-26-ekstre-hareket-penceresi.md) §3), yanıt alamamış satırlar için kullanıcı "Yanıtsız satırları yeniden sor"u onaylayınca.
 
 ## Ne yapar
 
 Kişisel kuralın ve işlem hafızasının tanımadığı, bekleyen TL satırları (para birimi okunamayan satır dahil; uygulama onu TL sayıp seçtirir; dövizli satır
 sorulmaz; tutarı okunamayan satırın aralığı `?` gider) için tür (gelir, gider, kart harcaması, iade, karta ödeme, "kasa hareketi değil"),
-kanal dağılımı, kısa kategori ve düzenlenmiş açıklama önerir. Öneri satırı doldurur; **satırı seçmez, "hazır" saymaz, toplu işaretlemeye girmez, kaydetmez.**
+kanal dağılımı, kısa kategori ve düzenlenmiş açıklama önerir. Öneri satırı doldurur ve **kaydetmez**. 26.11.2026 kullanıcı kararıyla
+([hareket penceresi](2026-11-26-ekstre-hareket-penceresi.md) §3): hafızanın "kontrol edin" ölçüsünden geçen, güveni yüksek ya da orta öneri **hazırdır** ve
+kendiliğinden işaretlenir; geçmeyenin tek nedeni (`EkstreYapayZekaOnerisi.KontrolNedeni`: kasa hareketi olmayabilir, yön belirsiz, emin değil, hafızanın ilk nedeni
+— okuma uyarısı "uyarı var" olarak —, kanal seçin) yazılır.
 Kullanıcı satırı tek tek işaretler, önizler ve onaylar. Kaydedilen satır hafızaya geçer; aynı hareket bir daha yapay zekâya sorulmaz.
 
 - Öncelik: kişisel kural → hafıza → yapay zekâ → okuyucunun önerisi. Elle değiştirilen satır ezilmez.
@@ -36,7 +39,7 @@ markalar yalnız ikili geçtiğinde açıktır ("ARAS KARGO" açık, "ARAS YILMA
 | `SHELL PETROL 4521 KADIKÖY` (kart) | `CIKIS · 1.000–10.000 · SHELL PETROL # [3]` |
 
 Tarih, kesin tutar, bakiye, banka, hesap adı, kart adı, dosya adı, belge ve kullanıcı bilgisi **gönderilmez**; tutar yalnız aralıktır. Kanal adı da aynı
-maskeden geçer. Geçmiş kararlardan en çok 60 örnek (aynı maskeyle) eklenir. Gönderilecek metin gönderilmeden önce ekranda görülebilir.
+maskeden geçer. Geçmiş kararlardan en çok 60 örnek (aynı maskeyle) eklenir. Gönderilen metin (bu oturumda gönderilen; yoksa sıradaki) ekranda görülebilir.
 Açıklamadaki yazı izin listesinden geçtiği için belgeye yazılmış bir talimat modele ulaşamaz. Yanıttaki yer tutucular sunucuda gerçek sözcüğe çevrilir.
 
 ## Anthropic tarafı

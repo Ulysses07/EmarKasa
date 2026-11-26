@@ -14,7 +14,7 @@
 
 ## İşlem hafızası
 
-Kaydettiğin ve yok saydığın her satır kendiliğinden öğrenilir; kural yazman gerekmez. Sonraki belgede açıklamasının değişmeyen kısmı (tarih, referans numarası ve ay adı sayılmaz) ve yönü aynı olan satır aynı tür, dağılım ve düzeltilmiş açıklamayla **doldurulur**. Satırın altında "Gider · Yalnız genel kasa · Hafızadan: 3 kez aynı işlendi, son 12.10.2026" yazar. **Hazırları işaretle ve etkisini göster** hepsini işaretler; kayıt yine önizlemeyi onaylayınca olur. Daha önce yok saydığın hareketlerin aynıları için ayrı bir **yok say** düğmesi çıkar.
+Kaydettiğin ve yok saydığın her satır kendiliğinden öğrenilir; kural yazman gerekmez. Sonraki belgede açıklamasının değişmeyen kısmı (tarih, referans numarası ve ay adı sayılmaz) ve yönü aynı olan satır aynı tür, dağılım ve düzeltilmiş açıklamayla **doldurulur**. Satırın altında "Gider · Yalnız genel kasa · Hafızadan: 3 kez aynı işlendi, son 12.10.2026" yazar. Hazır satırlar hareket penceresinde **kendiliğinden işaretli** gelir (işaretini kaldırdığın satır yeniden işaretlenmez); kayıt yine **Etkisini göster ve kaydet** ile onaylayınca olur. Daha önce yok saydığın hareketlerin aynıları için ayrı bir **yok say** düğmesi çıkar.
 
 - Son iki karar farklıysa öneri doldurulmaz. Yön, tutar ya da tarih kesin değilse satır doldurulur ama "hazır" sayılmaz.
 - Elle değiştirdiğin satır hafızadan ezilmez. Kişisel kural eşleşirse kural önceliklidir.

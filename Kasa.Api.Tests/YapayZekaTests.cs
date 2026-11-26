@@ -183,8 +183,8 @@ public class YapayZekaTests
         // Öneri satırı doldurur, kaydetmez; öncelik kural ve hafızadadır.
         var o = await Oneriler(c, d.Id);
         Assert.Equal([EkstreHafizaDurumlari.Hazir, "Oneri", YapayZekaDurumlari.Oneri, YapayZekaDurumlari.Oneri, YapayZekaDurumlari.Oneri, "Yok", "Yok"], o.Select(x => x.Durum));
-        Assert.Equal(("Gider", "Genel", "Yapay zekâ (yüksek güven): aidat. Kontrol edip kendiniz işaretleyin.", new EkstreYapayZekaOnerisi("Yuksek", "aidat", "MEHMET DEMIR aidat")), (o[2].IslemTuru, o[2].DagilimTuru, o[2].Aciklama, o[2].YapayZeka));
-        Assert.Equal(("Gider", "Esit", "Yapay zekâ (orta güven): elektrik. Kontrol edip kendiniz işaretleyin."), (o[4].IslemTuru, o[4].DagilimTuru, o[4].Aciklama));
+        Assert.Equal(("Gider", "Genel", "Yapay zekâ (yüksek güven): aidat.", new EkstreYapayZekaOnerisi("Yuksek", "aidat", "MEHMET DEMIR aidat", true)), (o[2].IslemTuru, o[2].DagilimTuru, o[2].Aciklama, o[2].YapayZeka));
+        Assert.Equal(("Gider", "Esit", "Yapay zekâ (orta güven): elektrik."), (o[4].IslemTuru, o[4].DagilimTuru, o[4].Aciklama));
         Assert.Equal([2], o[4].KanalIds);
         Assert.Equal(once, await Kasa(c));
         // Önerisi gelen satır yeniden sorulmaz.
@@ -195,6 +195,65 @@ public class YapayZekaTests
         var yeni = await Banka(c, S(G(1), "ELEKTRIK FATURA 555", -950));
         Assert.Equal(EkstreHafizaDurumlari.Hazir, (await Oneriler(c, yeni.Id)).Single().Durum);
         Assert.Contains("sorulacak satır yok", (await SorHata(c, yeni.Id)).Hata);
+    }
+
+    /// <summary>Yapay zekâ önerisi hafızanın ölçüsüyle hazır ya da kontrol döner (docs/specs/2026-11-26-ekstre-hareket-penceresi.md §3): hazır olan
+    /// satır kendiliğinden işaretlenebilir; olmayanın tek nedeni yazılır.</summary>
+    [Fact]
+    public async Task Yapay_zeka_onerisi_hafizanin_olcusuyle_hazir_ya_da_kontrol_doner()
+    {
+        await using var f = Ac();
+        using var c = await Editor(f);
+        var d = await Banka(c, S(G(3), "KARGO ODEMESI", -120), S(G(3), "ELEKTRIK FATURASI", -900), S(G(3), "MARKET ALISVERISI", -300),
+            S(G(3), "VIRMAN HESABA", -500), S(G(3), "AIDAT ODEMESI", -50));
+        // Okuyucu hesaplar arası transfere hep satır uyarısı yazar; hafızanın sırasıyla ilk neden "uyarı var" olur.
+        f.Istemci.Yanitlari(Y(1, "Gider", "Genel"), Y(2, "Gider", guven: "Orta"), Y(3, "Gider", "Genel", guven: "Dusuk"), Y(4, "Gider", "Genel"), Y(5, EkstreIslemTurleri.Atla));
+        Assert.Equal(5, (await Sor(c, d.Id)).Onerilen);
+        var o = await Oneriler(c, d.Id);
+        Assert.All(o, x => Assert.Equal(YapayZekaDurumlari.Oneri, x.Durum));
+        Assert.Equal([(true, null), (false, "kanal seçin"), (false, "emin değil"), (false, "uyarı var"), (false, "kasa hareketi olmayabilir")],
+            o.Select(x => (x.YapayZeka!.Hazir, x.YapayZeka.KontrolNedeni)));
+        Assert.Equal("Yapay zekâ (yüksek güven).", o[0].Aciklama);
+        Assert.Equal("Yapay zekâ (orta güven). Kontrol edin: kanal seçin.", o[1].Aciklama);
+    }
+
+    /// <summary>Kendiliğinden doldurma yalnız hiç sorulmamış satırları sorar (docs/specs/2026-11-26-ekstre-hareket-penceresi.md §3): yanıt alamamış
+    /// satır pencere her açıldığında yeniden ücretlendirilmez; bayraksız istek onu yine sorar.</summary>
+    [Fact]
+    public async Task Yalniz_sorulmamis_istegi_yanitsiz_satiri_yeniden_sormaz()
+    {
+        await using var f = Ac();
+        using var c = await Editor(f);
+        var d = await Banka(c, S(G(3), "KARGO ODEMESI", -120), S(G(3), "ELEKTRIK FATURASI", -900));
+        f.Istemci.Yanitlari(Y(1, "Gider", "Genel"));
+        Assert.Equal((2, 1), ((await Sor(c, d.Id)).Sorulan, (await Oneriler(c, d.Id)).Count(o => o.Durum == YapayZekaDurumlari.Oneri)));
+        Assert.Single(f.Istemci.Istekler);
+
+        var (kod, hata) = await Hata(c, $"/api/ekstre-aktar/{d.Id}/yapay-zeka", new YapayZekaSorYaz(Guid.NewGuid(), YalnizSorulmamis: true));
+        Assert.Equal(HttpStatusCode.Conflict, kod);
+        Assert.Contains("sorulacak satır yok", hata);
+        Assert.Single(f.Istemci.Istekler);
+        var onizleme = (await c.GetFromJsonAsync<YapayZekaOnizlemeDto>($"/api/ekstre-aktar/{d.Id}/yapay-zeka?yalnizSorulmamis=true", Ct))!;
+        Assert.Equal((0, 0), (onizleme.SatirSayisi, onizleme.KalanSatir));
+
+        // Bayraksız istek yanıt alamamış satırı yine sorar.
+        f.Istemci.Yanitlari(Y(2, "Gider", "Genel"));
+        Assert.Equal(1, (await Sor(c, d.Id)).Sorulan);
+        Assert.Equal(2, f.Istemci.Istekler.Count);
+    }
+
+    /// <summary>Yeniden okunan belgenin önerileri silinir: satırlar yeniden "hiç sorulmamış" olur ve kendiliğinden doldurma bir kez daha sorar.</summary>
+    [Fact]
+    public async Task Yeniden_okunan_belgede_satirlar_yeniden_sorulur()
+    {
+        await using var f = Ac();
+        using var c = await Editor(f);
+        var d = await Banka(c, S(G(3), "KARGO ODEMESI", -120), S(G(3), "ELEKTRIK FATURASI", -900));
+        f.Istemci.Yanitlari(Y(1, "Gider", "Genel"), Y(2, "Gider", "Genel"));
+        Assert.Equal(2, (await Sor(c, d.Id)).Sorulan);
+        d = await Post<EkstreBelgeDto>(c, $"/api/ekstre-aktar/{d.Id}/yeniden-oku", new EkstreYenidenOkuYaz(Guid.NewGuid(), d.Surum));
+        var sonuc = await Post<YapayZekaSonucDto>(c, $"/api/ekstre-aktar/{d.Id}/yapay-zeka", new YapayZekaSorYaz(Guid.NewGuid(), YalnizSorulmamis: true));
+        Assert.Equal(2, sonuc.Sorulan);
     }
 
     [Fact]

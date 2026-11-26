@@ -47,6 +47,15 @@ public partial class EkstreAktarmaViewModel(IEkstreAktarmaApi api, IKasaApi fina
     public bool OnizlemeVar => _onizleme is not null;
     public bool TekrarOnayGerekli => _onizleme?.TekrarOnayGerekli ?? false;
     public string BelgeOzeti => Belge is { } b ? $"{b.DosyaAdi} · {EkstreGecmisSatiri.Kimlik(b.Banka, b.Kaynak, b.KartId is { } id ? (Kartlar.FirstOrDefault(k => k.Id == id)?.Ad ?? "Kart") + $" (#{id})" : b.HesapAdi)}\n{b.Satirlar.Count} satır; {Satirlar.Count(s => s.Secili)} seçildi. Hiçbir satır kendiliğinden kaydedilmez.\n" + string.Join("\n", b.Uyarilar) : "";
+    /// <summary>Belge incelemeye açıldı (geçmişten, yüklemeyle ya da kaynağa gitmeyle): sayfa hareket penceresini açar. Yenileme istemez.</summary>
+    public event EventHandler? PencereAcIstendi;
+    /// <summary>Hareket penceresinin başlığı (dosya adı) ve tek satırlık alt bilgisi; belge uyarıları ⋯ menüsündedir.</summary>
+    public string PencereBasligi => Belge?.DosyaAdi ?? "";
+    public string PencereAltBilgisi => Belge is { } b ? $"{BelgeKimligi(b)} · {b.Satirlar.Count} hareket" : "";
+    public string BelgeUyarilariBasligi => $"Belge uyarıları ({Belge?.Uyarilar.Count ?? 0})";
+    public string BelgeUyarilariMetni => string.Join("\n", Belge?.Uyarilar ?? []);
+    private string BelgeKimligi(EkstreBelgeDto b) => EkstreGecmisSatiri.Kimlik(b.Banka, b.Kaynak,
+        b.KartId is { } id ? (Kartlar.FirstOrDefault(k => k.Id == id)?.Ad ?? "Kart") + $" (#{id})" : b.HesapAdi);
     partial void OnKaynakChanged(EkstreSecenek? value)
     {
         foreach (var ad in new[] { nameof(BankaMi), nameof(KartMi), nameof(ErpMi), nameof(BankaSecilir) })
@@ -101,6 +110,7 @@ public partial class EkstreAktarmaViewModel(IEkstreAktarmaApi api, IKasaApi fina
         HesapAdi = "";
         Satirlar.Clear();
         Kayitlar.Clear();
+        SuzgecleriHesapla();
         SekmeleriDoldur();
         SeciliSekme = EkstreSekmesi.Bekleyen;
         TopluTurler.Clear();
@@ -223,10 +233,12 @@ public partial class EkstreAktarmaViewModel(IEkstreAktarmaApi api, IKasaApi fina
             return;
         BelgeyiYansit(b);
         Tamamlandi();
+        PencereyiAc();
         await KurallariAlAsync(n);
+        await YapayZekaDoldurAsync(n);
         if (!Gecerli(n))
             return;
-        Mesaj = HazirVar ? "Belge okundu. Hafızadan hazır satırlar var; kalanları tek tek kontrol edin." : "Belge okundu. Kaydetmek istediğiniz satırları tek tek seçip kontrol edin.";
+        Mesaj = HazirSayisi > 0 ? $"Belge okundu. {HazirSayisi} satır hazır ve işaretli; {KontrolSayisi} satırı kontrol edin." : "Belge okundu. Kaydetmek istediğiniz satırları tek tek seçip kontrol edin.";
     }, hataIsle: e => YuklemeHatasi = e is HttpRequestException ? Yurutucu.KayitBaglantiIletisi : HataMesaji(e));
     /// <summary>Yanlış yüklenen, işlenmemiş ERP12 belgesini siler (sayfa önce onay ister). Kasa değişmez.</summary>
     public Task ErpBelgeSilAsync() => YurutAsync(async n =>
@@ -242,6 +254,7 @@ public partial class EkstreAktarmaViewModel(IEkstreAktarmaApi api, IKasaApi fina
         Belge = null;
         Satirlar.Clear();
         Kayitlar.Clear();
+        SuzgecleriHesapla();
         SekmeleriDoldur();
         GirdiDegisti();
         Mesaj = "ERP12 belgesi ve hareketleri silindi; kasa değişmedi.";
@@ -255,7 +268,9 @@ public partial class EkstreAktarmaViewModel(IEkstreAktarmaApi api, IKasaApi fina
         if (!Gecerli(n))
             return;
         BelgeyiYansit(b, koru: true);
+        PencereyiAc();
         await KurallariAlAsync(n);
+        await YapayZekaDoldurAsync(n);
     });
     public Task KaynakAcAsync(int kayitId) => YurutAsync(async n =>
     {
@@ -268,7 +283,9 @@ public partial class EkstreAktarmaViewModel(IEkstreAktarmaApi api, IKasaApi fina
         BelgeyiYansit(b, koru: true);
         // Aranan kayıt (ya da iptali) Kapanan sekmesindedir.
         SeciliSekme = EkstreSekmesi.Kapanan;
+        PencereyiAc();
         await KurallariAlAsync(n);
+        await YapayZekaDoldurAsync(n);
         if (Gecerli(n) && Kapananlar.FirstOrDefault(s => s.Kayit?.Veri.Id == kayitId) is { } satir)
             SatirGosterIstendi?.Invoke(this, satir);
     });
@@ -311,14 +328,18 @@ public partial class EkstreAktarmaViewModel(IEkstreAktarmaApi api, IKasaApi fina
         {
             SeciliSekme = EkstreSekmesi.Bekleyen;
             AtlananAcik = false;
+            YapayZekaBelgeDurumunuTemizle();
         }
         var eski = Gecmis.FirstOrDefault(g => g.Veri.Id == b.Id);
         if (eski is not null)
             Gecmis.Remove(eski);
         Gecmis.Insert(0, new(new(b.Id, b.Surum, b.Kaynak, b.Banka, b.HesapAdi, b.KartId, b.DosyaAdi, b.Yuklendi, b.Satirlar.Count, b.Kayitlar.Count(k => !k.Iptal), b.YokSayilanlar?.Count ?? 0)));
         OnPropertyChanged(nameof(BelgeOzeti));
+        foreach (var ad in new[] { nameof(PencereBasligi), nameof(PencereAltBilgisi), nameof(BelgeUyarilariBasligi), nameof(BelgeUyarilariMetni) })
+            OnPropertyChanged(ad);
         OnPropertyChanged(nameof(YonOzeti));
         OnPropertyChanged(nameof(SecimOzeti));
+        SuzgecleriHesapla();
     }
     /// <summary>Önizleme isteği; eksik varsa hepsini <see cref="OnizlemeHatalari"/>'na yazar ve null döner.</summary>
     private EkstreKaydetYaz? Girdi(EkstreBelgeDto belge)
@@ -385,7 +406,7 @@ public partial class EkstreAktarmaViewModel(IEkstreAktarmaApi api, IKasaApi fina
             BelgeyiYansit(b, koru: true, yenile: g.Satirlar.Select(s => s.SatirNo).ToHashSet());
             _kayitKey.Temizle();
             Mesaj = "Seçilen satırlar kaydedildi. Diğer satırlar değişmedi.";
-            SatirMesaji = $"{g.Satirlar.Count} satır kaydedildi ve Kapanan sekmesine geçti.";
+            SatirMesaji = $"{g.Satirlar.Count} satır kaydedildi ve Kapanan süzgecine geçti.";
             await KurallariAlAsync(n);
             if (Gecerli(n))
                 SonucuGoster(EkstreSonucu.Satirlar);

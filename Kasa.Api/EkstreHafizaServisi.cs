@@ -141,10 +141,13 @@ public static class EkstreHafizaServisi
         }
 
         /// <summary>Toplu onaya neden girmez (boşsa hazır). Yok sayma kararı mali etkisiz ve geri alınabilir olduğundan hep hazırdır.</summary>
-        private List<string> Nedenler(EkstreOkunanSatir row, Karar k)
+        private List<string> Nedenler(EkstreOkunanSatir row, Karar k) => Nedenler(row, k.IslemTuru, k.DagilimTuru, k.KanalIds, k.KrediKartiId);
+
+        /// <summary>Toplu onaya neden girmez (boşsa hazır); yapay zekâ önerisi de aynı ölçüyle değerlendirilir.</summary>
+        internal List<string> Nedenler(EkstreOkunanSatir row, string islemTuru, string? dagilimTuru, IReadOnlyList<int> kanalIds, int? kartId)
         {
             var nedenler = new List<string>();
-            if (k.IslemTuru == EkstreIslemTurleri.Atla)
+            if (islemTuru == EkstreIslemTurleri.Atla)
                 return nedenler;
             if (row.ParaBirimi is not ("TRY" or "TL") || row.Tarih is not { } tarih || !GirdiDogrulama.GecerliKayitTarihi(tarih, _bugun)
                 || row.Tutar is not > 0 or > 999_999_999_999.99m || decimal.Round(row.Tutar.Value, 2) != row.Tutar)
@@ -153,19 +156,19 @@ public static class EkstreHafizaServisi
                 nedenler.Add("satırda okuma uyarısı var");
             if (row.Yon is not ("Giris" or "Cikis"))
                 nedenler.Add("giriş/çıkış yönü okunamadı");
-            else if (Yon(k.IslemTuru, belge.Kaynak) is { } yon && yon != row.Yon)
+            else if (Yon(islemTuru, belge.Kaynak) is { } yon && yon != row.Yon)
                 nedenler.Add("okunan yön hafızadaki işlemle çelişiyor");
-            if (row.Sinif == "Transfer" && k.IslemTuru is EkstreIslemTurleri.Gelir or EkstreIslemTurleri.Gider)
+            if (row.Sinif == "Transfer" && islemTuru is EkstreIslemTurleri.Gelir or EkstreIslemTurleri.Gider)
                 nedenler.Add("hesaplar arası transfer olabilir");
-            if (!k.KanalIds.All(_kanallar.Contains))
+            if (!kanalIds.All(_kanallar.Contains))
                 nedenler.Add("kanalı pasif ya da silinmiş");
-            if (k.DagilimTuru == DagilimBicimleri.Ozel)
+            if (dagilimTuru == DagilimBicimleri.Ozel)
                 nedenler.Add("kanal tutarları o satıra özeldi, yeniden girin");
-            if (k.IslemTuru == EkstreIslemTurleri.KartOdemesi && belge.Kaynak == EkstreKaynaklari.Banka && (k.KrediKartiId is not { } kart || !_kartlar.Contains(kart)))
+            if (islemTuru == EkstreIslemTurleri.KartOdemesi && belge.Kaynak == EkstreKaynaklari.Banka && (kartId is not { } kart || !_kartlar.Contains(kart)))
                 nedenler.Add("kartı takipte değil, kart seçin");
-            if (k.IslemTuru == EkstreIslemTurleri.KartIade)
+            if (islemTuru == EkstreIslemTurleri.KartIade)
                 nedenler.Add("iadenin kaynak harcamasını seçin");
-            if (k.IslemTuru == EkstreIslemTurleri.Eslestir)
+            if (islemTuru == EkstreIslemTurleri.Eslestir)
                 nedenler.Add("eşleşecek kaydı seçin");
             return nedenler;
         }

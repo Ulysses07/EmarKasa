@@ -12,7 +12,8 @@ public record YapayZekaDurumDto(bool Acik, string? KapaliNedeni, string Model, d
     IReadOnlyList<YapayZekaOlcumDto> Olcumler);
 /// <summary>Belgeden gönderilecek maskeli satırlar (gönderilmeden). <paramref name="KalanSatir"/>: sonraki çağrıya kalan.</summary>
 public record YapayZekaOnizlemeDto(int SatirSayisi, int KalanSatir, int OrnekSayisi, IReadOnlyList<string> Satirlar, decimal EnYuksekMaliyetUsd);
-public record YapayZekaSorYaz(Guid IstekId);
+/// <summary><paramref name="YalnizSorulmamis"/>: daha önce sorulmuş (yanıt alamamış) satırlar sorulmaz; kendiliğinden doldurma bununla sorar.</summary>
+public record YapayZekaSorYaz(Guid IstekId, bool YalnizSorulmamis = false);
 /// <summary>Çağrının sonucu. <paramref name="Not"/>: yanıt kullanılamadıysa nedeni.</summary>
 public record YapayZekaSonucDto(int Sorulan, int Onerilen, int KalanSatir, decimal MaliyetUsd, string? Not);
 public record YapayZekaOlcumYaz(Guid IstekId, string Kaynak);
@@ -25,9 +26,9 @@ public static partial class EkstreAktarmaEndpoints
     private static void MapYapayZeka(RouteGroupBuilder api)
     {
         api.MapGet("/yapay-zeka", (KasaDbContext db, YapayZekaServisi yz) => Safe(() => AlisEndpoints.Oku(db, () => Results.Ok(YapayZekaDurumu(db, yz)))));
-        api.MapGet("/{id:int}/yapay-zeka", (int id, KasaDbContext db, YapayZekaServisi yz) => Safe(() => AlisEndpoints.Oku(db, () =>
+        api.MapGet("/{id:int}/yapay-zeka", (int id, bool? yalnizSorulmamis, KasaDbContext db, YapayZekaServisi yz) => Safe(() => AlisEndpoints.Oku(db, () =>
         {
-            var h = YapayZekaHazirla(db, yz, GetDocument(db, id));
+            var h = YapayZekaHazirla(db, yz, GetDocument(db, id), yalnizSorulmamis == true);
             return Results.Ok(new YapayZekaOnizlemeDto(h.Satirlar.Sum(s => s.Satirlar.Count), h.Kalan, h.OrnekSayisi, h.Satirlar.Select(s => s.Yazi).ToList(),
                 h.Istek is null ? 0 : YapayZekaAyarlari.EnYuksekMaliyet(h.Istek.Karakter)));
         })));
@@ -35,11 +36,11 @@ public static partial class EkstreAktarmaEndpoints
         api.MapPost("/yapay-zeka/olcum", YapayZekaOlc).RequireRateLimiting("guvenlik");
     }
 
-    private static YapayZekaServisi.Hazirlik YapayZekaHazirla(KasaDbContext db, YapayZekaServisi yz, EkstreBelgeEntity belge)
+    private static YapayZekaServisi.Hazirlik YapayZekaHazirla(KasaDbContext db, YapayZekaServisi yz, EkstreBelgeEntity belge, bool yalnizSorulmamis = false)
     {
         Require(yz.Ayarlar.KapaliNedeni is null, yz.Ayarlar.KapaliNedeni ?? "", 409);
         Require(belge.Kaynak != EkstreKaynaklari.Erp, "ERP12 satırları yapay zekâya sorulmaz.", 409);
-        return YapayZekaServisi.Hazirla(db, belge);
+        return YapayZekaServisi.Hazirla(db, belge, yalnizSorulmamis);
     }
 
     private static YapayZekaDurumDto YapayZekaDurumu(KasaDbContext db, YapayZekaServisi yz)
@@ -95,7 +96,7 @@ public static partial class EkstreAktarmaEndpoints
             var belge = GetDocument(db, id);
             if (YapayZekaTekrari(db, dto.IstekId, YapayZekaCagriTurleri.Satir, id, c => Results.Content(c.SonucJson ?? "null", "application/json")) is { } onceki)
                 return onceki;
-            var hazirlik = YapayZekaHazirla(db, yz, belge);
+            var hazirlik = YapayZekaHazirla(db, yz, belge, dto.YalnizSorulmamis);
             Require(hazirlik.Istek is not null, "Yapay zekâya sorulacak satır yok: bekleyen satırlar kural ya da hafızayla tanınıyor, önerisi var, dövizli ya da yalnız ad ve sayıdan oluşuyor.", 409);
             Require(hazirlik.Istek.Karakter <= YapayZekaAyarlari.EnCokGirdiKarakteri, "İstek çok uzun.", 409);
             cagri = yz.Ayir(db, dto.IstekId, YapayZekaCagriTurleri.Satir, id, hazirlik.Satirlar.Sum(s => s.Satirlar.Count), hazirlik.Istek);

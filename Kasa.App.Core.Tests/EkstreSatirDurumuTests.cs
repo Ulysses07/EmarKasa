@@ -585,39 +585,4 @@ public partial class EkstreAktarmaTests
         Assert.Equal(EkstreSekmesi.Bekleyen, vm.SeciliSekme);
         Assert.Equal(("", ""), (vm.YonOzeti, vm.AtlananMetni));
     }
-
-    [Fact]
-    public async Task Sayfada_sekme_hata_listesi_ve_kapanan_satir_dugmesi_calisir()
-    {
-        GorunumOrtami.Kur();
-        var belge = DurumBelgesi(Satir(1), Satir(2), Satir(3)) with { Kayitlar = [Kayit(7, 1)], YokSayilanlar = [2] };
-        var (vm, api, _) = await Hazir(new() { Veri = belge });
-        var page = new EkstreAktarmaPage(vm);
-        var kapanan = page.GetVisualTreeDescendants().OfType<CollectionView>().Single(l => l.AutomationId == "KapananSatirlar");
-        Assert.Single(BekleyenListe(page).ItemsSource.Cast<object>());
-        Assert.Equal(2, kapanan.ItemsSource.Cast<object>().Count());
-        static bool Gorunur(Element e) => e is not VisualElement { IsVisible: false } && (e.Parent is null || Gorunur(e.Parent));
-        Assert.True(Gorunur(BekleyenListe(page)));
-        Assert.False(Gorunur(kapanan));
-        vm.SekmeSecCommand.Execute(vm.Sekmeler[1]);
-        Assert.True(Gorunur(kapanan));
-        Assert.False(Gorunur(BekleyenListe(page)));
-
-        Assert.Equal("Gerekçeyle iptal et", SatirGorunumu(kapanan, vm.Kapananlar[0]).GetVisualTreeDescendants().OfType<Button>().Single().Text);
-        var geriAl = SatirGorunumu(kapanan, vm.Kapananlar[1]).GetVisualTreeDescendants().OfType<Button>().Single();
-        Assert.Equal("Yok saymayı geri al", geriAl.Text);
-        ((IButtonController)geriAl).SendClicked();
-        Assert.False(Assert.Single(api.YokSayIstekleri).YokSay);
-
-        vm.SekmeSecCommand.Execute(vm.Sekmeler[0]);
-        vm.Satirlar[2].Secili = true;
-        await vm.OnizleCommand.ExecuteAsync(null);
-        var git = page.GetVisualTreeDescendants().OfType<Button>().Single(b => b.Text == "Satıra git");
-        Assert.True(Gorunur(git));
-        ((IButtonController)git).SendClicked();
-        Assert.Same(vm.Satirlar[2], vm.SeciliSatir);
-        var satir = SatirGorunumu(BekleyenListe(page), vm.Satirlar[2]);
-        Assert.Contains(satir.GetVisualTreeDescendants().OfType<Label>(), l => l.Text == "Çıkış −");
-        Assert.Contains(satir.GetVisualTreeDescendants().OfType<Button>(), b => b.Text == "Yok say");
-    }
 }

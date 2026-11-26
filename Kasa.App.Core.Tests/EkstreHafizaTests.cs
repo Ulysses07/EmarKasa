@@ -11,7 +11,7 @@ public partial class EkstreAktarmaTests
         new(no, durum, [], tur, dagilim, kanallar ?? [], "Hafızadan: 2 kez aynı işlendi, son 27.08.2026.", new("HAREKET", 2, new(2026, 8, 27), kart, aciklama));
 
     [Fact]
-    public async Task Hafiza_satiri_kendiliginden_doldurur_secmez_hazirlar_tek_dugmeyle_isaretlenip_onizlenir()
+    public async Task Hafiza_satiri_kendiliginden_doldurur_hazir_olan_kendiliginden_isaretlenir_onizlenmez()
     {
         var (vm, api, _) = await Hazir(new()
         {
@@ -19,7 +19,7 @@ public partial class EkstreAktarmaTests
             Oneriler = [HafizaOnerisi(1, dagilim: "Esit", kanallar: [2], aciklama: "Yurtiçi Kargo"), HafizaOnerisi(2, durum: EkstreHafizaDurumlari.Kontrol), new(3, "Yok", [], null, null, [], "Eşleşen yok.")],
         });
         var s = vm.Satirlar[0];
-        Assert.Equal(("Gider", "Esit", "Yurtiçi Kargo", false, false), (s.IslemTuru!.Kod, s.DagilimTuru!.Kod, s.Aciklama, s.Secili, s.ElleDegisti));
+        Assert.Equal(("Gider", "Esit", "Yurtiçi Kargo", true, false), (s.IslemTuru!.Kod, s.DagilimTuru!.Kod, s.Aciklama, s.Secili, s.ElleDegisti));
         Assert.Equal("PERAKENDE", Assert.Single(s.Paylar).Kanal!.Ad);
         Assert.Equal("Gider · PERAKENDE · Hafızadan: 2 kez aynı işlendi, son 27.08.2026.", s.HafizaMetni);
         Assert.Equal("Hafızadan: 2 kez aynı işlendi, son 27.08.2026.", s.OneriMetni);
@@ -29,12 +29,12 @@ public partial class EkstreAktarmaTests
         Assert.Equal((false, "", (string?)null), (vm.Satirlar[2].HafizaVar, vm.Satirlar[2].HafizaMetni, vm.Satirlar[2].DagilimTuru?.Kod));
         Assert.Equal((true, "1 satır hazır · Giriş +0,00 ₺ (0 satır) · Çıkış −100,00 ₺ (1 satır)"), (vm.HazirVar, vm.HazirOzeti));
 
-        await vm.HazirlariIsaretleCommand.ExecuteAsync(null);
+        // Hazır satır kendiliğinden işaretlenir; etki ve kayıt kullanıcıdadır (docs/specs/2026-11-26-ekstre-hareket-penceresi.md §3).
         Assert.Equal([true, false, false], vm.Satirlar.Select(x => x.Secili));
-        Assert.Equal(1, api.OnizlemeSayisi);
-        Assert.True(vm.OnizlemeVar);
+        Assert.Equal(0, api.OnizlemeSayisi);
+        Assert.False(vm.OnizlemeVar);
         Assert.Empty(api.KaydetIstekleri);
-        Assert.Contains("Belge okundu. Hafızadan hazır satırlar var", await YuklemeMesaji(vm));
+        Assert.Equal("Belge okundu. 1 satır hazır ve işaretli; 2 satırı kontrol edin.", await YuklemeMesaji(vm));
     }
 
     private static async Task<string?> YuklemeMesaji(EkstreAktarmaViewModel vm)
@@ -64,7 +64,7 @@ public partial class EkstreAktarmaTests
     public async Task Oneri_kalkinca_hafizadan_dolan_satir_ilk_hâline_doner_ayni_oneri_onizlemeyi_dusurmez()
     {
         var (vm, api, _) = await Hazir(new() { Veri = DurumBelgesi(Satir(1), Satir(2)), Oneriler = [HafizaOnerisi(1, dagilim: "Esit", kanallar: [1, 2], aciklama: "Kısa ad")] });
-        await vm.HazirlariIsaretleCommand.ExecuteAsync(null);
+        await vm.OnizleCommand.ExecuteAsync(null);
         Assert.True(vm.OnizlemeVar);
         await vm.KurallariYenileAsync();
         Assert.True(vm.OnizlemeVar);
@@ -131,15 +131,12 @@ public partial class EkstreAktarmaTests
     }
 
     [Fact]
-    public async Task Kisisel_kural_onerisi_de_hazirlara_girer_dugme_uygular()
+    public async Task Kisisel_kural_onerisi_de_hazirdir_kendiliginden_uygulanip_isaretlenir()
     {
         var (vm, api, _) = await Hazir(new() { Veri = DurumBelgesi(Satir(1), Satir(2)), Oneriler = [new(1, "Oneri", ["Kargo"], "Gider", "Esit", [1], "Kural"), new(2, "Oneri", ["Atla"], "Atla", "Genel", [], "Atla")] });
-        Assert.Null(vm.Satirlar[0].DagilimTuru);
-        Assert.Equal([true, false], vm.Satirlar.Select(s => s.HazirOneri));
-        await vm.HazirlariIsaretleCommand.ExecuteAsync(null);
         Assert.Equal(("Esit", true), (vm.Satirlar[0].DagilimTuru?.Kod, vm.Satirlar[0].Secili));
         Assert.False(vm.Satirlar[1].Secili);
-        Assert.Equal(1, api.OnizlemeSayisi);
+        Assert.Equal(0, api.OnizlemeSayisi);
     }
 
     [Fact]

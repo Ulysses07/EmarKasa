@@ -34,6 +34,7 @@ public partial class EkstreSatirEditor
             _erpden = o is not null;
         }
         finally { _oneriUygulaniyor = false; }
+        GosterimiYenile();
         return once != ErpDurumu();
     }
 

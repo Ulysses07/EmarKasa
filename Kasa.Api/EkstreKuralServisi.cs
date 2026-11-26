@@ -50,7 +50,7 @@ public static class EkstreKuralServisi
             var matched = kurallar.Where(k => (k.Kural.Yon == null || k.Kural.Yon == row.Yon) && text.Contains(k.Kosul, StringComparison.Ordinal)).Select(k => k.Kural).ToArray();
             // Kullanıcının açıkça yazdığı kural önceliklidir; eşleşen kural yoksa işlem hafızası, o da yoksa yapay zekâ önerisi.
             if (matched.Length == 0)
-                return hafiza.Oneri(row) ?? YapayZeka.YapayZekaServisi.SatirOnerisi(row, yapayZeka, aktifKanallar) ?? Durum("Yok", "Eşleşen kişisel kural ya da hafıza yok; PDF önerisini kontrol edin.");
+                return hafiza.Oneri(row) ?? YapayZeka.YapayZekaServisi.SatirOnerisi(row, yapayZeka, aktifKanallar, hafiza) ?? Durum("Yok", "Eşleşen kişisel kural ya da hafıza yok; PDF önerisini kontrol edin.");
             var names = matched.Select(k => k.Ad).ToArray();
             var targets = matched.Select(k => $"{k.IslemTuru}|{k.DagilimTuru}|{string.Join(',', k.KanalIds.Order())}").Distinct().ToArray();
             if (targets.Length != 1)

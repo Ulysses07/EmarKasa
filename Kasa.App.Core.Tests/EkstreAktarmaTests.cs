@@ -485,7 +485,8 @@ public partial class EkstreAktarmaTests
         public Func<YapayZekaSorYaz, YapayZekaSonucDto> YzSorYaniti = _ => new(0, 0, 0, 0, null);
         public Func<YapayZekaOlcumYaz, YapayZekaOlcumDto> YzOlcumYaniti = _ => throw new NotSupportedException();
         public Task<YapayZekaDurumDto> YapayZekaDurumuAsync() => YzDurumu is { } d ? Task.FromResult(d) : Task.FromException<YapayZekaDurumDto>(new KasaApiException(HttpStatusCode.NotFound));
-        public Task<YapayZekaOnizlemeDto> YapayZekaOnizlemeAsync(int id) { YzOnizlemeSayisi++; return Task.FromResult(YzOnizleme); }
+        public List<bool> YzOnizlemeBayraklari = [];
+        public Task<YapayZekaOnizlemeDto> YapayZekaOnizlemeAsync(int id, bool yalnizSorulmamis = false) { YzOnizlemeSayisi++; YzOnizlemeBayraklari.Add(yalnizSorulmamis); return Task.FromResult(YzOnizleme); }
         public async Task<YapayZekaSonucDto> YapayZekaSorAsync(int id, YapayZekaSorYaz g) { YzSorulari.Add(g); await Task.CompletedTask; return YzSorYaniti(g); }
         public async Task<YapayZekaOlcumDto> YapayZekaOlcAsync(YapayZekaOlcumYaz g) { YzOlcumleri.Add(g); await Task.CompletedTask; return YzOlcumYaniti(g); }
         public List<int> ErpSilinenler = [];
@@ -571,7 +572,7 @@ public partial class EkstreAktarmaTests
         Assert.Null(s.Yaz().EslesenKayitTuru);
     }
     [Fact]
-    public async Task Kural_onerisi_turu_ve_kanali_doldurur_satir_secmez_elle_degistirileni_ezmez()
+    public async Task Kural_onerisi_hazirdir_kendiliginden_uygulanip_isaretlenir_elle_degistirileni_ezmez()
     {
         var oneriler = new EkstreKuralOnerisi[] { new(1, "Oneri", ["Kargo"], "Gider", "Esit", [1], "Kural"), new(2, "Celiski", ["A", "B"], null, null, [], "Çelişki") };
         var (vm, api, _) = await Hazir(new() { Oneriler = oneriler });
@@ -580,7 +581,8 @@ public partial class EkstreAktarmaTests
         var s = vm.Satirlar[0];
         Assert.Equal("Esit", s.DagilimTuru?.Kod);
         Assert.Equal(1, Assert.Single(s.Paylar).Kanal?.Id);
-        Assert.All(vm.Satirlar, x => Assert.False(x.Secili));
+        // Kesin kural önerisi hazırdır: kendiliğinden uygulanıp işaretlenir; çelişen öneri işaretlenmez.
+        Assert.Equal([true, false], vm.Satirlar.Select(x => x.Secili));
         Assert.Empty(vm.Satirlar[1].Paylar);
         s.DagilimTuru = s.DagilimTurleri.Single(x => x.Kod == "Genel");
         vm.OnerileriUygula();

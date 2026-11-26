@@ -45,6 +45,8 @@ public partial class EkstreAktarmaViewModel
     public IReadOnlyList<EkstreSekmeCipi> Sekmeler { get; } = [new() { Secili = true }, new()];
     [ObservableProperty] private EkstreSekmesi _seciliSekme;
     public bool IptalEdilenVar => IptalEdilenler.Count > 0;
+    /// <summary>Hareket penceresinin "⋯ > İptal edilen kayıtlar"ı: her kaydın kaydedilen değerleri, gerekçesi ve zamanı (satır yeniden kaydedilse de).</summary>
+    public string IptalEdilenlerMetni => string.Join("\n\n", IptalEdilenler.Select(k => $"{k.Baslik}\n{k.Ozet}"));
 
     /// <summary>"Etkisini göster" yapılamadıysa nedenleri (düğmenin altında); satır değişince o satırınki kalkar.</summary>
     public ObservableCollection<EkstreSatirHatasi> OnizlemeHatalari { get; } = new();
@@ -139,7 +141,7 @@ public partial class EkstreAktarmaViewModel
     {
         if (!EditorMu || Mesgul || !VeriHazir || Belge is null)
             return;
-        var secili = Satirlar.Where(s => s.Secili).ToList();
+        var secili = GorunenIsaretliler;
         var kanallar = TopluKanallar.Where(k => k.Secili).Select(k => k.Veri.Id).ToList();
         TopluMesaji = null;
         TopluHatasi = secili.Count == 0 ? "Toplu uygulamak için önce satırların kutularını işaretleyin."
@@ -162,7 +164,7 @@ public partial class EkstreAktarmaViewModel
     // ---- Yok say / yeniden oku ----
 
     [RelayCommand]
-    private Task SeciliyiYokSayAsync() => YokSayAsync(Satirlar.Where(s => s.Secili).ToArray(), true);
+    private Task SeciliyiYokSayAsync() => YokSayAsync([.. GorunenIsaretliler], true);
 
     /// <summary>Satırları kaydetmeden kapatır (Kapanan) ya da geri açar (Bekleyen). Kasa ve kart borcu değişmez; diğer satırların
     /// taslakları korunur.</summary>
@@ -194,7 +196,7 @@ public partial class EkstreAktarmaViewModel
                     _yokSayilanTaslak[s.Kaynak.No] = s;
             BelgeyiYansit(b, koru: true);
             var ad = nolar.Length == 1 ? $"Satır {nolar[0]}" : $"{nolar.Length} satır";
-            SatirMesaji = yokSay ? $"{ad} yok sayıldı; kasa değişmedi. Kapanan sekmesinden geri alabilirsiniz." : $"{ad} yeniden bekliyor.";
+            SatirMesaji = yokSay ? $"{ad} yok sayıldı; kasa değişmedi. Kapanan süzgecinden geri alabilirsiniz." : $"{ad} yeniden bekliyor.";
             await KurallariAlAsync(n);
             // Tek satırda liste yerinde kalır; toplu işlem listenin altındaki düğmeden yapılır, sonuç listenin üstündedir.
             if (Gecerli(n) && nolar.Length > 1)
@@ -223,6 +225,8 @@ public partial class EkstreAktarmaViewModel
         {
             if (!EditorMu || !VeriHazir || Belge is null || !YenidenOkunabilir)
                 return;
+            // Pencereden istenir (pencere açık): önceki kapanışın durdurması bu okumaya geçmez; okuma sürerken kapanırsa yine durur.
+            YapayZekaDurdurmayiKaldir();
             var id = Belge.Id;
             var g = new EkstreYenidenOkuYaz(Guid.Empty, Belge.Surum);
             var b = await api.EkstreYenidenOkuAsync(id, g with { IstekId = _yenidenOkuKey.Al(new { id, g }) });
@@ -232,6 +236,7 @@ public partial class EkstreAktarmaViewModel
             BelgeyiYansit(b);
             SatirMesaji = $"Belge yeniden okundu: {b.Satirlar.Count} satır.";
             await KurallariAlAsync(n);
+            await YapayZekaDoldurAsync(n);
         }, hataIsle: SatirHatasiniYaz);
     }
 

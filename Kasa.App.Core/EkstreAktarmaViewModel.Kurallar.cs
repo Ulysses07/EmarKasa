@@ -35,8 +35,9 @@ public partial class EkstreAktarmaViewModel
             foreach (var satir in Satirlar)
                 satir.Oneri = oneriler.FirstOrDefault(o => o.SatirNo == satir.Kaynak.No);
             HafizayiYansit();
+            SuzgecleriHesapla();
             KurallarDestekleniyor = true;
-            KuralDurumu = $"{list.Count} kişisel kural. Öneriler satır seçmez veya kayıt oluşturmaz.";
+            KuralDurumu = $"{list.Count} kişisel kural. Kesin öneri satırı işaretler; kayıt yine sizin onayınızla olur.";
         }
         catch (Exception e) when (e is HttpRequestException or TaskCanceledException || e is KasaApiException { DurumKodu: not (HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden) })
         {
@@ -47,6 +48,7 @@ public partial class EkstreAktarmaViewModel
             foreach (var satir in Satirlar)
                 satir.Oneri = null;
             HazirlariBildir();
+            SuzgecleriHesapla();
             KuralDurumu = e is KasaApiException { DurumKodu: HttpStatusCode.NotFound } ? "Sunucu kişisel kuralları desteklemiyor. PDF satırlarını elle işlemeye devam edebilirsiniz." : "Kurallar alınamadı; yenileyerek tekrar deneyin. " + (e is KasaApiException apiError ? OkumaHataMesaji(apiError) : "Bağlantı kesildi veya istek zaman aşımına uğradı.");
         }
     }

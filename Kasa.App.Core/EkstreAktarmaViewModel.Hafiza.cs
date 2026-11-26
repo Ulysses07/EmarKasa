@@ -58,26 +58,37 @@ public partial class EkstreAktarmaViewModel
             HazirlariBildir();
     }
 
-    /// <summary>Hazır satırları işaretler ve etkilerini gösterir; kayıt, önizleme onaylanınca olur.</summary>
-    [RelayCommand]
-    private async Task HazirlariIsaretleAsync()
+    /// <summary>Hazır satırları bir kez kendiliğinden işaretler (docs/specs/2026-11-26-ekstre-hareket-penceresi.md §3); kullanıcının kaldırdığı işaret ve
+    /// elle değiştirdiği satır dokunulmaz. Kayıt, önizleme onaylanınca olur.</summary>
+    private void KendiligindenIsaretle()
     {
-        if (!EditorMu || Mesgul || !VeriHazir || Belge is null)
+        if (!EditorMu || Belge is null)
             return;
-        var hazir = Hazirlar;
+        var degisti = false;
         _topluDegisiklik = true;
         try
         {
-            foreach (var s in hazir)
+            foreach (var s in Hazirlar.Where(s => !s.KendiligindenIsaretlendi))
             {
                 if (s.OneriUygulanabilir && !s.OneriyiUygula(toplu: true))
                     continue;
-                s.Secili = s.Hazirla().Yaz is not null;
+                s.KendiligindenIsaretlendi = true;
+                // Kullanıcının hazırlıktan önce dokunduğu kutu onun seçimidir: öneri alanlara yazılır, işaret değişmez.
+                if (!s.IsaretElleDegisti)
+                    s.SistemIsaretle(s.Hazirla().Yaz is not null);
+                degisti = true;
+            }
+            // Kendiliğinden işaretlenip artık hazır olmayan satır (hafıza unutuldu, öneri kalktı) kayıt kümesinde kalmaz; kullanıcının dokunduğu ya da
+            // düzenlediği satır korunur.
+            foreach (var s in Satirlar.Where(s => s.KendiligindenIsaretlendi && s.Secili && !s.IsaretElleDegisti && !s.ElleDegisti && !s.HazirOneri).ToList())
+            {
+                s.SistemIsaretle(false);
+                degisti = true;
             }
         }
         finally { _topluDegisiklik = false; }
-        GirdiDegisti();
-        await OnizleCommand.ExecuteAsync(null);
+        if (degisti)
+            GirdiDegisti();
     }
 
     /// <summary>Daha önce yok sayılmış hareketlerin aynılarını yok sayar (sayfa önce onay ister; geri alınabilir).</summary>

@@ -2,14 +2,15 @@ using System.Net.Http.Json;
 
 namespace Kasa.ApiClient;
 
-/// <summary>Yapay zekâ önerisinin güveni (YapayZekaGuvenleri), kategorisi ve düzenlenmiş açıklaması.</summary>
-public record EkstreYapayZekaOnerisi(string Guven, string Kategori, string? Aciklama);
+/// <summary>Yapay zekâ önerisinin güveni (YapayZekaGuvenleri), kategorisi ve düzenlenmiş açıklaması. <paramref name="Hazir"/>: hafızanın ölçüsüyle kendiliğinden
+/// işaretlenebilir; değilse <paramref name="KontrolNedeni"/> tek nedeni söyler.</summary>
+public record EkstreYapayZekaOnerisi(string Guven, string Kategori, string? Aciklama, bool Hazir = false, string? KontrolNedeni = null);
 /// <summary>Yapay zekânın durumu: açık mı (değilse nedeni), ayın harcaması ve sınırı, önerisi sonuçlanan satırlardan türü aynı kaydedilenler, son ölçümler.</summary>
 public record YapayZekaDurumDto(bool Acik, string? KapaliNedeni, string Model, decimal AyHarcamasiUsd, decimal AylikSinirUsd, int AyCagri, int Sonuclanan, int AyniTur,
     IReadOnlyList<YapayZekaOlcumDto> Olcumler);
 /// <summary>Belgeden gönderilecek maskeli satırlar (gönderilmeden); <paramref name="KalanSatir"/> sonraki çağrıya kalan.</summary>
 public record YapayZekaOnizlemeDto(int SatirSayisi, int KalanSatir, int OrnekSayisi, IReadOnlyList<string> Satirlar, decimal EnYuksekMaliyetUsd);
-public record YapayZekaSorYaz(Guid IstekId);
+public record YapayZekaSorYaz(Guid IstekId, bool YalnizSorulmamis = false);
 public record YapayZekaSonucDto(int Sorulan, int Onerilen, int KalanSatir, decimal MaliyetUsd, string? Not);
 public record YapayZekaOlcumYaz(Guid IstekId, string Kaynak);
 public record YapayZekaOlcumDto(string Kaynak, int Satir, int TurDogru, int DagilimSatiri, int DagilimDogru, int YuksekGuven, int YuksekDogru, int Onerisiz, decimal MaliyetUsd, DateTimeOffset Zaman);
@@ -17,7 +18,8 @@ public record YapayZekaOlcumDto(string Kaynak, int Satir, int TurDogru, int Dagi
 public sealed partial class KasaApiClient
 {
     public Task<YapayZekaDurumDto> YapayZekaDurumuAsync() => GetAsync<YapayZekaDurumDto>("api/ekstre-aktar/yapay-zeka");
-    public Task<YapayZekaOnizlemeDto> YapayZekaOnizlemeAsync(int id) => GetAsync<YapayZekaOnizlemeDto>($"api/ekstre-aktar/{id}/yapay-zeka");
+    public Task<YapayZekaOnizlemeDto> YapayZekaOnizlemeAsync(int id, bool yalnizSorulmamis = false) =>
+        GetAsync<YapayZekaOnizlemeDto>($"api/ekstre-aktar/{id}/yapay-zeka{(yalnizSorulmamis ? "?yalnizSorulmamis=true" : "")}");
     public Task<YapayZekaSonucDto> YapayZekaSorAsync(int id, YapayZekaSorYaz g) => UzunGonderAsync<YapayZekaSonucDto>($"api/ekstre-aktar/{id}/yapay-zeka", g);
     public Task<YapayZekaOlcumDto> YapayZekaOlcAsync(YapayZekaOlcumYaz g) => UzunGonderAsync<YapayZekaOlcumDto>("api/ekstre-aktar/yapay-zeka/olcum", g);
 
