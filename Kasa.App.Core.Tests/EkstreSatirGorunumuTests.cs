@@ -94,6 +94,42 @@ public partial class EkstreAktarmaTests
         Assert.Equal((4, 0, 230d), Yer());
     }
 
+    /// <summary>Kapanan satırın açıklaması kaydedilen (düzeltilmiş olabilir) açıklamadır; arama onu da bulur.</summary>
+    [Fact]
+    public async Task Kapanan_satirin_aciklamasi_kaydedilen_aciklamadir()
+    {
+        GorunumOrtami.Kur();
+        var belge = DurumBelgesi(Satir(1), Satir(2)) with { Kayitlar = [Kayit(7, 1) with { Aciklama = "Düzeltilmiş kira ödemesi" }] };
+        var (vm, _, _) = await Hazir(new() { Veri = belge });
+        var tablo = Tablo(Pencere(vm));
+        var kapanan = vm.Satirlar.Single(s => s.Kayitli);
+        var etiketler = Etiketler(SatirGorunumu(tablo, kapanan));
+        Assert.Contains("Düzeltilmiş kira ödemesi", etiketler);
+        Assert.DoesNotContain("Hareket 1", etiketler);
+        vm.Arama = "kira";
+        Assert.Equal([kapanan], vm.Gorunenler);
+    }
+
+    /// <summary>Dar pencerede (telefon) alt çubuk alt alta dizilir: "Etkisini göster ve kaydet" tam genişlikte, ikincil eylemler altında; genişte tek satır.</summary>
+    [Fact]
+    public async Task Dar_pencerede_alt_cubuk_alt_alta_dizilir()
+    {
+        GorunumOrtami.Kur();
+        var (vm, _, _) = await Hazir();
+        var pencere = Pencere(vm);
+        var kaydet = pencere.GetVisualTreeDescendants().OfType<Button>().Single(b => b.Text == "Etkisini göster ve kaydet");
+        var toplu = pencere.GetVisualTreeDescendants().OfType<Button>().Single(b => b.Text == "Toplu tür / kanal");
+        var cubuk = (Grid)kaydet.Parent;
+        (int, int, int, int) Yer(View v) => (Grid.GetColumn(v), Grid.GetRow(v), Grid.GetColumnSpan(v), cubuk.ColumnDefinitions.Count);
+        ((IView)cubuk).Arrange(new Rect(0, 0, 360, 160));
+        Assert.Equal((0, 1, 2, 2), Yer(kaydet));
+        Assert.Equal((0, 2, 1, 2), Yer(toplu));
+        Assert.Equal(LayoutOptions.Fill, kaydet.HorizontalOptions);
+        ((IView)cubuk).Arrange(new Rect(0, 0, 1000, 60));
+        Assert.Equal((3, 0, 1, 4), Yer(kaydet));
+        Assert.Equal((1, 0, 1, 4), Yer(toplu));
+    }
+
     /// <summary>"Bu seçimi hatırla" kural olamayan seçimde pencereyi kapatmaz; nedeni panelde görünür.</summary>
     [Fact]
     public async Task Hatirlanamayan_secimde_pencere_acik_kalir_nedeni_gorunur()

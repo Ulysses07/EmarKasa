@@ -85,7 +85,7 @@ public sealed partial class EkstreHareketPenceresi
         tarih.SetBinding(Label.TextProperty, nameof(EkstreSatirEditor.TarihGosterimi));
         var aciklama = Etiket("LblRowPrimary");
         aciklama.MaxLines = 1;
-        aciklama.SetBinding(Label.TextProperty, nameof(EkstreSatirEditor.Aciklama));
+        aciklama.SetBinding(Label.TextProperty, nameof(EkstreSatirEditor.AciklamaGosterimi));
         var tur = Etiket("LblRowPrimary");
         tur.SetBinding(Label.TextProperty, nameof(EkstreSatirEditor.TurKanalMetni));
         var neden = Etiket("LblRowSecondary");

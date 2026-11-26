@@ -27,9 +27,12 @@ public partial class EkstreSatirEditor
         : Oneri is { Durum: "Oneri" } o && IslemTuru?.Kod == o.IslemTuru ? "kural"
         : "";
 
+    /// <summary>Açıklama hücresi: kapanan satırda kaydedilen (düzeltilmiş olabilir) açıklama, bekleyende düzenlenen açıklama.</summary>
+    public string AciklamaGosterimi => Kayit?.Veri.Aciklama ?? Aciklama;
+
     private string? _aramaMetni;
-    /// <summary>Aramanın karşılaştırdığı metin (açıklama ve PDF açıklaması, sadeleşmiş); açıklama değişince yeniden hesaplanır.</summary>
-    internal string AramaMetni => _aramaMetni ??= Sade(Aciklama) + "\n" + Sade(Kaynak.Aciklama);
+    /// <summary>Aramanın karşılaştırdığı metin (görünen açıklama ve PDF açıklaması, sadeleşmiş); açıklama değişince yeniden hesaplanır.</summary>
+    internal string AramaMetni => _aramaMetni ??= Sade(AciklamaGosterimi) + "\n" + Sade(Kaynak.Aciklama);
     private void AramaMetniniUnut() => _aramaMetni = null;
 
     /// <summary>Karşılaştırma biçimi: Türkçe i/ı ve aksanlar sadeleşir, büyük harf.</summary>

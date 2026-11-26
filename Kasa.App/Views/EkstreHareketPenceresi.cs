@@ -174,8 +174,33 @@ public sealed partial class EkstreHareketPenceresi : ContentPage
         cubuk.Add(toplu, 1);
         cubuk.Add(yokSay, 2);
         cubuk.Add(kaydet, 3);
+        cubuk.SizeChanged += (_, _) => AltCubuguUyarla(cubuk, ozet, toplu, yokSay, kaydet);
         return new Grid { RowDefinitions = { new(1), new(GridLength.Auto) }, Children = { new BoxView { Style = Stil("TakipAyirici") }, cubuk } }
             .Satirla(cubuk, 1);
+    }
+
+    /// <summary>Bu genişliğin altında (telefon) üç düğme yan yana sığmaz.</summary>
+    private const double DarAltCubuk = 640;
+
+    /// <summary>Dar pencerede alt çubuk alt alta dizilir: seçim özeti, tam genişlikte "Etkisini göster ve kaydet", altında ikincil eylemler; genişte tek satır.</summary>
+    private static void AltCubuguUyarla(Grid cubuk, View ozet, View toplu, View yokSay, View kaydet)
+    {
+        var dar = cubuk.Width is > 0 and < DarAltCubuk;
+        if (dar == (cubuk.RowDefinitions.Count == 3))
+            return;
+        cubuk.ColumnDefinitions = dar ? new ColumnDefinitionCollection(new(GridLength.Star), new(GridLength.Star))
+            : new ColumnDefinitionCollection(new(GridLength.Star), new(GridLength.Auto), new(GridLength.Auto), new(GridLength.Auto));
+        cubuk.RowDefinitions = dar ? new RowDefinitionCollection(new(GridLength.Auto), new(GridLength.Auto), new(GridLength.Auto)) : new RowDefinitionCollection();
+        cubuk.RowSpacing = dar ? 8 : 0;
+        foreach (var (gorunum, sutun, satir, genislik) in new[] { (ozet, 0, 0, dar ? 2 : 1), (kaydet, dar ? 0 : 3, dar ? 1 : 0, dar ? 2 : 1),
+            (toplu, dar ? 0 : 1, dar ? 2 : 0, 1), (yokSay, dar ? 1 : 2, dar ? 2 : 0, 1) })
+        {
+            Grid.SetColumn(gorunum, sutun);
+            Grid.SetRow(gorunum, satir);
+            Grid.SetColumnSpan(gorunum, genislik);
+            if (gorunum is Button)
+                gorunum.HorizontalOptions = dar ? LayoutOptions.Fill : LayoutOptions.Start;
+        }
     }
 
     private async Task MenuAsync()
