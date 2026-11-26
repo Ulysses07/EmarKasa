@@ -139,6 +139,20 @@ public sealed partial class EkstreHareketPenceresi : ContentPage
         var satir = new Grid { ColumnSpacing = 12, ColumnDefinitions = { new(GridLength.Star), new(GridLength.Auto) } };
         satir.Add(cipler);
         satir.Add(ara, 1);
+        // Dar pencerede (telefon) arama çiplerin altına iner: çipler tüm genişliği kullanır, adları ve sayıları okunur.
+        satir.SizeChanged += (_, _) =>
+        {
+            var dar = satir.Width is > 0 and < DarAltCubuk;
+            if (dar == (satir.ColumnDefinitions.Count == 1))
+                return;
+            satir.ColumnDefinitions = dar ? new ColumnDefinitionCollection(new ColumnDefinition(GridLength.Star))
+                : new ColumnDefinitionCollection(new(GridLength.Star), new(GridLength.Auto));
+            satir.RowDefinitions = dar ? new RowDefinitionCollection(new(GridLength.Auto), new(GridLength.Auto)) : new RowDefinitionCollection();
+            satir.RowSpacing = dar ? 8 : 0;
+            Grid.SetColumn(ara, dar ? 0 : 1);
+            Grid.SetRow(ara, dar ? 1 : 0);
+            ara.WidthRequest = dar ? -1 : 240;
+        };
         return satir;
     }
 
@@ -179,7 +193,7 @@ public sealed partial class EkstreHareketPenceresi : ContentPage
             .Satirla(cubuk, 1);
     }
 
-    /// <summary>Bu genişliğin altında (telefon) üç düğme yan yana sığmaz.</summary>
+    /// <summary>Bu genişliğin altında (telefon) alt çubuğun üç düğmesi ya da süzgeç çipleriyle arama yan yana sığmaz.</summary>
     private const double DarAltCubuk = 640;
 
     /// <summary>Dar pencerede alt çubuk alt alta dizilir: seçim özeti, tam genişlikte "Etkisini göster ve kaydet", altında ikincil eylemler; genişte tek satır.</summary>

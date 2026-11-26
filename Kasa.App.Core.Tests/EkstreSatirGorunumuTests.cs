@@ -130,6 +130,22 @@ public partial class EkstreAktarmaTests
         Assert.Equal((1, 0, 1, 4), Yer(toplu));
     }
 
+    /// <summary>Dar pencerede (telefon) arama süzgeç çiplerinin altına iner: çipler tüm genişliği kullanır; genişte yan yana.</summary>
+    [Fact]
+    public async Task Dar_pencerede_arama_ciplerin_altina_iner()
+    {
+        GorunumOrtami.Kur();
+        var (vm, _, _) = await Hazir();
+        var pencere = Pencere(vm);
+        var ara = pencere.GetVisualTreeDescendants().OfType<Entry>().Single(e => e.Placeholder == "Açıklamada ara");
+        var satir = (Grid)ara.Parent;
+        (int, int, double, int) Yer() => (Grid.GetColumn(ara), Grid.GetRow(ara), ara.WidthRequest, satir.ColumnDefinitions.Count);
+        ((IView)satir).Arrange(new Rect(0, 0, 312, 120));
+        Assert.Equal((0, 1, -1d, 1), Yer());
+        ((IView)satir).Arrange(new Rect(0, 0, 1000, 40));
+        Assert.Equal((1, 0, 240d, 2), Yer());
+    }
+
     /// <summary>"Bu seçimi hatırla" kural olamayan seçimde pencereyi kapatmaz; nedeni panelde görünür.</summary>
     [Fact]
     public async Task Hatirlanamayan_secimde_pencere_acik_kalir_nedeni_gorunur()
