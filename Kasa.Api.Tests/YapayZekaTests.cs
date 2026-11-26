@@ -52,9 +52,10 @@ public class YapayZekaTests
         (await c.PutAsJsonAsync("/api/ayarlar", new { takipBaslangic = new DateOnly(Bugun.Year, 1, 1), kasaAcilisDevri = 1000m }, Ct)).EnsureSuccessStatusCode();
         return c;
     }
-    private static async Task<EkstreBelgeDto> Banka(HttpClient c, params object?[][] satirlar)
+    private static Task<EkstreBelgeDto> Banka(HttpClient c, params object?[][] satirlar) => Yukle(c, S("Tarih", "Açıklama", "Tutar (TL)"), satirlar);
+    private static async Task<EkstreBelgeDto> Yukle(HttpClient c, object?[] baslik, object?[][] satirlar)
     {
-        var dosya = TestExcel.Xlsx(("H", [S("Tarih", "Açıklama", "Tutar (TL)"), .. satirlar]));
+        var dosya = TestExcel.Xlsx(("H", [baslik, .. satirlar]));
         using var form = new MultipartFormDataContent
         { { new StringContent("Banka"), "kaynak" }, { new StringContent("Akbank"), "banka" }, { new StringContent("Ana hesap"), "hesapAdi" }, { new ByteArrayContent(dosya), "dosya", "banka.xlsx" } };
         var r = await c.PostAsync("/api/ekstre-aktar/yukle", form, Ct);
@@ -130,6 +131,23 @@ public class YapayZekaTests
     }
 
     // ---- İstek ----
+
+    /// <summary>Para birimi okunamayan satırı uygulama TL sayıp seçtirir; yapay zekâ da onu sorar (kart ekstrelerinde çoğu satır böyledir). Dövizli satır
+    /// sorulmaz.</summary>
+    [Fact]
+    public async Task Para_birimi_okunamayan_satir_sorulur_dovizli_satir_sorulmaz()
+    {
+        await using var f = Ac();
+        using var c = await Editor(f);
+        var d = await Yukle(c, S("Tarih", "Açıklama", "Tutar", "Para birimi"), [S(G(3), "ELEKTRIK FATURA 881", -900, ""), S(G(3), "AMAZON WEB HIZMET", -50, "USD")]);
+        Assert.Equal(["Belirsiz", "USD"], d.Satirlar.Select(r => r.ParaBirimi));
+        var onizleme = (await c.GetFromJsonAsync<YapayZekaOnizlemeDto>($"/api/ekstre-aktar/{d.Id}/yapay-zeka", Ct))!;
+        Assert.Equal(["1 | CIKIS | 100-1000 | ELEKTRIK FATURA #"], onizleme.Satirlar);
+        f.Istemci.Yanitlari(Y(1, "Gider", "Genel", kategori: "elektrik"));
+        Assert.Equal(1, (await Sor(c, d.Id)).Sorulan);
+        var o = await Oneriler(c, d.Id);
+        Assert.Equal((YapayZekaDurumlari.Oneri, "Gider", "Yok"), (o[0].Durum, o[0].IslemTuru, o[1].Durum));
+    }
 
     /// <summary>Gönderilen metinde yalnız maskeli açıklama, yön ve tutar aralığı vardır; tarih, kesin tutar, banka, hesap, dosya adı ve kişi adı yoktur.
     /// Kural ve hafızanın tanıdığı, kapanmış, dövizli ve yalnız ad/sayıdan oluşan satır sorulmaz; aynı satırlar bir kez sorulur.</summary>

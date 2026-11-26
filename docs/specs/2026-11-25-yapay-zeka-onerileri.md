@@ -12,7 +12,8 @@ maskeli metin gönderilir.
 
 ## Ne yapar
 
-Kişisel kuralın ve işlem hafızasının tanımadığı, bekleyen TL satırları için tür (gelir, gider, kart harcaması, iade, karta ödeme, "kasa hareketi değil"),
+Kişisel kuralın ve işlem hafızasının tanımadığı, bekleyen TL satırları (para birimi okunamayan satır dahil; uygulama onu TL sayıp seçtirir; dövizli satır
+sorulmaz; tutarı okunamayan satırın aralığı `?` gider) için tür (gelir, gider, kart harcaması, iade, karta ödeme, "kasa hareketi değil"),
 kanal dağılımı, kısa kategori ve düzenlenmiş açıklama önerir. Öneri satırı doldurur; **satırı seçmez, "hazır" saymaz, toplu işaretlemeye girmez, kaydetmez.**
 Kullanıcı satırı tek tek işaretler, önizler ve onaylar. Kaydedilen satır hafızaya geçer; aynı hareket bir daha yapay zekâya sorulmaz.
 

@@ -95,6 +95,9 @@ public static class EkstreMetinOkuyucu
         var skippedCount = 0;
         // Belge sırası: hareketler (segment sırası) ve aralarındaki devir bakiyeleri.
         var balances = new List<BakiyeDugumu>();
+        // Hareketin balances içindeki yeri (kolonları hizalı okunmayan sayfanın düğümleri yeniden kurulur).
+        var nodeOf = new List<int>();
+        var misalignedPages = new List<int>();
         var accounts = new Dictionary<string, string>();
         string? lastSection = null;
         var bank = kaynak == EkstreKaynaklari.Banka;
@@ -202,10 +205,20 @@ public static class EkstreMetinOkuyucu
                 if (unknownAccount && segments.Count > 0)
                     balances.Add(BakiyeDugumu.Kopma);
                 unknownAccount = false;
+                nodeOf.Add(balances.Count);
                 balances.Add(BalanceNode(segment, segments.Count));
                 segments.Add(segment);
                 if (segments.Count > 1500)
                     throw new PdfOkumaException("Bir dosyada en fazla 1500 hareket okunabilir. Daha kısa tarih aralığı seçin.");
+            }
+            if (bank && MisalignedPage(segments, pageStart))
+            {
+                for (var s = pageStart; s < segments.Count; s++)
+                {
+                    segments[s] = segments[s] with { Columns = [] };
+                    balances[nodeOf[s]] = BalanceNode(segments[s], s);
+                }
+                misalignedPages.Add(pageIndex + 1);
             }
         }
         // Kart ekstresinde eksi/artı işaretinin anlamı bankaya göre değişir; satırlar yorumlanmadan önce belgeden çıkarılır.
@@ -222,6 +235,8 @@ public static class EkstreMetinOkuyucu
         }
         var rows = segments.Select((s, i) => Parse(s, kaynak, s.SectionCurrency ?? pageCurrencies[s.Page - 1] ?? documentFallback, i + 1, creditSign,
             chain.Baglar.GetValueOrDefault(i), chain.YalnizTutar.TryGetValue(i, out var only) ? only : null, rejected.GetValueOrDefault(i))).ToList();
+        if (misalignedPages.Count > 0)
+            warnings.Add($"{(misalignedPages.Count == 1 ? $"{misalignedPages[0]}. sayfada" : $"{misalignedPages.Count} sayfada ({string.Join(", ", misalignedPages.Take(10))}{(misalignedPages.Count > 10 ? " …" : "")})")} tutar ve bakiye başlıktaki kolonlarla hizalı değil; bu sayfalarda tutar ve yön yalnız bakiye zinciri tutan satırlarda alındı. PDF ile karşılaştırın.");
         if (summaryCount > 0)
             warnings.Add($"{summaryCount} toplam, devir, limit veya ekstre bilgi satırı mali hareket olarak alınmadı.");
         if (skippedCount > 0)
@@ -296,6 +311,19 @@ public static class EkstreMetinOkuyucu
             .Select(t => new BakiyeTutari(Math.Abs(t.Value), t.Direction == "B" ? -1 : t.Direction == "A" ? 1 : t.ExplicitSign ? Math.Sign(t.Value) : 0, t.Direction is "B" or "A", t.UnreadSign)).ToList();
         var day = DateRx.Match(segment.Raw) is { Success: true } date ? date.Value : ShortDateRx.Match(segment.Raw) is { Success: true } shortDate ? shortDate.Value.Trim() : null;
         return new(index, balance?.Value, balance is null ? 0 : BalanceSuffix(balance), amounts, hasColumn, day);
+    }
+    /// <summary>pdftotext sayfanın metnini başlıkla hizalı çıkarmayabilir (QNB hesap hareketi: ilk sayfadan sonra tutar ve bakiye 8–10 karakter
+    /// sola kayar): bakiye kolonu olan sayfada tek satırlı ve birden çok tutarlı hiçbir hareketin bakiye kolonunda tek tutarı yoksa kolonlar o
+    /// sayfada bir şey söylemez. Sayfa ancak başlıksız okunduğunda kendi içinde bakiye zinciri kuruyorsa başlıksız okunur; zincir kurmuyorsa
+    /// eskisi gibi kalır (tutar elle girilir).</summary>
+    private static bool MisalignedPage(List<Segment> segments, int pageStart)
+    {
+        var page = segments.Skip(pageStart).ToList();
+        var candidates = page.Where(s => s.Columns.Any(c => c.Kind == "Balance") && !s.Raw.Contains('\n') && Tokens(s.Raw).Count > 1).ToList();
+        if (candidates.Count < 2 || candidates.Any(s => Tokens(s.Raw).Count(t => s.Columns.LastOrDefault(c => t.End >= c.Start)?.Kind == "Balance") == 1))
+            return false;
+        var chain = EkstreBakiyeZinciri.Coz(page.Select((s, i) => BalanceNode(s with { Columns = [] }, i)).ToList());
+        return chain.Baglar.Count + chain.YalnizTutar.Count > 0;
     }
     private static int BalanceSuffix(Token t) => t.Direction switch { "B" => -1, "A" => 1, _ => 0 };
 

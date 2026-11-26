@@ -85,12 +85,14 @@ public sealed partial class YapayZekaServisi(YapayZekaAyarlari ayarlar, IYapayZe
 
     private static string YonYazisi(string yon) => yon switch { "Giris" => "GIRIS", "Cikis" => "CIKIS", _ => "BELIRSIZ" };
 
-    /// <summary>Belgenin kural ve hafızayla tanınmayan, önerisi olmayan bekleyen TL satırlarından istek.</summary>
+    /// <summary>Belgenin kural ve hafızayla tanınmayan, önerisi olmayan bekleyen TL satırlarından istek. Para birimi okunamayan satır da sorulur
+    /// (uygulama onu TL sayıp seçtirir; kart ekstrelerinde çoğu satır böyledir); dövizli satır sorulmaz. Tür için tarih ve kesin tutar gerekmez:
+    /// tutarı okunamayan satırın aralığı "?" gider.</summary>
     internal static Hazirlik Hazirla(KasaDbContext db, EkstreBelgeEntity belge)
     {
         var satirlar = Read<EkstreOkunanSatir>(belge.SatirlarJson).ToDictionary(r => r.No);
         var acik = EkstreKuralServisi.Oneriler(db, belge).Where(o => o.Durum == "Yok").Select(o => satirlar[o.SatirNo])
-            .Where(r => r.ParaBirimi is "TRY" or "TL" && r.Tutar is > 0 && r.Tarih is not null).ToList();
+            .Where(r => r.ParaBirimi is "TRY" or "TL" or "Belirsiz" && r.Tutar is null or > 0).ToList();
         var maske = new YapayZekaMaskesi();
         var kanallar = Kanallar(db, maske);
         var ornekler = Ornekler(Kararlar(db, belge.Kaynak).Take(YapayZekaAyarlari.EnCokOrnek), maske);
