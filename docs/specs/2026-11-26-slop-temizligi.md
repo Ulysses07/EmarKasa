@@ -109,8 +109,27 @@ Eşdeğerlik testleri yapıyı korumaya devam eder; görünüm beklentileri yeni
 - Kısayollar (Windows): F5 yenile (başlık satırının Yenile'siyle aynı yol), Ctrl+N yeni kayıt, Ctrl+S kaydet, Ctrl+F arama (ekstre
   penceresi). Sayfa `Controls.IKisayolHedefi` ile komutunu verir; Ctrl+S yalnız ilgili form açıkken vardır. Sayfa üstü pencere (silme
   onayı, güncellemeler) açıkken kısayol alttaki sayfaya gitmez. Tuş dinleyicisi `Platforms/Windows/KlavyeKisayollari.cs`.
-- Sonraya kalan (ayrı iş): Kasalar'daki kasa kontrolünün (alt limit, gerçek bakiye karşılaştırması, hareket dökümü) ayrı "Kasa kontrolü"
-  sayfasına taşınması ve ekstre kayıt özetinin yeniden düzeni. İkisi de yeni sayfa ve akış ister; bu PR yalnız yerleşimi sadeleştirir.
+- Sonraya kalan (ayrı iş): ekstre kayıt özetinin yeniden düzeni. Kasa kontrolünün ayrı sayfası §9'da.
+
+## §9 Kasa kontrolü sayfası (PR 7)
+
+- Kasalar yalnız özettir: genel kasa, kanal bakiyeleri, kart ve kredi takibi, çekler. Kanal bakiyeleri kartının altında "Kasa kontrolü"
+  bağlantısı vardır. Bakiyesi açık alt limit uyarısının altındaki kanalın satırında kırmızı tek satır yazar ("Alt limitin altında: limit
+  1.000,00 ₺"); eşik ana sayfa yanıtından gelir, bakiye ile uyarı çelişmez. Eşiksiz yanıtta (eski sunucu) işaret yoktur.
+- "Kasa kontrolü" menüde "Özet" grubunda Kasalar'ın altındadır (`Bolum.KasaKontrolu`, rota `kasakontrolu`). Kasalar'ı gören iki rol de görür:
+  geçmiş, alt limit uyarıları ve hareket dökümü sunucuda okuma yetkisiyle (Finans) gelir, Kasalar'daki eski bölüm de izleyiciye açıktı.
+  Karşılaştırma, "Değişenleri göster", fark açıklaması ve Ayarlar bağlantısı yalnız editörde görünür (sunucu da yalnız editöre açar).
+- Sayfa `TakipSayfasi`'dır: başlık `SayfaBasligi`, F5 ve Yenile sayfanın yenilemesi, son veri soluk kalır. Sayfa her göründüğünde
+  yenilenir; uyarılar ve geçmişin güncel durumu başka ekranlardaki kayıtlarla değişir.
+- Kartlar sırasıyla: "Alt limit uyarıları" (editörde "Alt limitleri düzenle" Ayarlar'ı açar; limitler Ayarlar'da kalır), "Karşılaştırma
+  geçmişi" (uzun kural "Ayrıntılar"da, editörde "Yeni karşılaştırma"), istenince açılan "Gerçek bakiye karşılaştırması", istenince açılan
+  "Bu kontrolden beri değişenler" ("Kapat" ile kapanır) ve "Kasa hareket dökümü" (başlangıç, bitiş ve kasa yan yana; sorgudan önce boş
+  liste metni yok).
+- Karşılaştırma formu: "Farkı göster" ikincil, "Karşılaştırmayı kaydet" sayfanın tek ana düğmesi. Kayıt formu kapatıp alanları temizler;
+  "Vazgeç" de temizleyip kapatır. Tekrar anahtarı "Vazgeç"te silinmez: yanıtı belirsiz kalan kayıt aynı değerlerle yeniden gönderilirse
+  sunucu ikinci kez işlemez. "Açıklamayı kaydet" ikincildir; iki form birlikte açık olsa da sayfada en çok bir yeşil düğme kalır.
+- Ctrl+N "Yeni karşılaştırma" (yalnız editör), Ctrl+S yalnız form açıkken kaydeder. Açılan form, kayıt hatası ve başarı iletisi görünür
+  yere kaydırılır.
 
 ## Korunacaklar
 

@@ -180,6 +180,7 @@ public class YerlesimVeKisayolTests
     [InlineData("Krediler")]
     [InlineData("Çekler")]
     [InlineData("Aylık giderler")]
+    [InlineData("Kasa kontrolü")]
     public async Task Ctrl_S_yalniz_form_acikken_vardir_Ctrl_N_formu_acar(string ad)
     {
         GorunumOrtami.Kur();
@@ -190,6 +191,7 @@ public class YerlesimVeKisayolTests
             KrediTakipViewModel k => k.YeniKredi,
             CekTakipViewModel c => c.FormAcik,
             AylikGiderViewModel a => a.SablonFormuAcik,
+            KasaKontrolViewModel k => k.FormAcik,
             _ => throw new InvalidOperationException(),
         };
         Assert.False(FormAcik());

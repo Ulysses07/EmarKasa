@@ -141,6 +141,7 @@ public static class MauiProgram
         builder.Services.AddTransient<Views.EkstreAktarmaPage>();
         builder.Services.AddTransient<Views.CekTakipPage>();
         builder.Services.AddTransient<Views.CarilerPage>();
+        builder.Services.AddTransient<Views.KasaKontrolPage>();
 
 #if DEBUG
         builder.Logging.AddDebug();

@@ -61,7 +61,8 @@ public partial class MauiKayitTutarliligiTests
         foreach (var dosya in dosyalar)
         {
             var kaynak = File.ReadAllText(dosya);
-            Assert.False(Regex.IsMatch(kaynak, @"\.EditorMu\s*=[^=]"), $"{Path.GetFileName(dosya)} EditorMu atıyor.");
+            // "==" karşılaştırma, "=>" switch kolu ya da ifade gövdesidir (ör. kısayol "when Vm.EditorMu =>"); atama değildir.
+            Assert.False(Regex.IsMatch(kaynak, @"\.EditorMu\s*=(?![=>])"), $"{Path.GetFileName(dosya)} EditorMu atıyor.");
             Assert.DoesNotContain("AktifRol", kaynak);
             Assert.DoesNotContain("OturumuAyarla", kaynak);
         }

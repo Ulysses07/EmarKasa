@@ -8,18 +8,16 @@ public partial class PanelPage : ContentPage, Controls.IYenilenebilir
     public Task YenileAsync() => _vm.YukleAsync();
 
     private readonly PanelViewModel _vm;
-    private readonly TakipOzetViewModel _takip;
-    private readonly KasaKontrolViewModel _kontrol;
 
-    public PanelPage(PanelViewModel vm, TakipOzetViewModel takip, KasaKontrolViewModel kontrol, CekOzetViewModel cekler)
+    /// <summary>Kasalar yalnız özettir: genel kasa, kanal bakiyeleri, kart ve kredi takibi, çekler. Kasa kontrolü (sayım
+    /// karşılaştırması, alt limit uyarıları, hareket dökümü) ayrı sayfadır (docs/specs/2026-11-26-slop-temizligi.md §8).</summary>
+    public PanelPage(PanelViewModel vm, TakipOzetViewModel takip, CekOzetViewModel cekler)
     {
         InitializeComponent();
         BindingContext = _vm = vm;
-        _takip = takip;
-        _kontrol = kontrol;
         // Alt bölümler her başarılı panel yüklemesinden sonra yenilenir; panelin ve kendi yüklemelerinin hatası son verilerini
         // silmez, kanal satırlarındaki kart borçları da kalır (PanelViewModel.AltBolumleriBagla; tasarım 2026-10-02 §3).
-        _vm.AltBolumleriBagla(takip, kontrol, cekler);
+        _vm.AltBolumleriBagla(takip, cekler);
         // Önümüzdeki 7 / 30 gün: seçili durumu olan çip (sadeleştirme §8); seçim düğmeleri iki ayrı düğme değil.
         var gunler = new System.Collections.ObjectModel.ObservableCollection<SecimCipi> { new("7 gün") { Secili = _vm.TakipGunu == 7 }, new("30 gün") { Secili = _vm.TakipGunu != 7 } };
         var secim = new Controls.CipGrubu { CipKenari = new Thickness(0, 0, 8, 0) };
@@ -48,7 +46,14 @@ public partial class PanelPage : ContentPage, Controls.IYenilenebilir
         kart.BindingContext = takip;
         PanelAlani.Add(kart);
         PanelAlani.Add(CekKutusu(cekler));
-        PanelAlani.Add(KasaKontrolAlanlari.Kontrol(kontrol));
+    }
+
+    /// <summary>Kanal bakiyeleri kartındaki "Kasa kontrolü": gezinme hatası günlüğe yazılır (async void işleyiciden istisna çıkmaz).</summary>
+    private async void KasaKontroluTiklandi(object? sender, EventArgs e)
+    {
+        try
+        { await Shell.Current.GoToAsync("//" + MenuModeli.Rota(Bolum.KasaKontrolu)); }
+        catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"Kasa kontrolü açılamadı: {ex}"); }
     }
 
     /// <summary>Çekler kutusu (docs/specs/2026-10-01-cekler.md "Panel"): önce verilen, sonra alınan satırları; satıra tıklayınca Çekler

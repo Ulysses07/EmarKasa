@@ -9,6 +9,8 @@ namespace Kasa.App.Core;
 public partial class KasaKontrolViewModel(IKasaKontrolApi api, AuthViewModel auth) : OturumluViewModel(auth)
 {
     public const string NotZorunluMesaji = "Fark varsa açıklama girin.";
+    /// <summary>Açık alt limit uyarılarının hiçbirinde kanal limitin altında değil.</summary>
+    public const string EsikAltindaKanalYok = "Alt limitin altında kanal yok.";
     private readonly TekrarAnahtari _anahtar = new();
     private readonly TekrarAnahtari _aciklamaAnahtari = new();
     private KasaKontrolOnizle? _girdi;
@@ -42,27 +44,47 @@ public partial class KasaKontrolViewModel(IKasaKontrolApi api, AuthViewModel aut
     [ObservableProperty] private string? _dokumOzeti;
     public ObservableCollection<KasaHareketiSatiri> DokumSatirlari { get; } = new();
 
-    public Task YukleAsync() => YukleAsync(null);
+    /// <summary>Gerçek bakiye karşılaştırma formu (yalnız editör): "Yeni karşılaştırma" ile açılır, kayıt ve "Vazgeç" kapatır
+    /// (docs/specs/2026-11-26-slop-temizligi.md §8: formlar yalnız istenince açılır).</summary>
+    [ObservableProperty] private bool _formAcik;
+    [RelayCommand]
+    private void FormAc()
+    {
+        if (EditorMu)
+            FormAcik = true;
+    }
+    /// <summary>"Vazgeç": girilen bakiye, açıklama ve fark önizlemesi temizlenip form kapanır (gizli formda kaydedilmemiş değişiklik
+    /// kalmaz). Tekrar anahtarı korunur: yanıtı belirsiz kalan kayıt aynı değerlerle yeniden gönderilirse sunucu ikinci kez işlemez.</summary>
+    [RelayCommand]
+    private void FormKapat()
+    {
+        FormuTemizle();
+        FormAcik = false;
+    }
+    private void FormuTemizle()
+    {
+        GercekBakiye = 0;
+        Not = "";
+        _girdi = null;
+        _onizleme = null;
+        Karsilastirma = null;
+        SifirOnayiniKaldir();
+    }
+
     /// <summary>Bakiye karşılaştırma geçmişi ve kanal eşikleri. Geçmiş yüklenemezse son başarılı veri silinmez, eski işaretlenir
-    /// (tasarım 2026-10-02 §3).</summary>
-    /// <param name="panelEsikleri">Panelle aynı anlık görüntüden gelen kanal eşikleri (ana sayfa yanıtı): uyarı ile bakiye
-    /// çelişmez. Null ise (eski sunucu, birleşik ucun sunucu hatası ya da eşiksiz yanıtı, yeniden deneme) ayrıca istenir; o
-    /// istek de başarısızsa hata <see cref="EsikHatasi"/>'nda kalır, geçmiş yine gösterilir.</param>
-    public Task YukleAsync(IReadOnlyList<KasaEsikDto>? panelEsikleri)
+    /// (tasarım 2026-10-02 §3). Eşikler yüklenemezse hata <see cref="EsikHatasi"/>'nda kalır, geçmiş yine gösterilir.</summary>
+    public Task YukleAsync()
     {
         SonVeriyiGoster();
         return VeriYukleAsync(async n =>
         {
             VeriHazir = false;
             var gecmis = await api.KasaKontrolleriAsync();
-            IReadOnlyList<KasaEsikDto>? esikler = panelEsikleri;
+            IReadOnlyList<KasaEsikDto>? esikler = null;
             string? esikHatasi = null;
-            if (esikler is null)
-            {
-                try
-                { esikler = await api.KasaEsikleriAsync(); }
-                catch (Exception e) when (e is not OperationCanceledException) { esikHatasi = "Kanal uyarıları yüklenemedi: " + OkumaHataMesaji(e); }
-            }
+            try
+            { esikler = await api.KasaEsikleriAsync(); }
+            catch (Exception e) when (e is not OperationCanceledException) { esikHatasi = "Kanal uyarıları yüklenemedi: " + OkumaHataMesaji(e); }
             if (!Gecerli(n))
                 return;
             var veri = new KontrolVerisi(gecmis, esikler, esikHatasi);
@@ -81,9 +103,9 @@ public partial class KasaKontrolViewModel(IKasaKontrolApi api, AuthViewModel aut
         var (gecmis, esikler, esikHatasi) = v;
         TakipMetni.Doldur(Gecmis, gecmis.Select(x => new KasaKontrolSatiri(x)));
         EsikHatasi = esikHatasi;
-        EsikUyarilari = esikler is null ? null : string.Join("\n", esikler.Where(x => x.Etkin && x.EsikAltinda).Select(x => $"{x.Kanal}: bakiye {Bicim.Tl(x.Bakiye)} ₺ — alt limit {Bicim.Tl(x.Tutar)} ₺"));
+        EsikUyarilari = esikler is null ? null : string.Join("\n", esikler.Where(x => x.Etkin && x.EsikAltinda).Select(x => $"{x.Kanal}: bakiye {Bicim.Tl(x.Bakiye)} ₺, alt limit {Bicim.Tl(x.Tutar)} ₺"));
         if (esikler is not null && string.IsNullOrEmpty(EsikUyarilari))
-            EsikUyarilari = "Açık uyarılarda alt limitin altında kanal yok.";
+            EsikUyarilari = EsikAltindaKanalYok;
         if (esikler is not null)
         {
             var secili = DokumKasa?.KanalId;
@@ -147,10 +169,8 @@ public partial class KasaKontrolViewModel(IKasaKontrolApi api, AuthViewModel aut
                 return;
             Gecmis.Insert(0, new(sonuc));
             _anahtar.Temizle();
-            _girdi = null;
-            _onizleme = null;
-            Karsilastirma = null;
-            SifirOnayiniKaldir();
+            FormuTemizle();
+            FormAcik = false;
             Mesaj = "Karşılaştırma kaydedildi. Genel kasa ve kanal bakiyeleri değiştirilmedi.";
             Tamamlandi();
         }
@@ -211,17 +231,18 @@ public partial class KasaKontrolViewModel(IKasaKontrolApi api, AuthViewModel aut
         TakipMetni.Doldur(DokumSatirlari, d.Hareketler.Select(h => new KasaHareketiSatiri(h, KanalKasasi: d.KanalId is not null)));
     });
 
+    /// <summary>"Bu kontrolden beri değişenler" kartının "Kapat"ı: seçim, liste ve yazılmamış açıklama bırakılır.</summary>
+    [RelayCommand]
+    private void IncelemeKapat() => SeciliyiBirak();
+
     private void SeciliyiBirak() { Secili = null; SonrasiOzeti = null; FarkAciklamasi = ""; Degisiklikler.Clear(); SonrasiHareketler.Clear(); _aciklamaAnahtari.Temizle(); }
     protected override void OturumTemizle()
     {
         Gecmis.Clear();
-        GercekBakiye = 0;
-        Not = "";
-        Karsilastirma = EsikUyarilari = EsikHatasi = null;
-        _girdi = null;
-        _onizleme = null;
+        EsikUyarilari = EsikHatasi = null;
+        FormuTemizle();
+        FormAcik = false;
         _anahtar.Temizle();
-        SifirOnayiniKaldir();
         SeciliyiBirak();
         DokumOzeti = null;
         DokumSatirlari.Clear();

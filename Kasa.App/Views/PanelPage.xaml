@@ -79,6 +79,7 @@
                                         <VerticalStackLayout ctl:UyumluIzgara.DarSatir="0" Spacing="4" VerticalOptions="Center">
                                             <Label Text="{Binding Kanal}" Style="{StaticResource LblRowPrimary}" />
                                             <Label Text="{Binding KartBorcuMetni}" Style="{StaticResource LblPageSub}" IsVisible="{Binding KartBorcuMetni, Converter={StaticResource DoluIse}}" />
+                                            <Label Text="{Binding AltLimitMetni}" Style="{StaticResource LblError}" IsVisible="{Binding AltLimitMetni, Converter={StaticResource DoluIse}}" />
                                         </VerticalStackLayout>
                                         <Label Grid.Column="1" ctl:UyumluIzgara.DarSatir="1"
                                                Text="{Binding Bakiye, Converter={StaticResource ParaBicim}}"
@@ -94,6 +95,9 @@
                                           Aciklama="Ayarlar → Kanallar bölümünden ilk kanalınızı ekleyin." />
                         </CollectionView.EmptyView>
                     </CollectionView>
+                    <!-- Sayım karşılaştırması, alt limit uyarıları ve hareket dökümü ayrı sayfada (sadeleştirme §8). -->
+                    <BoxView Style="{StaticResource RowSeparator}" />
+                    <Button Text="Kasa kontrolü" Clicked="KasaKontroluTiklandi" HorizontalOptions="Start" Margin="18,12,18,16" />
                 </VerticalStackLayout>
             </Border>
 

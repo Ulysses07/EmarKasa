@@ -44,6 +44,7 @@
     <Compile Include="..\Kasa.App\Views\GuvenlikAlani.cs" Link="Kontroller\%(Filename)%(Extension)" />
     <Compile Include="..\Kasa.App\Views\KartTakipPage.cs" Link="Kontroller\%(Filename)%(Extension)" />
     <Compile Include="..\Kasa.App\Views\KasaKontrolAlanlari.cs" Link="Kontroller\%(Filename)%(Extension)" />
+    <Compile Include="..\Kasa.App\Views\KasaKontrolPage.cs" Link="Kontroller\%(Filename)%(Extension)" />
     <Compile Include="..\Kasa.App\Views\KrediTakipPage.cs" Link="Kontroller\%(Filename)%(Extension)" />
     <Compile Include="..\Kasa.App\Views\SilmeOnayi.cs" Link="Kontroller\%(Filename)%(Extension)" />
     <Compile Include="..\Kasa.App\Views\DosyaSecimTurleri.cs" Link="Kontroller\DosyaSecimTurleri.cs" />

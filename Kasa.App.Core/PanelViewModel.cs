@@ -41,13 +41,13 @@ public partial class PanelViewModel : RaporViewModel
     /// <summary>Son başarılı panel yüklemesinin başlattığı alt bölüm yüklemesi (<see cref="AltBolumleriBagla"/>).</summary>
     public Task AltBolumYuklemesi { get; private set; } = Task.CompletedTask;
 
-    /// <summary>Kasalar alt bölümlerini (takip özeti, kasa kontrolü, çekler) panele bağlar. Takip özeti ve kanal eşikleri panelle aynı
-    /// ana sayfa yanıtından gelir (bakiye, uyarı ve kart borcu aynı andan); eski sunucuda null'dır ve eski uçlardan ayrıca yüklenir.
-    /// Her başarılı panel yüklemesinden sonra yenilenirler; panelin hatası onların son verisini silmez, kendi hataları da (tasarım
-    /// 2026-10-02 §3). Kanal satırlarındaki kart borcu takip özetinin son başarılı kanal kart borçlarıdır: panel kanal satırlarını
-    /// yeniledikten sonra (takip yüklemesi hata verse de) yeniden yazılır. Panelin kendi yüklemesi hata verince (panel kartları soluk)
-    /// son verisi olan alt bölümler de eski işaretlenir; sonraki başarılı yükleme onları yeniler.</summary>
-    public void AltBolumleriBagla(TakipOzetViewModel takip, KasaKontrolViewModel kontrol, CekOzetViewModel cekler)
+    /// <summary>Kasalar alt bölümlerini (takip özeti, çekler) panele bağlar. Takip özeti panelle aynı ana sayfa yanıtından gelir
+    /// (bakiye ve kart borcu aynı andan); eski sunucuda null'dır ve eski uçtan ayrıca yüklenir. Her başarılı panel yüklemesinden sonra
+    /// yenilenirler; panelin hatası onların son verisini silmez, kendi hataları da (tasarım 2026-10-02 §3). Kanal satırlarındaki kart
+    /// borcu takip özetinin son başarılı kanal kart borçlarıdır: panel kanal satırlarını yeniledikten sonra (takip yüklemesi hata verse
+    /// de) yeniden yazılır. Panelin kendi yüklemesi hata verince (panel kartları soluk) son verisi olan alt bölümler de eski
+    /// işaretlenir; sonraki başarılı yükleme onları yeniler. Kasa kontrolü ayrı sayfadır (docs/specs/2026-11-26-slop-temizligi.md §8).</summary>
+    public void AltBolumleriBagla(TakipOzetViewModel takip, CekOzetViewModel cekler)
     {
         Yuklendi += (_, _) => AltBolumYuklemesi = YukleAsync();
         // Panel son veri önbelleğinden gösterildi (yeniden kurulan sayfa, H-1): alt bölümler de kendi son verilerini gösterir;
@@ -55,7 +55,6 @@ public partial class PanelViewModel : RaporViewModel
         OnbellektenGosterildi += (_, _) =>
         {
             takip.SonVeriyiGoster();
-            kontrol.SonVeriyiGoster();
             cekler.SonVeriyiGoster();
             KartBorclariniYansit(takip.KanalKartBorclari);
         };
@@ -63,7 +62,7 @@ public partial class PanelViewModel : RaporViewModel
         {
             if (e.PropertyName != nameof(VeriEski) || !VeriEski)
                 return;
-            foreach (OturumluViewModel bolum in new OturumluViewModel[] { takip, kontrol, cekler })
+            foreach (OturumluViewModel bolum in new OturumluViewModel[] { takip, cekler })
                 if (bolum.SonGuncelleme is not null)
                     bolum.VeriEski = true;
         };
@@ -77,15 +76,19 @@ public partial class PanelViewModel : RaporViewModel
         {
             await takip.PaneldenYukleAsync(TakipOzeti, TakipOzetiGunu);
             KartBorclariniYansit(takip.KanalKartBorclari);
-            await kontrol.YukleAsync(KasaEsikleri);
             await cekler.YukleAsync();
         }
     }
 
     /// <summary>Ana sayfa isteğinin takip özeti ufku (gün); sayfa gün seçimini buraya da yazar.</summary>
     public int TakipGunu { get; set; } = 30;
-    /// <summary>Son başarılı yüklemede panelle aynı anlık görüntüden gelen kanal eşikleri; eski sunucuda null (ayrıca yüklenir).</summary>
+    /// <summary>Son başarılı yüklemede panelle aynı anlık görüntüden gelen kanal eşikleri (bakiye ile uyarı çelişmez); eski sunucuda
+    /// null, kanal satırında alt limit işareti olmaz. Uyarıların dökümü Kasa kontrolü sayfasındadır.</summary>
     public IReadOnlyList<KasaEsikDto>? KasaEsikleri { get; private set; }
+
+    /// <summary>Kanalın alt limiti: uyarı açık ve bakiye limitin altındaysa limit tutarı, değilse (ya da eşik bilinmiyorsa) null.</summary>
+    private static decimal? AltLimiti(IReadOnlyList<KasaEsikDto>? esikler, int? kanalId)
+        => esikler?.FirstOrDefault(e => e.KanalId == kanalId) is { Etkin: true, EsikAltinda: true } e ? e.Tutar : null;
     /// <summary>Son başarılı yüklemede panelle aynı anlık görüntüden gelen takip özeti; eski sunucuda null (ayrıca yüklenir).</summary>
     public TakipOzetDto? TakipOzeti { get; private set; }
     /// <summary><see cref="TakipOzeti"/>'nin istendiği gün ufku.</summary>
@@ -117,7 +120,7 @@ public partial class PanelViewModel : RaporViewModel
             DagilimBekleyenTutar = p.DagilimBekleyenTutar;
             Kanallar.Clear();
             foreach (var k in p.Kanallar)
-                Kanallar.Add(new(k.Kanal, k.Bakiye, k.KanalId));
+                Kanallar.Add(new(k.Kanal, k.Bakiye, k.KanalId, AltLimit: AltLimiti(a.KasaEsikleri, k.KanalId)));
             KasaEsikleri = a.KasaEsikleri;
             TakipOzeti = a.TakipOzeti;
             TakipOzetiGunu = gun;
@@ -126,8 +129,12 @@ public partial class PanelViewModel : RaporViewModel
     }
 }
 
-public record KanalKasaSatiri(string Kanal, decimal Bakiye, int? KanalId, decimal? KartBorcu = null)
+/// <param name="AltLimit">Bakiye açık alt limit uyarısının altındaysa limit tutarı (ana sayfa yanıtının eşiklerinden); değilse null.</param>
+public record KanalKasaSatiri(string Kanal, decimal Bakiye, int? KanalId, decimal? KartBorcu = null, decimal? AltLimit = null)
 {
     /// <summary>Kanal satırının alt satırı: sıfır borçta boştur (satır gizlenir), borç bilinmiyorsa söyler.</summary>
     public string KartBorcuMetni => KartBorcu switch { null => "Kart borcu bilgisi alınmadı.", 0 => "", var borc => $"Kalan kart borcu {Bicim.Tl(borc.Value)} ₺" };
+
+    /// <summary>Alt limit uyarısı (kırmızı alt satır): yalnız bakiye açık uyarının limitinin altındayken dolu.</summary>
+    public string AltLimitMetni => AltLimit is { } limit ? $"Alt limitin altında: limit {Bicim.Tl(limit)} ₺" : "";
 }

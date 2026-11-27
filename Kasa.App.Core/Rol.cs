@@ -2,9 +2,10 @@ namespace Kasa.App.Core;
 
 public enum Rol { Izleyici, Editor, Alici }
 
-public enum Bolum { Panel, Haftalik, Aylik, Islemler, Ayarlar, Alislar, DisariAktar, Kartlar, Krediler, Bildirimler, AylikGiderler, EkstreAktar, Cekler, Cariler }
+public enum Bolum { Panel, Haftalik, Aylik, Islemler, Ayarlar, Alislar, DisariAktar, Kartlar, Krediler, Bildirimler, AylikGiderler, EkstreAktar, Cekler, Cariler, KasaKontrolu }
 
-/// <summary>Rol → görünür bölümler (spec §6). Ayarlar yalnız editörde.</summary>
+/// <summary>Rol → görünür bölümler (spec §6). Ayarlar yalnız editörde. Kasa kontrolü izleyiciye de açıktır: geçmiş, alt limit
+/// uyarıları ve hareket dökümü sunucuda okuma yetkisiyle (Finans) gelir; karşılaştırma ve açıklama yalnız editörde görünür.</summary>
 public static class SekmeModeli
 {
     public static Rol RolCoz(string? rol)
@@ -16,7 +17,7 @@ public static class SekmeModeli
             return new[] { Bolum.Alislar };
         var liste = new List<Bolum>
         {
-            Bolum.Panel, Bolum.Haftalik, Bolum.Aylik,
+            Bolum.Panel, Bolum.KasaKontrolu, Bolum.Haftalik, Bolum.Aylik,
             Bolum.Islemler, Bolum.AylikGiderler, Bolum.Kartlar, Bolum.Krediler, Bolum.Cekler, Bolum.Cariler, Bolum.DisariAktar,
         };
         if (rol == Rol.Editor)

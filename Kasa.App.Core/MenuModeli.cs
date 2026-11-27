@@ -9,6 +9,7 @@ namespace Kasa.App.Core;
 public static class MenuSimgeleri
 {
     public const string Kasalar = "menu_kasalar.png";
+    public const string KasaKontrolu = "menu_kasa_kontrolu.png";
     public const string Haftalik = "menu_haftalik.png";
     public const string Aylik = "menu_aylik.png";
     public const string Islemler = "menu_islemler.png";
@@ -111,6 +112,7 @@ public sealed partial class MenuModeli : ObservableObject
         new("Özet",
         [
             new(Bolum.Panel, "Kasalar", MenuSimgeleri.Kasalar, "panel"),
+            new(Bolum.KasaKontrolu, "Kasa kontrolü", MenuSimgeleri.KasaKontrolu, "kasakontrolu"),
             new(Bolum.Haftalik, "Haftalık", MenuSimgeleri.Haftalik, "haftalik"),
             new(Bolum.Aylik, "Aylık", MenuSimgeleri.Aylik, "aylik"),
         ]),

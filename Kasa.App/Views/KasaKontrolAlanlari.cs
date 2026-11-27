@@ -3,52 +3,19 @@ using static Kasa.App.Views.TakipUi;
 
 namespace Kasa.App.Views;
 
+/// <summary>Başka sayfalara gömülü kasa bölümleri: Ayarlar'daki kanal alt limitleri ve Aylık'taki ay kilidi. Kasa kontrolü kendi
+/// sayfasıdır (<see cref="KasaKontrolPage"/>).</summary>
 internal static class KasaKontrolAlanlari
 {
-    /// <param name="sonVeri">Yükleme hata verse de son veri görünür ve soluk (Kasalar'daki kasa kontrolü, panelle tutarlı; tasarım
-    /// 2026-10-02 §3); değilse gövde yalnız veri hazırken görünür.</param>
-    private static View Durum(OturumluViewModel vm, View govde, bool sonVeri = false)
+    /// <summary>Gömülü bölüm: durum satırı (BolumDurumu) ve yalnız veri hazırken görünen gövde.</summary>
+    private static View Durum(OturumluViewModel vm, View govde)
     {
         var panel = new VerticalStackLayout { Spacing = 12, BindingContext = vm };
         BolumDurumu(panel, Bagli(nameof(vm.Mesaj)));
-        if (sonVeri)
-            SonVeriGovdesi(govde);
-        else
-            govde.SetBinding(VisualElement.IsVisibleProperty, nameof(vm.VeriHazir));
+        govde.SetBinding(VisualElement.IsVisibleProperty, nameof(vm.VeriHazir));
         govde.SetBinding(VisualElement.IsEnabledProperty, nameof(vm.Mesgul), converter: new Converters.TersIseConverter());
         panel.Add(govde);
         return panel;
-    }
-    public static View Kontrol(KasaKontrolViewModel vm)
-    {
-        var sifirOnayi = BagliHata(nameof(vm.KayitUyarisi));   // 0 bakiye: ikinci basışta kaydedilir
-        var esikHatasi = BagliHata(nameof(vm.EsikHatasi));     // eşikler yüklenemedi; geçmiş yine görünür
-        var body = new VerticalStackLayout
-        {
-            Spacing = 16,
-            Children = {
-            Kart("Kanal alt limit uyarıları", Bagli(nameof(vm.EsikUyarilari)), Goster(esikHatasi, nameof(vm.EsikHatasi), true),
-                Metin("Alt limitler Ayarlar'dan açılır.")),
-            Editor(Kart("Gerçek genel bakiye ile karşılaştır",
-            Metin("Saydığınız toplam bakiyeyi girin; fark varsa açıklayın."),
-                Alan("Gerçek toplam bakiye", Girdi(nameof(vm.GercekBakiye), true)), Alan("Açıklama", Girdi(nameof(vm.Not))),
-                Dugme("Farkı göster", nameof(vm.OnizleCommand)), Bagli(nameof(vm.Karsilastirma)),
-                Dugme("Karşılaştırmayı kaydet", nameof(vm.KaydetCommand)),
-                Goster(sifirOnayi, nameof(vm.KayitUyarisi), true))),
-            // Geçmiş: kayıtlı değerler değişmez; kayıt gününe ya da öncesine sonradan dokunan değişiklik "sonradan değişti" diye işaretlenir.
-            Kart("Bakiye karşılaştırma geçmişi", Yardim("Kayıt gününe ya da öncesine sonradan girilen, silinen ya da düzeltilen kayıtlar güncel durumu "
-                + "değiştirir; karşılaştırmanın kayıtlı değerleri aynı kalır. Fark kasaya ya da kanallara işlenmez."),
-                Liste<KasaKontrolSatiri>(nameof(vm.Gecmis), vm.IncelemeAsync, "Değişenleri göster", _ => vm.EditorMu)),
-            Goster(Kart("Bu kontrolden beri değişenler", Bagli(nameof(vm.SonrasiOzeti)),
-                Metin("Kontrolden sonra yapılan değişiklikler"), Liste<KasaKontrolDegisiklikSatiri>(nameof(vm.Degisiklikler)),
-                Metin("Kontrolden sonra kasaya işleyen hareketler"), Liste<KasaHareketiSatiri>(nameof(vm.SonrasiHareketler)),
-                Editor(Alan("Fark açıklaması", Girdi(nameof(vm.FarkAciklamasi)))), Editor(Dugme("Açıklamayı kaydet", nameof(vm.AciklaCommand)))), nameof(vm.Secili), true),
-            Kart("Kasa hareket dökümü",
-                Alan("Başlangıç", Tarih(nameof(vm.DokumBaslangic))), Alan("Bitiş", Tarih(nameof(vm.DokumBitis))), Alan("Kasa", Secim(nameof(vm.DokumKasalari), nameof(vm.DokumKasa))),
-                Dugme("Dökümü göster", nameof(vm.DokumGetirCommand)), Bagli(nameof(vm.DokumOzeti)), Liste<KasaHareketiSatiri>(nameof(vm.DokumSatirlari)))
-        }
-        };
-        return Durum(vm, body, sonVeri: true);
     }
     public static View Esikler(KasaEsikViewModel vm)
     {

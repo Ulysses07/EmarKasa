@@ -20,13 +20,13 @@ public class RolTests
         var bolumler = SekmeModeli.Bolumler(Rol.Izleyici);
         Assert.DoesNotContain(Bolum.Ayarlar, bolumler);
         Assert.Contains(Bolum.Panel, bolumler);
-        Assert.Equal(new[] { Bolum.Panel, Bolum.Haftalik, Bolum.Aylik, Bolum.Islemler, Bolum.AylikGiderler, Bolum.Kartlar, Bolum.Krediler, Bolum.Cekler, Bolum.Cariler, Bolum.DisariAktar }, bolumler);
+        Assert.Equal(new[] { Bolum.Panel, Bolum.KasaKontrolu, Bolum.Haftalik, Bolum.Aylik, Bolum.Islemler, Bolum.AylikGiderler, Bolum.Kartlar, Bolum.Krediler, Bolum.Cekler, Bolum.Cariler, Bolum.DisariAktar }, bolumler);
     }
 
     [Fact]
     public void Editor_ayarlari_gorur()
     {
-        Assert.Equal(new[] { Bolum.Panel, Bolum.Haftalik, Bolum.Aylik, Bolum.Islemler, Bolum.AylikGiderler, Bolum.Kartlar, Bolum.Krediler, Bolum.Cekler, Bolum.Cariler, Bolum.DisariAktar, Bolum.Alislar, Bolum.Bildirimler, Bolum.EkstreAktar, Bolum.Ayarlar }, SekmeModeli.Bolumler(Rol.Editor));
+        Assert.Equal(new[] { Bolum.Panel, Bolum.KasaKontrolu, Bolum.Haftalik, Bolum.Aylik, Bolum.Islemler, Bolum.AylikGiderler, Bolum.Kartlar, Bolum.Krediler, Bolum.Cekler, Bolum.Cariler, Bolum.DisariAktar, Bolum.Alislar, Bolum.Bildirimler, Bolum.EkstreAktar, Bolum.Ayarlar }, SekmeModeli.Bolumler(Rol.Editor));
     }
 
     [Fact]
@@ -35,6 +35,16 @@ public class RolTests
         Assert.Contains(Bolum.Cekler, SekmeModeli.Bolumler(Rol.Izleyici));
         Assert.Contains(Bolum.Cekler, SekmeModeli.Bolumler(Rol.Editor));
         Assert.DoesNotContain(Bolum.Cekler, SekmeModeli.Bolumler(Rol.Alici));
+    }
+
+    /// <summary>Kasa kontrolü Kasalar'daki bölümün yerine geçer: Kasalar'ı gören iki rol de görür (geçmiş, alt limit uyarıları ve döküm
+    /// sunucuda okuma yetkisiyle gelir; karşılaştırma ve açıklama sayfada yalnız editörde görünür). Alıcı görmez.</summary>
+    [Fact]
+    public void Kasa_kontrolunu_izleyici_ve_editor_gorur_alici_gormez()
+    {
+        Assert.Contains(Bolum.KasaKontrolu, SekmeModeli.Bolumler(Rol.Izleyici));
+        Assert.Contains(Bolum.KasaKontrolu, SekmeModeli.Bolumler(Rol.Editor));
+        Assert.DoesNotContain(Bolum.KasaKontrolu, SekmeModeli.Bolumler(Rol.Alici));
     }
 
     [Fact]
