@@ -116,7 +116,8 @@ public class CekTakipViewModelTests
         Assert.Equal((CekYonleri.Alinan, CekSuzgecleri.Portfoyde, (string?)null, (DateOnly?)null, (DateOnly?)null), api.Sorgular.Single());
         Assert.Equal(new[] { 1, 2 }, vm.Cekler.Select(s => s.Veri.Id));
         Assert.Equal("30.09.2026 · 5 gün kaldı · Ahmet Yılmaz", vm.Cekler[0].Baslik);
-        Assert.Equal("Çek Ziraat · 12345 · 50.000,00 ₺ · Kalan: 30.000,00 ₺ · portföyde · Elde", vm.Cekler[0].Ozet);
+        Assert.Equal("Çek Ziraat · 12345 · Kalan: 30.000,00 ₺ · portföyde · Elde", vm.Cekler[0].Ozet);
+        Assert.Equal(50_000m, vm.Cekler[0].SatirTutari);   // alınan çek: artı
         Assert.Equal("22.09.2026 · 3 gün geçti · Ahmet Yılmaz", vm.Cekler[1].Baslik);
         Assert.Equal(new[] { "MEZAT", "PERAKENDE" }, vm.KasaSecenekleri);
         Assert.Equal(new[] { KanalEtiketleri.Ortak, "MEZAT", "PERAKENDE" }, vm.CekKasaSecenekleri);
@@ -132,7 +133,7 @@ public class CekTakipViewModelTests
     {
         var cek = Cek(1, no: "1") with { Durum = CekDurumlari.Karsiliksiz, Konum = CekKonumlari.Icrada };
         var satir = new CekSatiri(cek, Bugun);
-        Assert.Equal("Çek Ziraat · 1 · 50.000,00 ₺ · karşılıksız · İcrada", satir.Ozet);
+        Assert.Equal("Çek Ziraat · 1 · karşılıksız · İcrada", satir.Ozet);
     }
 
     [Fact]

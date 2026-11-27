@@ -30,28 +30,42 @@ public partial class IslemlerPage : ContentPage, Controls.IYenilenebilir
         await _vm.YukleAsync();
     }
 
-    private async void SilTiklandi(object? sender, EventArgs e)
+    /// <summary>Satıra dokunmak düzenlemeyi açar (editör).</summary>
+    private async void SatirTiklandi(object? sender, TappedEventArgs e)
     {
-        if (sender is Button { CommandParameter: IslemDto islem } dugme)
-            await SilmeOnayi.GosterAsync(this, dugme, $"{islem.Tarih:dd.MM.yyyy} · {islem.Cari} · {Bicim.Tl(islem.TutarTl)} ₺",
-                () => _vm.SilCommand.ExecuteAsync(islem));
+        if ((sender as BindableObject)?.BindingContext is IslemDto islem)
+            await DuzenleAsync(islem);
     }
-    private async void DuzenleTiklandi(object? sender, EventArgs e)
+
+    /// <summary>"⋯": düzenle, sil ve (ekstreden gelen kayıtta) kaynak PDF.</summary>
+    private async void EylemlerTiklandi(object? sender, EventArgs e)
     {
-        if (sender is not Button { CommandParameter: IslemDto islem } || !_vm.EditorMu || !_vm.DuzenlemeyeGecCommand.CanExecute(islem))
+        if (sender is not Button { CommandParameter: IslemDto islem } dugme || !_vm.EditorMu)
+            return;
+        var secenekler = new List<string> { "Düzenle", "Sil" };
+        if (islem.EkstreKayitId is not null)
+            secenekler.Add("Kaynak PDF");
+        switch (await DisplayActionSheetAsync($"{islem.Cari} · {Bicim.Tl(islem.TutarTl)} ₺", "Vazgeç", null, [.. secenekler]))
+        {
+            case "Düzenle":
+                await DuzenleAsync(islem);
+                break;
+            case "Sil":
+                await SilmeOnayi.GosterAsync(this, dugme, $"{islem.Tarih:dd.MM.yyyy} · {islem.Cari} · {Bicim.Tl(islem.TutarTl)} ₺",
+                    () => _vm.SilCommand.ExecuteAsync(islem));
+                break;
+            case "Kaynak PDF" when islem.EkstreKayitId is { } id:
+                await Shell.Current.GoToAsync($"//ekstreaktar?KayitId={id}");
+                break;
+        }
+    }
+
+    private async Task DuzenleAsync(IslemDto islem)
+    {
+        if (!_vm.EditorMu || !_vm.DuzenlemeyeGecCommand.CanExecute(islem))
             return;
         await _vm.DuzenlemeyeGecCommand.ExecuteAsync(islem);
         if (_vm.EditorMu && _vm.DuzenId == islem.Id)
             IslemBolmeleri.IlkiAc();
-    }
-    private void KaynakBaglamiDegisti(object? sender, EventArgs e)
-    {
-        if (sender is Button b)
-            b.IsVisible = b.BindingContext is IslemDto { EkstreKayitId: not null };
-    }
-    private async void KaynakTiklandi(object? sender, EventArgs e)
-    {
-        if (_vm.EditorMu && sender is Button { CommandParameter: IslemDto { EkstreKayitId: { } id } })
-            await Shell.Current.GoToAsync($"//ekstreaktar?KayitId={id}");
     }
 }

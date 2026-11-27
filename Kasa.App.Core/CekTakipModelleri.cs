@@ -71,16 +71,18 @@ public static class CekMetni
 
 /// <summary>Çek listesinin satırı (TakipUi.Liste: Baslik ve Ozet). Başlık vade, rozet ve kişi; özet banka · no, tutar, kalan, durum,
 /// konum ve teminat işareti.</summary>
-public sealed class CekSatiri(CekDto veri, DateOnly bugun)
+public sealed class CekSatiri(CekDto veri, DateOnly bugun) : ITutarliSatir
 {
     public CekDto Veri { get; } = veri;
+    /// <summary>Alınan çek gelir (artı), verilen çek gider (eksi).</summary>
+    public decimal SatirTutari => Veri.Yon == CekYonleri.Alinan ? Veri.Tutar : -Veri.Tutar;
     public string Baslik => $"{Veri.VadeTarihi:dd.MM.yyyy} · {CekMetni.Rozet(Veri.VadeTarihi, bugun)} · {Veri.Kisi}";
 
     public string Ozet
     {
         get
         {
-            var parcalar = new List<string> { $"{CekMetni.Tur(Veri.Tur)} {Veri.Banka ?? "—"} · {Veri.No}", $"{Bicim.Tl(Veri.Tutar)} ₺" };
+            var parcalar = new List<string> { $"{CekMetni.Tur(Veri.Tur)} {Veri.Banka ?? "—"} · {Veri.No}" };
             if (Veri.Kalan > 0 && Veri.Kalan != Veri.Tutar)
                 parcalar.Add($"Kalan: {Bicim.Tl(Veri.Kalan)} ₺");
             parcalar.Add(CekMetni.Durum(Veri.Durum, Veri.Yon));

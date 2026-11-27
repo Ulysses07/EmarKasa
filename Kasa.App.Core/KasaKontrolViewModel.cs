@@ -252,10 +252,11 @@ public record KasaKontrolDegisiklikSatiri(DenetimOlayDto Olay)
 }
 /// <summary>Kasa hareketi satırı. <paramref name="EsasTarih"/> verilirse ("kontrolden beri değişenler") o güne ya da öncesine düşen
 /// satır "kontrol gününe sonradan girildi" diye işaretlenir; <paramref name="KanalKasasi"/> dökümde kanal kasası etkisini gösterir.</summary>
-public record KasaHareketiSatiri(KasaHareketiDto Veri, DateOnly? EsasTarih = null, bool KanalKasasi = false)
+public record KasaHareketiSatiri(KasaHareketiDto Veri, DateOnly? EsasTarih = null, bool KanalKasasi = false) : ITutarliSatir
 {
     public decimal Etki => KanalKasasi ? Veri.KanalEtkisi : Veri.GenelKasaEtkisi;
-    public string Baslik => $"{Veri.EtkiTarihi:dd.MM.yyyy} · {KasaKontrolMetni.HareketTuru(Veri.Tur)}{(Veri.Otomatik ? " (kendiliğinden)" : "")} · {Bicim.ImzaliTl(Etki)} ₺";
+    public decimal SatirTutari => Etki;
+    public string Baslik => $"{Veri.EtkiTarihi:dd.MM.yyyy} · {KasaKontrolMetni.HareketTuru(Veri.Tur)}{(Veri.Otomatik ? ", kendiliğinden" : "")}";
     public string Ozet => string.Join(" · ", new[] { Veri.Aciklama, Veri.Kanal, Veri.EtkiTarihi != Veri.KayitTarihi ? $"kayıt {Veri.KayitTarihi:dd.MM.yyyy}" : null }.Where(s => s is not null))
         + (EsasTarih is { } e && Veri.EtkiTarihi <= e ? "\nKontrol gününe ya da öncesine sonradan girildi." : "");
 }

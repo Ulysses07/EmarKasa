@@ -338,11 +338,12 @@ public partial class AylikGiderViewModel(IAylikGiderApi api, IKasaApi finans, Au
     });
     protected override void OturumTemizle() { _ayVerisi = null; Kayitlar.Clear(); Iptaller.Clear(); OnPropertyChanged(nameof(IptalVar)); Sablonlar.Clear(); Kanallar.Clear(); KanalSecimleri.Clear(); SeciliOdeme = null; AyOzeti = OdemeNotu = ""; YeniForm(); OdemeHatalari.Temizle(); foreach (var k in new[] { _sablonKey, _odemeKey, _iptalKey }) k.Temizle(); }
 }
-public record AylikGiderSatiri(AylikGiderSatirDto Veri)
+public record AylikGiderSatiri(AylikGiderSatirDto Veri) : ITutarliSatir
 {
     /// <summary>Ayın ödemesi kaydedilmiş (sunucu durumu "Odendi"); ödenmemiş plan ödeme bekler.</summary>
     public bool OdendiMi => Veri.Durum == AylikGiderDurumlari.Odendi;
-    public string Baslik => $"{Veri.Ad} · {Bicim.Tl(Veri.Tutar)} ₺ · " + (OdendiMi ? "Ödendi" : "Ödeme bekliyor");
+    public decimal SatirTutari => -Veri.Tutar;
+    public string Baslik => $"{Veri.Ad} · " + (OdendiMi ? "Ödendi" : "Ödeme bekliyor");
     public string Ozet => $"Planlanan {Veri.PlanlananTarih:dd.MM.yyyy}" + (Veri.OdemeTarihi is { } t ? $" · ödeme {t:dd.MM.yyyy}" : "") + "\n" + (Veri.DagilimTuru == DagilimBicimleri.Genel ? "Yalnız genel kasa" : TakipMetni.Paylar(Veri.Dagilimlar));
 }
 /// <summary>İptal edilmiş aylık gider ödemesi (salt okunur): ödeme tarihi, iptal anı (sürüm öncesi iptalde bilinmez) ve gerekçe.</summary>
@@ -353,8 +354,9 @@ public record AylikGiderIptalSatiri(AylikGiderSatirDto Veri)
         + (Veri.IptalZamani is { } z ? $"iptal {z.LocalDateTime:dd.MM.yyyy HH:mm}" : "iptal zamanı bilinmiyor (sürüm öncesi)")
         + $"\nGerekçe: {Veri.IptalAciklamasi ?? "—"}";
 }
-public record AylikSablonSatiri(AylikGiderSablonDto Veri)
+public record AylikSablonSatiri(AylikGiderSablonDto Veri) : ITutarliSatir
 {
+    public decimal SatirTutari => -Veri.Tutar;
     public string Baslik => Veri.Ad + (Veri.Aktif ? "" : " · arşiv");
-    public string Ozet => $"{Bicim.Tl(Veri.Tutar)} ₺ · her ayın {Veri.OdemeGunu}. günü · geçerlilik {Veri.GecerliAy:MM.yyyy}\n" + (Veri.DagilimTuru == DagilimBicimleri.Genel ? "Yalnız genel kasa" : TakipMetni.Paylar(Veri.Dagilimlar));
+    public string Ozet => $"Her ayın {Veri.OdemeGunu}. günü · geçerlilik {Veri.GecerliAy:MM.yyyy}\n" + (Veri.DagilimTuru == DagilimBicimleri.Genel ? "Yalnız genel kasa" : TakipMetni.Paylar(Veri.Dagilimlar));
 }

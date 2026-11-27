@@ -174,6 +174,10 @@
                                     <BoxView Style="{StaticResource RowSeparator}" />
                                     <!-- Düzenlenen satır vurgulanır (İŞ-03): GreenSoft zemine ek olarak çerçeve. -->
                                     <Border Padding="0" StrokeThickness="0" StrokeShape="Rectangle">
+                                        <!-- Satıra dokunmak düzenlemeyi açar (editör); sil ve kaynak PDF "⋯" menüsünde (sadeleştirme §6). -->
+                                        <Border.GestureRecognizers>
+                                            <TapGestureRecognizer Tapped="SatirTiklandi" />
+                                        </Border.GestureRecognizers>
                                         <Border.Triggers>
                                             <DataTrigger TargetType="Border" Value="True">
                                                 <DataTrigger.Binding>
@@ -189,10 +193,8 @@
                                         </Border.Triggers>
                                         <ctl:UyumluIzgara Padding="18,6" MinimumHeightRequest="58"
                                               ColumnDefinitions="Auto,*,Auto,Auto" DarSutunlar="Auto,*" ColumnSpacing="14" RowSpacing="6">
-                                            <Border Style="{StaticResource DateChip}" VerticalOptions="Center">
-                                                <Label Text="{Binding Tarih, StringFormat='{0:dd MMM}'}"
-                                                       Style="{StaticResource LblDateChip}" />
-                                            </Border>
+                                            <Label Text="{Binding Tarih, StringFormat='{0:dd MMM}'}" Style="{StaticResource LblRowSecondary}"
+                                                   WidthRequest="52" VerticalOptions="Center" />
                                             <VerticalStackLayout Grid.Column="1" ctl:UyumluIzgara.DarSatir="0" ctl:UyumluIzgara.DarSutun="1" Spacing="2" VerticalOptions="Center">
                                                 <Label Text="{Binding Cari}" Style="{StaticResource LblRowPrimary}" />
                                                 <Label Text="{Binding Kanal}" Style="{StaticResource LblRowSecondary}" />
@@ -204,19 +206,10 @@
                                                    Style="{StaticResource LblMoney}"
                                                    TextColor="{Binding TutarTl, Converter={StaticResource ParaRenk}, ConverterParameter=Gider}"
                                                    VerticalOptions="Center" />
-                                            <FlexLayout Grid.Column="3" Wrap="Wrap" AlignItems="Center" Direction="Row"
-                                                                   ctl:UyumluIzgara.DarSatir="2" ctl:UyumluIzgara.DarSutunAraligi="2"
-                                                                   IsVisible="{Binding BindingContext.EditorMu, Source={x:Reference Sayfa}}">
-                                                <Button Text="Düzenle" Style="{StaticResource BtnRowEdit}" Margin="0,0,6,4"
-                                                        Clicked="DuzenleTiklandi"
-                                                        CommandParameter="{Binding .}" />
-                                                <Button Text="Sil" Style="{StaticResource BtnRowDelete}" Margin="0,0,6,4"
-                                                        Clicked="SilTiklandi"
-                                                        CommandParameter="{Binding .}" />
-                                                <Button Text="Kaynak PDF" Style="{StaticResource BtnRowEdit}"
-                                                        BindingContextChanged="KaynakBaglamiDegisti" Clicked="KaynakTiklandi"
-                                                        CommandParameter="{Binding .}" IsVisible="False" />
-                                            </FlexLayout>
+                                            <Button Grid.Column="3" ctl:UyumluIzgara.DarSatir="1" Text="⋯" Style="{StaticResource BtnKucuk}" WidthRequest="40" Padding="0"
+                                                    Clicked="EylemlerTiklandi" CommandParameter="{Binding .}" VerticalOptions="Center"
+                                                    SemanticProperties.Description="İşlem eylemleri"
+                                                    IsVisible="{Binding BindingContext.EditorMu, Source={x:Reference Sayfa}}" />
                                         </ctl:UyumluIzgara>
                                     </Border>
                                 </VerticalStackLayout>

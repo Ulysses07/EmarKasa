@@ -487,7 +487,7 @@ public class KasaKontrolVeAylikGiderTests
         Assert.EndsWith("Silindi · Gider #812", Assert.Single(v.Degisiklikler).Baslik);
         Assert.Equal("Tarih: 2026-09-18 · TutarTl: 500 · Iptal: Hayır", v.Degisiklikler[0].Ozet);
         Assert.EndsWith("Kontrol gününe ya da öncesine sonradan girildi.", v.SonrasiHareketler[0].Ozet);
-        Assert.Equal("22.09.2026 · Kredi taksidi (kendiliğinden) · -1.000,00 ₺", v.SonrasiHareketler[1].Baslik);
+        Assert.Equal(("22.09.2026 · Kredi taksidi, kendiliğinden", -1000m), (v.SonrasiHareketler[1].Baslik, v.SonrasiHareketler[1].SatirTutari));
         Assert.DoesNotContain("sonradan girildi", v.SonrasiHareketler[1].Ozet);
 
         // Ağ hatasında aynı istek kimliğiyle yeniden gönderilir; başarıda tutarlar ve güncel durum korunur, sürüm ilerler.
@@ -531,9 +531,9 @@ public class KasaKontrolVeAylikGiderTests
         await v.DokumGetirCommand.ExecuteAsync(null);
         Assert.Equal(((DateOnly?)new DateOnly(2026, 9, 1), (DateOnly?)new DateOnly(2026, 9, 26), (int?)1), Assert.Single(f.DokumIstekleri));
         Assert.Equal("MEZAT · 01.09.2026 – 26.09.2026\nAçılış 1.200,00 ₺ · kapanış 780,25 ₺ · 2 hareket", v.DokumOzeti);
-        Assert.Equal("30.09.2026 · Eski kart ay sonu düşümü (kendiliğinden) · +0,00 ₺", v.DokumSatirlari[0].Baslik);
+        Assert.Equal(("30.09.2026 · Eski kart ay sonu düşümü, kendiliğinden", 0m), (v.DokumSatirlari[0].Baslik, v.DokumSatirlari[0].SatirTutari));
         Assert.Contains("kayıt 20.08.2026", v.DokumSatirlari[0].Ozet);
-        Assert.Equal("02.09.2026 · Gider · -419,75 ₺", v.DokumSatirlari[1].Baslik);
+        Assert.Equal("02.09.2026 · Gider", v.DokumSatirlari[1].Baslik);
     }
     internal sealed class Sahte : IKasaKontrolApi, IAylikGiderApi
     {
