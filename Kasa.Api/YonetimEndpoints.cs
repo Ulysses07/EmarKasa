@@ -24,7 +24,7 @@ public static class YonetimEndpoints
                 surum = SunucuSurumu.Deger,
                 minimumIstemci = windows.MinimumIstemci,
                 indirmeAdresi = GuvenliIndirme(cfg["Kasa:IndirmeAdresi"]),
-                notlar = "Ekstre ekranı, işlem hafızası, Excel ve ERP12 aktarımı, toplu çek; yeni ekranlar için Windows 2.5.0 uygulamasını kurun.",
+                notlar = "Sade arayüz, Kasa kontrolü sayfası, ekstre hareket penceresi ve kayıt özeti; yeni görünüm için Windows 2.6.0 uygulamasını kurun.",
                 windows,
                 ios,
             });

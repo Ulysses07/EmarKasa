@@ -23,7 +23,7 @@ public class SurumKaynagiTests
         Assert.Equal(KasaSurumu(), yanit.GetProperty("surum").GetString());
         Assert.Equal("2.4.1", yanit.GetProperty("minimumIstemci").GetString());
         Assert.Null(yanit.GetProperty("indirmeAdresi").GetString());
-        Assert.Equal("Ekstre ekranı, işlem hafızası, Excel ve ERP12 aktarımı, toplu çek; yeni ekranlar için Windows 2.5.0 uygulamasını kurun.",
+        Assert.Equal("Sade arayüz, Kasa kontrolü sayfası, ekstre hareket penceresi ve kayıt özeti; yeni görünüm için Windows 2.6.0 uygulamasını kurun.",
             yanit.GetProperty("notlar").GetString());
     }
 
