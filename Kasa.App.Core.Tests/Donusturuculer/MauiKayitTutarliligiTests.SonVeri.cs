@@ -46,19 +46,22 @@ public partial class MauiKayitTutarliligiTests
         Assert.All(tetikler, t => Assert.Equal(TakipUi.EskiVeriOpakligi, double.Parse(t.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture)));
     }
 
-    /// <summary>Kasalar alt bölümleri (takip özeti, çekler, kasa kontrolü) panelle tutarlı soluklaşır: gövdeleri son veri gövdesidir
-    /// (GovdeGorunur'a bağlı, VeriEski'de soluk; davranışı TakipSayfasiSonVeriTests sınar). Panele bağlanmaları ve kendi hatalarında
-    /// son veriyi korumaları AnaSayfaVeRaporIptalTests'te davranışla sınanır; sayfa yalnız bağlar.</summary>
+    /// <summary>Kasalar alt bölümleri (takip özeti, çekler) panelle tutarlı soluklaşır: gövdeleri son veri gövdesidir (GovdeGorunur'a
+    /// bağlı, VeriEski'de soluk; davranışı TakipSayfasiSonVeriTests sınar). Panele bağlanmaları ve kendi hatalarında son veriyi
+    /// korumaları AnaSayfaVeRaporIptalTests'te davranışla sınanır; sayfa yalnız bağlar. Kasa kontrolü Kasalar'da değil, kendi
+    /// sayfasıdır (TakipSayfasi: son veri gövdesi ve sayfa başlığının Yenile'si; sadeleştirme §8); Kasalar yalnız bağlantı verir.</summary>
     [Fact]
     public void Kasalar_alt_bolumleri_son_veri_govdesi_kullanir()
     {
         var panel = Oku(Path.Combine("Views", "PanelPage.xaml.cs"));
-        var kontrol = Oku(Path.Combine("Views", "KasaKontrolAlanlari.cs"));
-        Assert.Contains("_vm.AltBolumleriBagla(takip, kontrol, cekler);", panel);
+        Assert.Contains("_vm.AltBolumleriBagla(takip, cekler);", panel);
         Assert.DoesNotContain("_vm.Yuklendi", panel);
         Assert.Equal(2, Regex.Matches(panel, @"TakipUi\.SonVeriGovdesi\(").Count);   // takip içeriği ve çek satırları
         Assert.DoesNotContain("VeriHazir", panel);
-        Assert.Contains("SonVeriGovdesi(govde)", kontrol);
-        Assert.Contains("Durum(vm, body, sonVeri: true)", kontrol);
+        Assert.DoesNotContain("KasaKontrolViewModel", panel);
+        Assert.DoesNotContain("KasaKontrolAlanlari", panel);
+        Assert.Contains("GoToAsync(\"//\" + MenuModeli.Rota(Bolum.KasaKontrolu))", panel);
+        Assert.Matches(@"class KasaKontrolPage : TakipSayfasi<KasaKontrolViewModel>", Oku(Path.Combine("Views", "KasaKontrolPage.cs")));
+        Assert.DoesNotContain("SonVeriGovdesi", Oku(Path.Combine("Views", "KasaKontrolAlanlari.cs")));
     }
 }

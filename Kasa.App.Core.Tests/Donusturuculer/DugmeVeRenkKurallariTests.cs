@@ -107,6 +107,7 @@ public class DugmeVeRenkKurallariTests
         { "Krediler · seçili · erken kapama", 1 }, { "Krediler · yeni", 1 }, { "Çekler", 0 }, { "Çekler · yeni", 1 }, { "Aylık giderler", 0 },
         { "Aylık giderler · yeni şablon", 1 },
         { "Cariler", 0 }, { "Bildirimler", 1 }, { "Rapor", 1 },
+        { "Kasa kontrolü", 0 }, { "Kasa kontrolü · yeni", 1 }, { "Kasa kontrolü · değişenler", 0 },
     };
 
     /// <summary>Kodla yazılmış her sayfada, yüklenmiş ve form açılmış hâlde, en çok bir görünür ana düğme (yeşil leke tek işe ayrılır).</summary>
@@ -188,6 +189,18 @@ public class DugmeVeRenkKurallariTests
                     var vm = new DisariAktarViewModel(new YeniAkisTests.Sahte(), Finans(), Editor());
                     await vm.YukleAsync();
                     return new DisariAktarPage(vm);
+                }
+            case "Kasa kontrolü" or "Kasa kontrolü · yeni" or "Kasa kontrolü · değişenler":
+                {
+                    var api = new KasaKontrolVeAylikGiderTests.Sahte { Gecmis = [new KasaKontrolDto(1, new DateTimeOffset(2026, 9, 20, 12, 0, 0, TimeSpan.FromHours(3)), 100, 90, -10, "Sayım")] };
+                    var vm = new KasaKontrolViewModel(api, Editor());
+                    await vm.YukleAsync();
+                    var sayfa = new KasaKontrolPage(vm);
+                    if (ad.EndsWith("yeni", StringComparison.Ordinal))
+                        vm.FormAcCommand.Execute(null);
+                    if (ad.EndsWith("değişenler", StringComparison.Ordinal))
+                        await vm.IncelemeAsync(vm.Gecmis[0]);
+                    return sayfa;
                 }
             default:
                 throw new ArgumentOutOfRangeException(nameof(ad), ad, null);

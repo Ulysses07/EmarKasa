@@ -52,6 +52,7 @@ public partial class AppShell : Shell
         _menu = new Dictionary<Bolum, FlyoutItem>
         {
             [Bolum.Panel] = PanelItem,
+            [Bolum.KasaKontrolu] = KasaKontroluItem,
             [Bolum.Haftalik] = HaftalikItem,
             [Bolum.Aylik] = AylikItem,
             [Bolum.Islemler] = IslemlerItem,

@@ -22,7 +22,7 @@ public class MenuModeliTests
     public void Editor_butun_gruplari_ve_ogeleri_sirayla_gorur()
         => Assert.Equal(new[]
         {
-            "Özet: Kasalar, Haftalık, Aylık",
+            "Özet: Kasalar, Kasa kontrolü, Haftalık, Aylık",
             "Kayıtlar: İşlemler, Alışlar, Aylık giderler, Ekstre içe aktar, Cariler",
             "Kart, kredi ve çek: Kartlar, Krediler, Çekler",
             "Diğer: Bildirimler, Rapor dışa aktar, Ayarlar",
@@ -33,7 +33,7 @@ public class MenuModeliTests
     public void Izleyici_bugunku_rol_kuralindaki_ogeleri_gorur()
         => Assert.Equal(new[]
         {
-            "Özet: Kasalar, Haftalık, Aylık",
+            "Özet: Kasalar, Kasa kontrolü, Haftalık, Aylık",
             "Kayıtlar: İşlemler, Aylık giderler, Cariler",
             "Kart, kredi ve çek: Kartlar, Krediler, Çekler",
             "Diğer: Rapor dışa aktar",

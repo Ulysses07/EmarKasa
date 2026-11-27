@@ -237,7 +237,7 @@ internal static class TakipUi
     public static View Benzerlik(string yol, string command)
         => Goster(Kart("Benzer kayıt kontrolü", Bagli(yol + ".Uyari"), Dugme("Ayrı işlem olarak kaydet", command)), yol + ".UyariVar");
 
-    /// <summary>Gömülü bölümün durumu (Kasalar'daki kasa kontrolü, Ayarlar'daki alt limitler, Aylık'taki ay kilidi; tasarım
+    /// <summary>Gömülü bölümün durumu (Ayarlar'daki alt limitler, Aylık'taki ay kilidi; tasarım
     /// docs/specs/2026-11-26-slop-temizligi.md §3): yalnız meşgulken gösterge, yalnız doluyken hata ve ileti. Yenile düğmesi yoktur:
     /// bölüm sayfa başlığındaki Yenile ile (sayfanın yenilemesi) yenilenir. Bağlam modelinde Mesgul ve Hata (ya da
     /// <paramref name="hataYolu"/>) beklenir.</summary>

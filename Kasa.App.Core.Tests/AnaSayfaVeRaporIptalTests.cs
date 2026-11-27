@@ -36,6 +36,29 @@ public class AnaSayfaVeRaporIptalTests
         Assert.Equal(7, vm.TakipOzetiGunu);
     }
 
+    /// <summary>Kasalar'da alt limit uyarısı kanal satırındadır (dökümü Kasa kontrolü sayfasında): bakiye ile uyarı aynı yanıttan gelir.
+    /// Kapalı uyarı, limitin üstündeki kanal ve eşiksiz yanıt (eski sunucu) işaret vermez; kart borcu yazılınca işaret kalır.</summary>
+    [Fact]
+    public async Task Kanal_satiri_alt_limit_isaretini_ayni_yanittan_alir()
+    {
+        var api = new SahteApi { AnaSayfaGetir = (_, _) => Task.FromResult(new AnaSayfaDto(Panel(), new[] { Esik, Esik with { KanalId = 2, Kanal = "PERAKENDE", Etkin = false } }, null)) };
+        var vm = new PanelViewModel(api);
+
+        await vm.YukleAsync();
+        Assert.Equal(new[] { "Alt limitin altında: limit 1.000,00 ₺", "" }, vm.Kanallar.Select(k => k.AltLimitMetni));
+
+        vm.KartBorclariniYansit([new TakipKanalPayi(1, "MEZAT", 50)]);
+        Assert.Equal(1000m, vm.Kanallar[0].AltLimit);
+
+        api.AnaSayfaGetir = (_, _) => Task.FromResult(new AnaSayfaDto(Panel(), new[] { Esik with { EsikAltinda = false } }, null));
+        await vm.YukleAsync();
+        Assert.All(vm.Kanallar, k => Assert.Null(k.AltLimit));
+
+        api.AnaSayfaGetir = (_, _) => Task.FromResult(new AnaSayfaDto(Panel(), null, null));
+        await vm.YukleAsync();
+        Assert.All(vm.Kanallar, k => Assert.Equal("", k.AltLimitMetni));
+    }
+
     [Fact]
     public async Task Takip_ozeti_panel_yanitindan_istek_atmadan_yansir_eski_sunucuda_ve_farkli_gunde_ayrica_istenir()
     {
@@ -59,20 +82,22 @@ public class AnaSayfaVeRaporIptalTests
         Assert.Contains("80,00", vm.Ozet);
     }
 
+    /// <summary>Kasa kontrolü kendi sayfasıdır: her yüklemede geçmişi ve kanal eşiklerini kendi uçlarından ister.</summary>
     [Fact]
-    public async Task Kasa_kontrolu_panelin_esikleriyle_yalniz_gecmisi_ister_esik_yoksa_ayrica_ister()
+    public async Task Kasa_kontrolu_gecmisi_ve_esikleri_kendi_uclarindan_ister()
     {
-        var kontrol = new KontrolSahtesi();
+        var kontrol = new KontrolSahtesi { EsikAltinda = true };
         var vm = new KasaKontrolViewModel(kontrol, Editor());
 
-        await vm.YukleAsync(new[] { Esik });
-        Assert.Equal((1, 0), (kontrol.GecmisCagri, kontrol.EsikCagri));
-        Assert.Contains("MEZAT: bakiye 600,00 ₺", vm.EsikUyarilari);
+        await vm.YukleAsync();
+        Assert.Equal((1, 1), (kontrol.GecmisCagri, kontrol.EsikCagri));
+        Assert.Equal("MEZAT: bakiye 600,00 ₺, alt limit 1.000,00 ₺", vm.EsikUyarilari);
         Assert.True(vm.VeriHazir);
 
+        kontrol.EsikAltinda = false;
         await vm.YukleAsync();
-        Assert.Equal((2, 1), (kontrol.GecmisCagri, kontrol.EsikCagri));
-        Assert.Contains("Açık uyarılarda alt limitin altında kanal yok.", vm.EsikUyarilari);
+        Assert.Equal((2, 2), (kontrol.GecmisCagri, kontrol.EsikCagri));
+        Assert.Equal(KasaKontrolViewModel.EsikAltindaKanalYok, vm.EsikUyarilari);
     }
 
     [Fact]
@@ -196,8 +221,7 @@ public class AnaSayfaVeRaporIptalTests
         Assert.DoesNotContain("ulaşılamadı", vm.Hata);
     }
 
-    // IST4: eşikler ana sayfa yanıtında yoksa (eski sunucu, birleşik ucun 5xx'i ya da sunucunun eşiksiz yanıtı) ayrıca istenir;
-    // o istek de başarısızsa bakiye karşılaştırma geçmişi yine görünür, eşik hatası kendi alanında gösterilir.
+    // IST4: eşik isteği başarısızsa bakiye karşılaştırma geçmişi yine görünür, eşik hatası kendi alanında gösterilir.
     [Fact]
     public async Task Esikler_yuklenemezse_gecmis_gorunur_ve_esik_hatasi_ayri_gosterilir()
     {
@@ -214,7 +238,7 @@ public class AnaSayfaVeRaporIptalTests
         kontrol.EsikHatasi = null;
         await vm.YukleAsync();
         Assert.Null(vm.EsikHatasi);
-        Assert.Contains("Açık uyarılarda alt limitin altında kanal yok.", vm.EsikUyarilari);
+        Assert.Equal(KasaKontrolViewModel.EsikAltindaKanalYok, vm.EsikUyarilari);
     }
 
     [Fact]
@@ -237,7 +261,7 @@ public class AnaSayfaVeRaporIptalTests
         Assert.Equal("Sunucu işlemi tamamlayamadı. Lütfen yeniden deneyin.", takip.Hata);
     }
 
-    /// <summary>Kasalar alt bölümleri (takip özeti, kasa kontrolü, çekler) her başarılı panel yüklemesinden sonra yenilenir. Kendi
+    /// <summary>Kasalar alt bölümleri (takip özeti, çekler) her başarılı panel yüklemesinden sonra yenilenir. Kendi
     /// yüklemeleri hata verirse son verileri kalır ve eski işaretlenir; kanal satırlarındaki kart borçları da (panelin yeni kanal
     /// satırlarına) son başarılı takip özetinden yazılır. Panelin kendi hatasında (panel soluk) alt bölümler de eski işaretlenir.</summary>
     [Fact]
@@ -246,37 +270,32 @@ public class AnaSayfaVeRaporIptalTests
         var api = new SahteApi { AnaSayfaGetir = (_, _) => Task.FromResult(new AnaSayfaDto(Panel(), new[] { Esik }, null)) };
         var panel = new PanelViewModel(api);
         var takipApi = new FinansTakipTests.Sahte { Ozet = Ozet(120) };
-        var kontrolApi = new KontrolSahtesi { Gecmis = [new KasaKontrolDto(1, DateTimeOffset.Now, 100, 100, 0, null)] };
         var cekApi = new CekTakipViewModelTests.Sahte();
         var takip = new TakipOzetViewModel(takipApi, Editor());
-        var kontrol = new KasaKontrolViewModel(kontrolApi, Editor());
         var cekler = new CekOzetViewModel(cekApi, Editor());
-        panel.AltBolumleriBagla(takip, kontrol, cekler);
+        panel.AltBolumleriBagla(takip, cekler);
 
         await panel.YukleAsync();
         await panel.AltBolumYuklemesi;
-        Assert.Equal((1, 1, 1), (takipApi.OzetCagri, kontrolApi.GecmisCagri, cekApi.OzetSayisi));
+        Assert.Equal((1, 1), (takipApi.OzetCagri, cekApi.OzetSayisi));
         Assert.Equal(120m, panel.Kanallar[0].KartBorcu);
-        Assert.Single(kontrol.Gecmis);
         Assert.NotNull(cekler.Ozet);
 
         takipApi.OzetHatasi = new HttpRequestException();
-        kontrolApi.GecmisHatasi = new HttpRequestException();
         cekApi.OzetHatasi = new HttpRequestException();
         await panel.YukleAsync();                                   // panel başarılı; alt bölümlerin kendi yüklemesi hata verir
         await panel.AltBolumYuklemesi;
 
-        Assert.Equal((2, 2, 2), (takipApi.OzetCagri, kontrolApi.GecmisCagri, cekApi.OzetSayisi));
+        Assert.Equal((2, 2), (takipApi.OzetCagri, cekApi.OzetSayisi));
         Assert.Equal(120m, panel.Kanallar[0].KartBorcu);
         Assert.Contains("120,00", takip.Ozet);
         Assert.Equal(120m, Assert.Single(takip.KanalKartBorclari!).Tutar);
-        Assert.All(new OturumluViewModel[] { takip, kontrol, cekler }, vm =>
+        Assert.All(new OturumluViewModel[] { takip, cekler }, vm =>
         {
             Assert.True(vm.VeriEski);
             Assert.True(vm.GovdeGorunur);
             Assert.NotNull(vm.Hata);
         });
-        Assert.Single(kontrol.Gecmis);
         Assert.NotNull(cekler.Ozet);
 
         // Gün seçimi de (takip ucundan) hata verirse kanal satırlarındaki kart borçları silinmez.
@@ -294,37 +313,34 @@ public class AnaSayfaVeRaporIptalTests
         api.AnaSayfaGetir = (_, _) => Task.FromException<AnaSayfaDto>(new HttpRequestException());
         await panel.YukleAsync();
         Assert.True(panel.VeriEski);
-        Assert.All(new OturumluViewModel[] { takip, kontrol, cekler }, vm => Assert.True(vm.VeriEski));
+        Assert.All(new OturumluViewModel[] { takip, cekler }, vm => Assert.True(vm.VeriEski));
         Assert.Equal(80m, panel.Kanallar[0].KartBorcu);
-        Assert.Single(kontrol.Gecmis);
+        Assert.NotNull(cekler.Ozet);
     }
 
-    /// <summary>Ekran denemesi H-1: Kasalar sayfası yeniden kurulunca (menüden dönüş) panel ve alt bölümleri (takip özeti, kasa
-    /// kontrolü, çekler) aynı oturumun son verisini eski (soluk) gösterir; panel ve alt bölümlerin yüklemesi hata verse de.</summary>
+    /// <summary>Ekran denemesi H-1: Kasalar sayfası yeniden kurulunca (menüden dönüş) panel ve alt bölümleri (takip özeti, çekler)
+    /// aynı oturumun son verisini eski (soluk) gösterir; panel ve alt bölümlerin yüklemesi hata verse de.</summary>
     [Fact]
     public async Task Kasalar_yeniden_kurulunca_panel_ve_alt_bolumler_son_veriyi_gosterir()
     {
         var auth = Editor();
         var api = new SahteApi { AnaSayfaGetir = (_, _) => Task.FromResult(new AnaSayfaDto(Panel(), new[] { Esik }, Ozet())) };
-        var kontrolApi = new KontrolSahtesi { Gecmis = [new KasaKontrolDto(1, DateTimeOffset.Now, 100, 100, 0, null)] };
         var cekApi = new CekTakipViewModelTests.Sahte();
-        (PanelViewModel Panel, TakipOzetViewModel Takip, KasaKontrolViewModel Kontrol, CekOzetViewModel Cekler) Kur()
+        (PanelViewModel Panel, TakipOzetViewModel Takip, CekOzetViewModel Cekler) Kur()
         {
             var p = new PanelViewModel(api, auth: auth);
             var t = new TakipOzetViewModel(new FinansTakipTests.Sahte { OzetHatasi = new HttpRequestException() }, auth);
-            var k = new KasaKontrolViewModel(kontrolApi, auth);
             var c = new CekOzetViewModel(cekApi, auth);
-            p.AltBolumleriBagla(t, k, c);
-            return (p, t, k, c);
+            p.AltBolumleriBagla(t, c);
+            return (p, t, c);
         }
         var ilk = Kur();
         await ilk.Panel.YukleAsync();
         await ilk.Panel.AltBolumYuklemesi;
         api.AnaSayfaGetir = (_, _) => Task.FromException<AnaSayfaDto>(new HttpRequestException());
-        kontrolApi.GecmisHatasi = new HttpRequestException();
         cekApi.OzetHatasi = new HttpRequestException();
 
-        var (panel, takip, kontrol, cekler) = Kur();
+        var (panel, takip, cekler) = Kur();
         await panel.YukleAsync();
 
         Assert.True(panel.VeriVar);
@@ -332,9 +348,8 @@ public class AnaSayfaVeRaporIptalTests
         Assert.Equal(900, panel.GuncelKasa);
         Assert.Equal(120m, panel.Kanallar[0].KartBorcu);
         Assert.Contains("120,00", takip.Ozet);
-        Assert.Single(kontrol.Gecmis);
         Assert.NotNull(cekler.Ozet);
-        Assert.All(new OturumluViewModel[] { takip, kontrol, cekler }, vm =>
+        Assert.All(new OturumluViewModel[] { takip, cekler }, vm =>
         {
             Assert.True(vm.VeriEski);
             Assert.True(vm.GovdeGorunur);
@@ -345,9 +360,10 @@ public class AnaSayfaVeRaporIptalTests
     {
         public int GecmisCagri, EsikCagri;
         public Exception? EsikHatasi, GecmisHatasi;
+        public bool EsikAltinda;
         public IReadOnlyList<KasaKontrolDto> Gecmis = Array.Empty<KasaKontrolDto>();
         public Task<IReadOnlyList<KasaKontrolDto>> KasaKontrolleriAsync() { GecmisCagri++; return GecmisHatasi is { } e ? Task.FromException<IReadOnlyList<KasaKontrolDto>>(e) : Task.FromResult(Gecmis); }
-        public Task<IReadOnlyList<KasaEsikDto>> KasaEsikleriAsync() { EsikCagri++; return EsikHatasi is { } e ? Task.FromException<IReadOnlyList<KasaEsikDto>>(e) : Task.FromResult<IReadOnlyList<KasaEsikDto>>(new[] { Esik with { EsikAltinda = false } }); }
+        public Task<IReadOnlyList<KasaEsikDto>> KasaEsikleriAsync() { EsikCagri++; return EsikHatasi is { } e ? Task.FromException<IReadOnlyList<KasaEsikDto>>(e) : Task.FromResult<IReadOnlyList<KasaEsikDto>>(new[] { Esik with { EsikAltinda = EsikAltinda } }); }
         public Task<KasaEsikDto> KasaEsigiKaydetAsync(int kanalId, KasaEsikYaz girdi) => throw new NotSupportedException();
         public Task<KasaKontrolOnizlemeDto> KasaKontrolOnizleAsync(KasaKontrolOnizle girdi) => throw new NotSupportedException();
         public Task<KasaKontrolDto> KasaKontrolKaydetAsync(KasaKontrolYaz girdi) => throw new NotSupportedException();
