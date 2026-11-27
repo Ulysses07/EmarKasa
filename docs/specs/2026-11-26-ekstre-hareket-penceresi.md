@@ -117,7 +117,7 @@ Kullanıcı Ekstre İçe Aktar ekranını kullandı ve üç şikâyeti var:
   uygulama alanlarını küçük bir pencerede açar), "Yok say" (işaretliler, bugünkü onayla), birincil düğme
   **"Etkisini göster ve kaydet"**.
 - **Etki ve kayıt:** "Etkisini göster ve kaydet" bugünkü önizlemeyi çalıştırır. Sonuç sağ panelde "Kayıt özeti" olarak açılır:
-  önizleme metni, benzer kayıt onayı (gerekirse), "Seçilen satırları, kanal paylarını ve kasa etkisini kontrol ettim" onayı,
+  toplamlar, kanal bazında kasa etkisi ve varsa uyarılar (tablo düzeni: docs/specs/2026-11-26-slop-temizligi.md §9), benzer kayıt onayı (gerekirse), "Seçilen satırları, kanal paylarını ve kasa etkisini kontrol ettim" onayı,
   "Kaydet". Önizleme hataları satır bağlantılı listede durur; "Satıra git" tabloyu o satıra kaydırıp paneli açar.
 - **Boş ve yükleniyor durumları:** belge okunamadıysa tablo yerine tek cümle ve "Kaynak dosyayı indir". Yapay zekâ çalışırken başlığın
   altında ince bir satır: "Yapay zekâ 114 satırı dolduruyor…"; bitince "Yapay zekâ 98 satırı doldurdu" (birkaç saniye sonra

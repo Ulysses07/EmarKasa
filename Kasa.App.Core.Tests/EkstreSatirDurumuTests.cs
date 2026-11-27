@@ -45,7 +45,7 @@ public partial class EkstreAktarmaTests
         await vm.OnizleCommand.ExecuteAsync(null);
         Assert.True(vm.OnizlemeVar);
         Assert.Equal(2, gosterim);
-        Assert.Contains("· Gider", vm.OnizlemeMetni);
+        Assert.Contains(vm.OzetToplamlari, s => s.Baslik == "Gider");
     }
 
     [Fact]

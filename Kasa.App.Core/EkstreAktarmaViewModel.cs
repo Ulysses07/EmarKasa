@@ -30,7 +30,6 @@ public partial class EkstreAktarmaViewModel(IEkstreAktarmaApi api, IKasaApi fina
     [ObservableProperty] private KartTakipDto? _kart;
     [ObservableProperty] private EkstreBelgeDto? _belge;
     [ObservableProperty] private EkstreSatirEditor? _seciliSatir;
-    [ObservableProperty] private string _onizlemeMetni = "";
     [ObservableProperty] private bool _onay;
     [ObservableProperty] private bool _tekrarOnay;
     /// <summary>Kaydetme yapılamadıysa nedeni (kaydet düğmesinin altında).</summary>
@@ -78,7 +77,7 @@ public partial class EkstreAktarmaViewModel(IEkstreAktarmaApi api, IKasaApi fina
         _formSurumu++;
         _onizleme = null;
         _onizlemeGirdi = null;
-        OnizlemeMetni = "";
+        OzetiYansit(null);
         KayitHatasi = null;
         Onay = false;
         TekrarOnay = false;
@@ -381,15 +380,11 @@ public partial class EkstreAktarmaViewModel(IEkstreAktarmaApi api, IKasaApi fina
         _onizlemeForm = rev;
         Onay = false;
         TekrarOnay = false;
-        OnizlemeMetni = $"{p.Satirlar.Count} satır kaydedilecek. Genel kasa etkisi: {Bicim.Tl(p.KasaEtkisi)} ₺\n" + string.Join("\n", p.Uyarilar) + "\n\n" + string.Join("\n\n", p.Satirlar.Select(s => $"Satır {s.SatirNo} · {s.Tarih:dd.MM.yyyy} · {s.Aciklama} · {Bicim.Tl(s.Tutar)} ₺ · {TurAdi(s.IslemTuru)}\nKasa etkisi: {Bicim.Tl(s.KasaEtkisi)} ₺ · {Dagilim(g.Satirlar.Single(x => x.SatirNo == s.SatirNo), s)}\n{string.Join("\n", s.Uyarilar)}"));
+        OzetiYansit(EkstreKayitOzeti.Kur(p, Satirlar.FirstOrDefault()?.IslemTurleri ?? [], Kanallar));
         OnPropertyChanged(nameof(OnizlemeVar));
         OnPropertyChanged(nameof(TekrarOnayGerekli));
         SonucuGoster(EkstreSonucu.Onizleme);
     }, hataIsle: OnizlemeHatasiniYaz);
-    private string TurAdi(string kod) => Satirlar.SelectMany(s => s.IslemTurleri).FirstOrDefault(t => t.Kod == kod)?.Ad ?? kod;
-    private static string Dagilim(EkstreSatirYaz girdi, EkstreSatirOnizleme satir) => girdi.IslemTuru == EkstreIslemTurleri.Eslestir
-        ? $"Mevcut kayıtla eşleşir ({EslesmeAdayiSatiri.TurAdi(girdi.EslesenKayitTuru)} #{girdi.EslesenKayitId}); kasa ve kart borcu değişmez"
-        : girdi.DagilimTuru == DagilimBicimleri.Genel ? "Yalnız genel kasa" : TakipMetni.Paylar(satir.Dagilimlar);
     [RelayCommand]
     private Task KaydetAsync() => YurutAsync(async n =>
     {

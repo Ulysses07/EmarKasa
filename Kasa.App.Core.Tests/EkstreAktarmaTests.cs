@@ -424,7 +424,7 @@ public partial class EkstreAktarmaTests
         Assert.Contains("dağılım", Assert.Single(vm.OnizlemeHatalari).Ileti);
         s.DagilimTuru = s.DagilimTurleri.Single(x => x.Kod == "Genel");
         await vm.OnizleCommand.ExecuteAsync(null);
-        Assert.Contains("Yalnız genel kasa", vm.OnizlemeMetni);
+        Assert.Equal(EkstreKayitOzeti.GenelKasa, Assert.Single(vm.KanalEtkileri).Baslik);
     }
     [Fact]
     public async Task Pasif_yeni_karta_odeme_girilebilir_ve_belge_karti_formdan_bagimsiz_gosterilir()
@@ -517,7 +517,9 @@ public partial class EkstreAktarmaTests
         }
         public async Task<IndirmeBilgisi> EkstreSablonAsync(Stream hedef, CancellationToken ct = default) { await hedef.WriteAsync(new byte[] { 1 }, ct); return new("ornek.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", 1); }
         public async Task<IndirmeBilgisi> EkstreDosyaAsync(int id, Stream hedef, CancellationToken ct = default) { await hedef.WriteAsync(new byte[] { 1 }, ct); return new("belge.pdf", "application/pdf", 1); }
-        public Task<EkstreOnizlemeDto> EkstreOnizlemeAsync(int id, EkstreKaydetYaz g) { OnizlemeSayisi++; return OnizlemeYaniti ?? Task.FromResult(new EkstreOnizlemeDto("ozet", -g.Satirlar.Sum(s => s.Tutar), g.Satirlar.Select(s => new EkstreSatirOnizleme(s.SatirNo, s.Tarih, s.Aciklama, s.Tutar, s.IslemTuru, -s.Tutar, [], [])).ToArray(), [], TekrarGerekli)); }
+        public Task<EkstreOnizlemeDto> EkstreOnizlemeAsync(int id, EkstreKaydetYaz g) { OnizlemeSayisi++; return OnizlemeYaniti ?? Task.FromResult(new EkstreOnizlemeDto("ozet", -g.Satirlar.Sum(Etki), g.Satirlar.Select(s => new EkstreSatirOnizleme(s.SatirNo, s.Tarih, s.Aciklama, s.Tutar, s.IslemTuru, -Etki(s), [], [])).ToArray(), [], TekrarGerekli)); }
+        // Sunucu gibi: mevcut kayıtla eşleştirme kasayı değiştirmez.
+        private static decimal Etki(EkstreSatirYaz s) => s.IslemTuru == Kasa.Core.Kodlar.EkstreIslemTurleri.Eslestir ? 0 : s.Tutar;
         public Task<EkstreBelgeDto> EkstreKaydetAsync(int id, EkstreKaydetYaz g) { KaydetIstekleri.Add(g); if (KaydetHata) throw new HttpRequestException(); return KayitYaniti ?? Task.FromResult(Veri with { Surum = Veri.Surum + 1 }); }
         public List<EkstreYokSayYaz> YokSayIstekleri { get; } = [];
         public Func<EkstreYokSayYaz, EkstreBelgeDto>? YokSayYaniti;
@@ -561,7 +563,8 @@ public partial class EkstreAktarmaTests
         Assert.Equal(("Eslestir", "Eslesme", "Gider", (int?)42, (int?)null), (g.IslemTuru, g.DagilimTuru, g.EslesenKayitTuru, g.EslesenKayitId, g.KrediKartiId));
         Assert.Empty(g.Dagilimlar);
         await vm.OnizleCommand.ExecuteAsync(null);
-        Assert.Contains("kasa ve kart borcu değişmez", vm.OnizlemeMetni);
+        Assert.Contains(new EkstreOzetSatiri("Mevcut kayıtla eşleştir", "1 satır · kasa etkisi yok", 0), vm.OzetToplamlari);
+        Assert.False(vm.KanalEtkisiVar);
 
         // Tutar değişince adaylar yeniden sorulmalı; türden çıkınca bağ gönderilmez.
         s.TutarMetni = "90";

@@ -330,12 +330,13 @@ internal static class TakipUi
         // tutarla aynı satırda genişçe kalır.
         BindableLayout.SetItemTemplate(l, new DataTemplate(() =>
         {
+            // Eylemsiz listede eylem sütunu yoktur: boş sütunun aralığı tutar sütununu sağ kenardan (ve sütun başlığından) ayırıyordu.
             var satir = new Controls.UyumluIzgara
             {
                 ColumnSpacing = 16,
                 RowSpacing = 2,
                 Padding = new Thickness(0, 8),
-                ColumnDefinitions = { new(GridLength.Star), new(GridLength.Auto), new(GridLength.Auto) },
+                ColumnDefinitions = ac is null ? [new(GridLength.Star), new(GridLength.Auto)] : [new(GridLength.Star), new(GridLength.Auto), new(GridLength.Auto)],
                 DarSutunlar = [new(GridLength.Star), new(GridLength.Auto)],
                 DarEsik = SatirDarEsigi,
             };
