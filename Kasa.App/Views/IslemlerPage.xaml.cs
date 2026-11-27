@@ -3,8 +3,20 @@ using Kasa.ApiClient;
 
 namespace Kasa.App.Views;
 
-public partial class IslemlerPage : ContentPage, Controls.IYenilenebilir
+public partial class IslemlerPage : ContentPage, Controls.IYenilenebilir, Controls.IKisayolHedefi
 {
+    /// <summary>Ctrl+N boş forma döner (dar pencerede form bölmesi açılır), Ctrl+S formu kaydeder; yalnız editörde.</summary>
+    public System.Windows.Input.ICommand? KisayolKomutu(Controls.Kisayol kisayol) => !_vm.EditorMu ? null : kisayol switch
+    {
+        Controls.Kisayol.Yeni => Controls.Kisayollar.Komut(async () =>
+        {
+            await _vm.YeniCommand.ExecuteAsync(null);
+            IslemBolmeleri.IlkiAc();
+        }),
+        Controls.Kisayol.Kaydet => _vm.KaydetCommand,
+        _ => null,
+    };
+
     /// <summary>Kabuğun "Yeniden dene"si ve bağlantının geri gelmesi (tasarım 2026-10-02 §3).</summary>
     public Task YenileAsync() => _vm.YukleAsync();
 

@@ -32,7 +32,7 @@ public sealed class BildirimPage : TakipSayfasi<BildirimViewModel>
             TakipUi.Alan("Dakika", TakipUi.Girdi(nameof(vm.Dakika), sayi: true)),
             TakipUi.Birincil(TakipUi.Dugme("Ayarları kaydet", nameof(vm.KaydetCommand)))));
         Govde.Add(TakipUi.Kart("Hatırlatmalar", TakipUi.Liste<BildirimSatiri>(nameof(vm.Bildirimler), vm.OkunduAsync, "Okundu işaretle", x => !x.Veri.Okundu),
-            TakipUi.Tikla("Kartları aç", () => Shell.Current.GoToAsync("//kartlar")), TakipUi.Tikla("Kredileri aç", () => Shell.Current.GoToAsync("//krediler"))));
+            TakipUi.DugmeSatiri(TakipUi.Tikla("Kartları aç", () => Shell.Current.GoToAsync("//kartlar")), TakipUi.Tikla("Kredileri aç", () => Shell.Current.GoToAsync("//krediler")))));
         Govde.Add(TakipUi.Kart("İzin verilmiş cihazlar",
 #if WINDOWS
             TakipUi.Metin("Tarayıcı da kayıtlıysa bildirim iki kez gelir; tarayıcı kaydını buradan kapatın."),

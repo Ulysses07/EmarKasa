@@ -100,11 +100,12 @@ public class DugmeVeRenkKurallariTests
     }
 
     /// <summary>Sayfa (ve durumu) ile görünmesi beklenen ana düğme sayısı: form açıkken formun kaydı, form yokken hiç (liste sayfası sakin
-    /// kalır) ya da sayfanın tek asıl işi (Rapor'da dışa aktarma, Bildirimler'de ayarların kaydı).</summary>
+    /// kalır; formlar yalnız istenince açılır, §8) ya da sayfanın tek asıl işi (Rapor'da dışa aktarma, Bildirimler'de ayarların kaydı).</summary>
     public static TheoryData<string, int> TakipSayfalari => new()
     {
-        { "Kartlar", 0 }, { "Kartlar · ödeme formu", 0 }, { "Kartlar · kart bilgisi", 1 }, { "Krediler", 1 }, { "Krediler · seçili", 0 },
-        { "Krediler · yeni", 1 }, { "Çekler", 0 }, { "Çekler · yeni", 1 }, { "Aylık giderler", 0 }, { "Aylık giderler · yeni şablon", 0 },
+        { "Kartlar", 0 }, { "Kartlar · ödeme formu", 0 }, { "Kartlar · kart bilgisi", 1 }, { "Krediler", 0 }, { "Krediler · seçili", 0 },
+        { "Krediler · seçili · erken kapama", 1 }, { "Krediler · yeni", 1 }, { "Çekler", 0 }, { "Çekler · yeni", 1 }, { "Aylık giderler", 0 },
+        { "Aylık giderler · yeni şablon", 1 },
         { "Cariler", 0 }, { "Bildirimler", 1 }, { "Rapor", 1 },
     };
 
@@ -138,13 +139,15 @@ public class DugmeVeRenkKurallariTests
                     }
                     return sayfa;
                 }
-            case "Krediler" or "Krediler · seçili" or "Krediler · yeni":
+            case "Krediler" or "Krediler · seçili" or "Krediler · seçili · erken kapama" or "Krediler · yeni":
                 {
                     var vm = new KrediTakipViewModel(new FinansTakipTests.Sahte(), Finans(), Editor());
                     await vm.YukleAsync();
                     var sayfa = new KrediTakipPage(vm);
-                    if (ad.EndsWith("seçili", StringComparison.Ordinal))
+                    if (ad.Contains("seçili", StringComparison.Ordinal))
                         await vm.SecCommand.ExecuteAsync(vm.Krediler[0]);
+                    if (ad.EndsWith("kapama", StringComparison.Ordinal))
+                        vm.KapamaAcCommand.Execute(null);
                     if (ad.EndsWith("yeni", StringComparison.Ordinal))
                         await vm.YeniCommand.ExecuteAsync(null);
                     return sayfa;

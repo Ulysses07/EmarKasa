@@ -70,7 +70,8 @@ public static class MauiProgram
         builder.Services.AddSingleton<IBildirimGosterici>(WinUI.WindowsBildirimGosterici.Ortak);
         builder.Services.AddSingleton<BildirimTiklamalari>(WinUI.WindowsBildirimGosterici.Ortak.Tiklamalar);
         // Pencere kapanınca bildirim kaydı kaldırılır (ProcessExit her kapanışta tetiklenmez; Bitir birden çok çağrılabilir).
-        builder.ConfigureLifecycleEvents(olaylar => olaylar.AddWindows(windows => windows.OnClosed((_, _) =>
+        // Klavye kısayolları (F5, Ctrl+N, Ctrl+S, Ctrl+F; sadeleştirme §8) pencere kökünde dinlenir.
+        builder.ConfigureLifecycleEvents(olaylar => olaylar.AddWindows(windows => windows.OnWindowCreated(WinUI.KlavyeKisayollari.Bagla).OnClosed((_, _) =>
         {
             WinUI.WindowsBildirimGosterici.Ortak.Bitir();
             IPlatformApplication.Current?.Services.GetService<BaglantiDurumu>()?.Dispose();

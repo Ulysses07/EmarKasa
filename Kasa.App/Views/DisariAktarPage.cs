@@ -22,18 +22,49 @@ public sealed class DisariAktarPage : ContentPage, Controls.IYenilenebilir
         var form = new VerticalStackLayout { Spacing = 12 };
         form.SetBinding(IsVisibleProperty, nameof(vm.VeriHazir));
         form.SetBinding(IsEnabledProperty, nameof(vm.Mesgul), converter: new Converters.TersIseConverter());
-        form.Add(Alan("Başlangıç tarihi", Tarih(nameof(vm.Baslangic))));
-        form.Add(Alan("Bitiş tarihi", Tarih(nameof(vm.Bitis))));
-        var kanal = new Picker { Title = "Tüm kanallar", ItemDisplayBinding = new Binding("Ad") };
-        kanal.SetBinding(Picker.ItemsSourceProperty, nameof(vm.Kanallar));
-        kanal.SetBinding(Picker.SelectedItemProperty, nameof(vm.Kanal));
+        // Tarih aralığı yan yana; kanal seçicisinin ilk seçeneği "Tüm kanallar"; biçim seçimi ve tek "Dışa aktar" (sadeleştirme §8).
+        var tarihler = new Controls.UyumluIzgara { ColumnSpacing = 12, RowSpacing = 12, ColumnDefinitions = { new(GridLength.Star), new(GridLength.Star) } };
+        tarihler.Add(Alan("Başlangıç tarihi", Tarih(nameof(vm.Baslangic))));
+        tarihler.Add(Alan("Bitiş tarihi", Tarih(nameof(vm.Bitis))), 1);
+        form.Add(tarihler);
+        // Seçenekler yeniden dizilirken (yenileme listeyi boşaltıp doldurur) seçim modele yazılmaz; seçili kanal modelde korunur.
+        var kanal = new Picker { ItemDisplayBinding = new Binding(nameof(KanalSecenegi.Ad)) };
+        var doluyor = false;
+        void KanallariDoldur()
+        {
+            doluyor = true;
+            try
+            {
+                List<KanalSecenegi> secenekler = [new("Tüm kanallar", null), .. vm.Kanallar.Select(k => new KanalSecenegi(k.Ad, k))];
+                kanal.ItemsSource = secenekler;
+                kanal.SelectedItem = secenekler.FirstOrDefault(s => s.Kanal is { } k && k.Id == vm.Kanal?.Id) ?? secenekler[0];
+            }
+            finally { doluyor = false; }
+        }
+        KanallariDoldur();
+        vm.Kanallar.CollectionChanged += (_, _) => KanallariDoldur();
+        vm.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(vm.Kanal) && (kanal.SelectedItem as KanalSecenegi)?.Kanal?.Id != vm.Kanal?.Id)
+                KanallariDoldur();
+        };
+        kanal.SelectedIndexChanged += (_, _) =>
+        {
+            if (!doluyor)
+                vm.Kanal = (kanal.SelectedItem as KanalSecenegi)?.Kanal;
+        };
         form.Add(Alan("Kanal", kanal));
-        var temizle = new Button { Text = "Tüm kanallar", HorizontalOptions = LayoutOptions.Start };
-        temizle.Clicked += (_, _) => vm.Kanal = null;
-        form.Add(temizle);
-        form.Add(TakipUi.Birincil(Indir("Excel (.xlsx) kaydet", "xlsx")));
-        form.Add(Indir("CSV kaydet", "csv"));
-        form.Add(Indir("Yazdır / PDF kaydet", "html"));
+        var bicim = new Picker { ItemsSource = Bicimler.Select(b => b.Ad).ToList(), SelectedIndex = 0 };
+        form.Add(Alan("Biçim", bicim));
+        var aktar = TakipUi.Birincil(new Button { Text = "Dışa aktar", HorizontalOptions = LayoutOptions.Start });
+        aktar.Clicked += async (_, _) =>
+        {
+            if (_vm.Mesgul || bicim.SelectedIndex < 0)
+                return;
+            var kod = Bicimler[bicim.SelectedIndex].Kod;
+            await DosyaIslemleri.IndirVeKaydetAsync(this, hedef => _vm.IndirAsync(kod, hedef), kod == "html");
+        };
+        form.Add(aktar);
         form.Add(TakipUi.Metin(DosyaIslemleri.YazdirmaAciklamasi));
         root.Add(new Border { Style = (Style)Application.Current.Resources["CardForm"], Content = form });
         Content = new ScrollView { Content = root };
@@ -50,17 +81,11 @@ public sealed class DisariAktarPage : ContentPage, Controls.IYenilenebilir
         v.SetBinding(DatePicker.DateProperty, yol);
         return v;
     }
-    private Button Indir(string text, string bicim)
-    {
-        var b = new Button { Text = text, HorizontalOptions = LayoutOptions.Start };
-        b.Clicked += async (_, _) =>
-        {
-            if (_vm.Mesgul)
-                return;
-            await DosyaIslemleri.IndirVeKaydetAsync(this, hedef => _vm.IndirAsync(bicim, hedef), bicim == "html");
-        };
-        return b;
-    }
+    private sealed record KanalSecenegi(string Ad, Kasa.ApiClient.KanalDto? Kanal);
+
+    /// <summary>Dışa aktarma biçimleri (sunucu kodu xlsx, csv; yazdırılabilir rapor html).</summary>
+    private static readonly (string Ad, string Kod)[] Bicimler = [("Excel", "xlsx"), ("CSV", "csv"), ("PDF (yazdırılabilir)", "html")];
+
     protected override async void OnAppearing()
     {
         base.OnAppearing();

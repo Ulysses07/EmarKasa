@@ -139,6 +139,18 @@ internal static class TakipUi
         return b;
     }
 
+    /// <summary>İlgili düğmeler yan yana (sığmazsa alt satıra kayar); düğmeler tam genişlikte alt alta dizilmez (sadeleştirme §8).</summary>
+    public static FlexLayout DugmeSatiri(params View[] dugmeler)
+    {
+        var satir = new FlexLayout { Wrap = Microsoft.Maui.Layouts.FlexWrap.Wrap, AlignItems = Microsoft.Maui.Layouts.FlexAlignItems.Center };
+        foreach (var d in dugmeler)
+        {
+            d.Margin = new Thickness(0, 0, 8, 8);
+            satir.Add(d);
+        }
+        return satir;
+    }
+
     /// <summary>Açık formun düğmesinin kenar rengi (Colors.xaml anahtarı): beyaz kart zeminine karşı en az 3:1 (kontrast testi).</summary>
     public const string AcikFormKenari = "Ink";
 
@@ -210,13 +222,13 @@ internal static class TakipUi
     /// <summary>Yalnız editörde VE <paramref name="gorunurYol"/> doğruyken görünen alan. Sarmalayıcının kendi görünürlüğü
     /// de koşula bağlanır: "editörde ama içi gizli" durumunda (ör. henüz belge yok) sarmalayıcı erken kapanır, dikey
     /// yığında (Spacing) boşluk bırakmaz. Tek koşula (yalnız "EditorMu") bağlı <see cref="Goster{T}"/> ile sarılmış içerik
-    /// bu sorunu yaşar: içi gizliyken kendisi görünür kalır (EK-01).</summary>
-    public static View Editor(View v, string gorunurYol)
+    /// bu sorunu yaşar: içi gizliyken kendisi görünür kalır (EK-01). <paramref name="nesne"/>: yol bir nesneyse dolu olması koşuldur.</summary>
+    public static View Editor(View v, string gorunurYol, bool nesne = false)
     {
         var cv = new ContentView { Content = v };
         cv.SetBinding(VisualElement.IsVisibleProperty, new MultiBinding
         {
-            Bindings = { new Binding("EditorMu"), new Binding(gorunurYol) },
+            Bindings = { new Binding("EditorMu"), new Binding(gorunurYol, converter: nesne ? new NesneVarConverter() : null) },
             Converter = new HepsiDoguConverter(),
         });
         return cv;

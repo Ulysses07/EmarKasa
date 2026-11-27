@@ -105,8 +105,9 @@
         </ScrollView>
     </Shell.FlyoutContent>
     <Shell.FlyoutFooter>
-        <Button Text="Uygulama güncellemeleri" Clicked="GuncellemelerTiklandi" Margin="12,8,12,16"
-                MinimumHeightRequest="44" Style="{StaticResource BtnSecondary}" />
+        <!-- Yalnız yeni sürüm bulununca görünür (sadeleştirme §8); el ile denetim Ayarlar → Uygulama kartında. -->
+        <Button x:Name="GuncellemeDugmesi" Text="Güncelleme var" Clicked="GuncellemelerTiklandi" Margin="12,8,12,16"
+                MinimumHeightRequest="44" IsVisible="False" Style="{StaticResource BtnSecondary}" />
     </Shell.FlyoutFooter>
 
     <ShellContent Route="login" ContentTemplate="{DataTemplate v:LoginPage}" FlyoutItemIsVisible="False" />

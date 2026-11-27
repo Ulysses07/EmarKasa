@@ -19,6 +19,6 @@ public sealed partial class EkstreAktarmaPage
         var olcum = Eylemler(Ikincil(Tikla("Banka kararlarıyla ölç", () => YapayZekaOlcAsync(EkstreKaynaklari.Banka))),
             Ikincil(Tikla("Kart kararlarıyla ölç", () => YapayZekaOlcAsync(EkstreKaynaklari.Kart))));
         var kart = Kart("Yapay zekâ", Bagli(nameof(Vm.YapayZekaMetni)), Goster(olcum, nameof(Vm.YapayZekaAcik)), FormHatasi(nameof(Vm.OlcumHatasi)));
-        Govde.Add(Editor(Goster(kart, nameof(Vm.YapayZekaGorunur))));
+        Govde.Add(Editor(kart, nameof(Vm.YapayZekaGorunur)));
     }
 }

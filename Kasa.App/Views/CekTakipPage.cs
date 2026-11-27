@@ -12,8 +12,16 @@ namespace Kasa.App.Views;
 /// SonrakiSatirlar). Hareket düğmeleri sunucunun izin verdiği türlerdir. Bildirimden //cekler?CekId={id}, panel kutusundan
 /// //cekler?Suzgec={CekHazirSuzgec} ile açılır; sayfa açıkken gelen istek hemen, değilse sayfa belirirken uygulanır (SorguSecimi).
 /// </summary>
-public sealed partial class CekTakipPage : TakipSayfasi<CekTakipViewModel>, IQueryAttributable
+public sealed partial class CekTakipPage : TakipSayfasi<CekTakipViewModel>, IQueryAttributable, Controls.IKisayolHedefi
 {
+    /// <summary>Ctrl+N "Yeni çek", Ctrl+S yalnız çek formu açıkken kaydeder.</summary>
+    public System.Windows.Input.ICommand? KisayolKomutu(Controls.Kisayol kisayol) => kisayol switch
+    {
+        Controls.Kisayol.Yeni => Vm.YeniCekCommand,
+        Controls.Kisayol.Kaydet when Vm.FormAcik => Vm.KaydetCommand,
+        _ => null,
+    };
+
     private readonly SorguSecimi _secim = new("CekId");
     private CekHazirSuzgec? _bekleyenSuzgec;
     private readonly View _ayrinti;
@@ -221,7 +229,7 @@ public sealed partial class CekTakipPage : TakipSayfasi<CekTakipViewModel>, IQue
             Alan("Vade", Tarih(nameof(vm.Vade)), h, nameof(vm.Vade)),
             Goster(Alan("Ödeneceği kasa", Secim(nameof(vm.CekKasaSecenekleri), nameof(vm.CekKasasi), "."), h, nameof(vm.CekKasasi)), nameof(vm.FormVerilen)),
             konum, Onay("Teminat çeki", nameof(vm.Teminat)), Alan("Not", Girdi(nameof(vm.Not)), h, nameof(vm.Not)),
-            ayni, kaydet, Dugme("Vazgeç", nameof(vm.FormuKapatCommand)));
+            ayni, DugmeSatiri(kaydet, Dugme("Vazgeç", nameof(vm.FormuKapatCommand))));
         return kart;
     }
 }

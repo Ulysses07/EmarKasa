@@ -20,9 +20,19 @@ public partial class PanelPage : ContentPage, Controls.IYenilenebilir
         // Alt bölümler her başarılı panel yüklemesinden sonra yenilenir; panelin ve kendi yüklemelerinin hatası son verilerini
         // silmez, kanal satırlarındaki kart borçları da kalır (PanelViewModel.AltBolumleriBagla; tasarım 2026-10-02 §3).
         _vm.AltBolumleriBagla(takip, kontrol, cekler);
-        var secim = new Controls.UyumluSatir { Spacing = 10 };
-        foreach (var gun in new[] { 7, 30 })
-            secim.Add(TakipUi.Tikla($"Önümüzdeki {gun} gün", async () => { takip.Gun = gun; _vm.TakipGunu = gun; await takip.YukleAsync(); }));
+        // Önümüzdeki 7 / 30 gün: seçili durumu olan çip (sadeleştirme §8); seçim düğmeleri iki ayrı düğme değil.
+        var gunler = new System.Collections.ObjectModel.ObservableCollection<SecimCipi> { new("7 gün") { Secili = _vm.TakipGunu == 7 }, new("30 gün") { Secili = _vm.TakipGunu != 7 } };
+        var secim = new Controls.CipGrubu { CipKenari = new Thickness(0, 0, 8, 0) };
+        BindableLayout.SetItemsSource(secim, gunler);
+        secim.SecCommand = new Command<SecimCipi>(async c =>
+        {
+            foreach (var g in gunler)
+                g.Secili = ReferenceEquals(g, c);
+            var gun = ReferenceEquals(c, gunler[0]) ? 7 : 30;
+            takip.Gun = gun;
+            _vm.TakipGunu = gun;
+            await takip.YukleAsync();
+        });
         // Y-3: gün düğmeleri de bölümün eski verisiyle birlikte soluk (bağlam kart üzerinden takip özeti).
         secim.Triggers.Add(TakipUi.EskiVeriSolugu(secim.GetType()));
         // KS-03: gösterge yalnız meşgulken, hata yalnız doluyken görünür; ikisi de boşken yer kaplamaz (87 px boşluk).
@@ -34,7 +44,7 @@ public partial class PanelPage : ContentPage, Controls.IYenilenebilir
         TakipUi.SonVeriGovdesi(icerik);   // son veri görünür, eski veride panel kartları gibi soluk
         var kart = TakipUi.Kart("Kart ve kredi takibi",
             secim, yukle, hata, icerik,
-            TakipUi.Tikla("Kartlar", () => Shell.Current.GoToAsync("//kartlar")), TakipUi.Tikla("Krediler", () => Shell.Current.GoToAsync("//krediler")));
+            TakipUi.DugmeSatiri(TakipUi.Tikla("Kartlar", () => Shell.Current.GoToAsync("//kartlar")), TakipUi.Tikla("Krediler", () => Shell.Current.GoToAsync("//krediler"))));
         kart.BindingContext = takip;
         PanelAlani.Add(kart);
         PanelAlani.Add(CekKutusu(cekler));

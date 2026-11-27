@@ -3,8 +3,16 @@ using Kasa.ApiClient;
 
 namespace Kasa.App.Views;
 
-public partial class AlislarPage : ContentPage, Controls.IYenilenebilir, IQueryAttributable
+public partial class AlislarPage : ContentPage, Controls.IYenilenebilir, IQueryAttributable, Controls.IKisayolHedefi
 {
+    /// <summary>Ctrl+N "+ Yeni alış" ile aynıdır; Ctrl+S yalnız alış formu düzenlenebilirken kaydeder.</summary>
+    public System.Windows.Input.ICommand? KisayolKomutu(Controls.Kisayol kisayol) => kisayol switch
+    {
+        Controls.Kisayol.Yeni => Controls.Kisayollar.Komut(YeniAlisAsync),
+        Controls.Kisayol.Kaydet when _vm.Duzenlenebilir => _vm.KaydetCommand,
+        _ => null,
+    };
+
     /// <summary>Kabuğun "Yeniden dene"si ve bağlantının geri gelmesi (tasarım 2026-10-02 §3).</summary>
     public Task YenileAsync() => _vm.YukleAsync();
 
@@ -60,7 +68,8 @@ public partial class AlislarPage : ContentPage, Controls.IYenilenebilir, IQueryA
             await DetayKaydirici.ScrollToAsync(AliciHesapAlani, ScrollToPosition.Start, true);
         }
     }
-    private async void YeniAlisTiklandi(object? sender, EventArgs e)
+    private async void YeniAlisTiklandi(object? sender, EventArgs e) => await YeniAlisAsync();
+    private async Task YeniAlisAsync()
     {
         if (!_vm.YeniCommand.CanExecute(null))
             return;

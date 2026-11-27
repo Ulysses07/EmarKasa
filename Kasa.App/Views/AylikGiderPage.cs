@@ -3,14 +3,27 @@ using static Kasa.App.Views.TakipUi;
 
 namespace Kasa.App.Views;
 
-public sealed class AylikGiderPage : TakipSayfasi<AylikGiderViewModel>
+public sealed class AylikGiderPage : TakipSayfasi<AylikGiderViewModel>, Controls.IKisayolHedefi
 {
+    /// <summary>Ctrl+N "Yeni şablon", Ctrl+S yalnız şablon formu açıkken kaydeder.</summary>
+    public System.Windows.Input.ICommand? KisayolKomutu(Controls.Kisayol kisayol) => kisayol switch
+    {
+        Controls.Kisayol.Yeni => Vm.YeniCommand,
+        Controls.Kisayol.Kaydet when Vm.SablonFormuAcik => Vm.SablonKaydetCommand,
+        _ => null,
+    };
+
     public AylikGiderPage(AylikGiderViewModel vm) : base(vm, "Aylık giderler", vm.YukleAsync)
     {
-        var ay = new Controls.UyumluSatir { Spacing = 10, Children = { Tikla("Önceki ay", () => vm.AyDegistirAsync(-1)), Tikla("Sonraki ay", () => vm.AyDegistirAsync(1)) } };
+        // Ay gezgini (Aylık sayfasıyla aynı "‹ Kasım 2026 ›"; sadeleştirme §8): ok tuşuna basınca ay hemen yüklenir.
+        var ayAdi = new Label { FontSize = 18, FontAttributes = FontAttributes.Bold, HorizontalOptions = LayoutOptions.Center, VerticalOptions = LayoutOptions.Center };
+        ayAdi.SetBinding(Label.TextProperty, nameof(vm.AyBasligi));
+        var gezgin = new Grid { ColumnSpacing = 10, ColumnDefinitions = { new(GridLength.Auto), new(GridLength.Star), new(GridLength.Auto) } };
+        gezgin.Add(AyOku("‹", "Önceki ay", () => vm.AyDegistirAsync(-1)));
+        gezgin.Add(ayAdi, 1);
+        gezgin.Add(AyOku("›", "Sonraki ay", () => vm.AyDegistirAsync(1)), 2);
         // AG-02: ödenmemiş satırda "Öde", ödenmiş satırda "Ödemeyi iptal et" (iptal gerekçe penceresiyle onay ister).
-        Govde.Add(Kart("Ayın giderleri", ay, Alan("Gösterilecek ay", Tarih(nameof(vm.AyTarihi))), Tikla("Seçilen ayı göster", vm.YukleAsync),
-            Goster(Metin("Listeyi görmek için “Seçilen ayı göster”e basın."), nameof(vm.AySecimiDegisti)), BagliBuyuk(nameof(vm.AyOzeti)),
+        Govde.Add(Kart("Ayın giderleri", gezgin, BagliBuyuk(nameof(vm.AyOzeti)),
             Liste<AylikGiderSatiri>(nameof(vm.Kayitlar), async s =>
             {
                 if (!vm.ListeGuncelMi())   // soluk (eski) listede iki düğme de aynı iletiyle durur
@@ -30,7 +43,7 @@ public sealed class AylikGiderPage : TakipSayfasi<AylikGiderViewModel>
             Alan("Gerçek ödeme tarihi", Tarih(nameof(vm.OdemeTarihi))), Alan("Not", Girdi(nameof(vm.OdemeNotu))),
             Alan("Ödeme onayı", Onay("Ödeme yapıldı, tutar ve kanal payları doğru.", nameof(vm.OdemeOnay)), o, nameof(vm.OdemeOnay)),
             Birincil(Dugme("Ödemeyi kaydet", nameof(vm.OdeCommand))));
-        Govde.Add(Editor(Goster(odemeFormu, nameof(vm.OdemeSecili))));
+        Govde.Add(Editor(odemeFormu, nameof(vm.OdemeSecili)));
 
         Govde.Add(Kart("Düzenli gider şablonları",
             Liste<AylikSablonSatiri>(nameof(vm.Sablonlar), vm.SablonSecAsync, "Şablonu düzenle", _ => vm.EditorMu),
@@ -50,8 +63,14 @@ public sealed class AylikGiderPage : TakipSayfasi<AylikGiderViewModel>
             Yardim("Yalnız genel kasa seçilirse kanallar değişmez. Eşit dağılım yalnız seçtiğiniz kanalları kullanır; sonradan eklenen kanal şablona girmez. "
                 + "Kaydedilmiş ödemelerin tutarı ve kanal payları sabit kalır; değişiklik seçilen aydan başlar. Kısa ayda ödeme günü ayın son günüdür."),
             Alan("Geçerli olacağı ay", Tarih(nameof(vm.GecerliAy))), Onay("Şablon etkin", nameof(vm.Aktif)),
-            Dugme("Şablonu kaydet", nameof(vm.SablonKaydetCommand)));
-        Govde.Add(Editor(sablonFormu));
+            DugmeSatiri(Birincil(Dugme("Şablonu kaydet", nameof(vm.SablonKaydetCommand))), Dugme("Vazgeç", nameof(vm.SablonKapatCommand))));
+        Govde.Add(Editor(sablonFormu, nameof(vm.SablonFormuAcik)));
+        // Açılan şablon formu görünür yere kaydırılır.
+        vm.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(vm.SablonFormuAcik) && vm.SablonFormuAcik)
+                Gorunur.Yap(sablonFormu, KaydirmaHesabi.FormKaydirmasi);
+        };
 
         vm.OdemeHatalari.GosterIstendi += (_, _) => Gorunur.HatayaGit(odemeFormu, vm.OdemeHatalari, odemeHataKutusu);
         vm.SablonHatalari.GosterIstendi += (_, _) => Gorunur.HatayaGit(sablonFormu, vm.SablonHatalari, sablonHataKutusu);
@@ -61,5 +80,16 @@ public sealed class AylikGiderPage : TakipSayfasi<AylikGiderViewModel>
         // Y-1: kayıt ya da iptalden sonra form kapanır ve sayfa kısalır; başarı iletisi (sayfa başında, ayın güncellenen satırı
         // hemen altında) görünür yere kaydırılır.
         vm.OdemeSonucuGosterIstendi += (_, _) => Gorunur.Yap(MesajSatiri, KaydirmaHesabi.FormKaydirmasi);
+    }
+
+    /// <summary>Ay gezgininin ok düğmesi (ekran okuyucuda "Önceki ay" / "Sonraki ay").</summary>
+    private static Button AyOku(string ok, string ad, Func<Task> git)
+    {
+        var dugme = Tikla(ok, git);
+        dugme.WidthRequest = 44;
+        dugme.Padding = 0;
+        dugme.FontSize = 20;
+        SemanticProperties.SetDescription(dugme, ad);
+        return dugme;
     }
 }

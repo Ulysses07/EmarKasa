@@ -98,6 +98,27 @@ public partial class AppShell : Shell
         _baglantiSeridi.YenidenDeneIstendi += async (_, _) => await ElleYenileAsync();
         baglanti.BaglantiGeldi += async (_, _) => await OtomatikYenileAsync();
         SetTitleView(this, _baglantiSeridi);
+        // Menü altındaki güncelleme düğmesi yalnız yeni sürüm varken görünür.
+        GuncellemeDugmesi.BindingContext = _guncellemeler;
+        GuncellemeDugmesi.SetBinding(IsVisibleProperty, nameof(UygulamaGuncellemeViewModel.GuncellemeVar));
+#if WINDOWS
+        // Masaüstünde gezinme çubuğu yalnız bağlantı koptuğunda (şerit için) görünür; sayfa başlığı sayfanın içindedir
+        // (SayfaBasligi), boş 48 px bant kalkar (sadeleştirme §8). iOS'ta menü düğmesi için çubuk kalır.
+        baglanti.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(BaglantiDurumu.Kopuk))
+                MainThread.BeginInvokeOnMainThread(GezinmeCubugunuAyarla);
+        };
+#endif
+    }
+
+    /// <summary>Açık sayfanın gezinme çubuğu: masaüstünde yalnız bağlantı kopukken görünür (giriş sayfası kendi ayarını korur).</summary>
+    private void GezinmeCubugunuAyarla()
+    {
+#if WINDOWS
+        if (CurrentPage is { } sayfa and not Views.LoginPage)
+            SetNavBarIsVisible(sayfa, _baglanti.Kopuk);
+#endif
     }
 
     private IEnumerable<object?> KurulumBaglamlari()
@@ -244,6 +265,7 @@ public partial class AppShell : Shell
     {
         base.OnNavigated(args);
         _menuModeli.RotaSecildi(args.Current?.Location?.OriginalString);
+        GezinmeCubugunuAyarla();
     }
 
     private async Task AcilistaYonlendirAsync()

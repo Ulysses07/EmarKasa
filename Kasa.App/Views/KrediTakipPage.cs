@@ -7,8 +7,16 @@ namespace Kasa.App.Views;
 /// <summary>Krediler. Kredi bildirimine tıklanınca //krediler?KrediId={id} ile açılır: liste yüklenir, kredi seçilir ve ayrıntısı
 /// görünür yere kaydırılır. Sayfa zaten açıkken gelen istek hemen, değilse sayfa belirirken uygulanır (SorguSecimi; KartTakipPage
 /// ile aynı desen).</summary>
-public sealed class KrediTakipPage : TakipSayfasi<KrediTakipViewModel>, IQueryAttributable
+public sealed class KrediTakipPage : TakipSayfasi<KrediTakipViewModel>, IQueryAttributable, Controls.IKisayolHedefi
 {
+    /// <summary>Ctrl+N "Kredi ekle", Ctrl+S yalnız yeni kredi formu açıkken kaydeder.</summary>
+    public System.Windows.Input.ICommand? KisayolKomutu(Controls.Kisayol kisayol) => kisayol switch
+    {
+        Controls.Kisayol.Yeni => Vm.YeniCommand,
+        Controls.Kisayol.Kaydet when Vm.YeniKredi => Vm.KaydetCommand,
+        _ => null,
+    };
+
     private readonly View _ozet;
     /// <summary>Yeni kredi formu ve genel hata kutusu: kaydetme başarısız olunca ilk hatalı alana kaydırılır (tasarım 2026-10-02 §1).</summary>
     private readonly View _yeniKredi, _hataKutusu;
@@ -58,7 +66,8 @@ public sealed class KrediTakipPage : TakipSayfasi<KrediTakipViewModel>, IQueryAt
                     await Kaydirici.ScrollToAsync(ozet, ScrollToPosition.Start, true);
             }),
             Editor(Dugme("Kredi ekle", nameof(vm.YeniCommand)))));
-        Govde.Add(ozet);
+        // Ayrıntı kartı yalnız kredi seçiliyken görünür (form kapalıyken boş "yeni kredi" kartı kalmaz).
+        Govde.Add(Goster(ozet, nameof(vm.KrediSecili)));
         const string h = nameof(vm.Hatalar);
         _hataKutusu = FormHatasi(h + ".Genel");
         _yeniKredi = Kart("Yeni kredi", _hataKutusu,
@@ -70,17 +79,23 @@ public sealed class KrediTakipPage : TakipSayfasi<KrediTakipViewModel>, IQueryAt
             Yardim("Tek kanal seçerseniz tutarın tamamı o kanala gider. Birden fazla kanalda kredi girişi ve her taksit eşit, kuruşları korunarak "
                 + "bölünür; seçili kanallar sonradan değişmez. Yeni kredi genel kasaya bir kez girer."),
             Alan("Kanallar", KanalSecimleri(nameof(vm.Kanallar)), h, nameof(vm.Kanallar)), Dugme("Tüm aktif kanalları seç", nameof(vm.TumKanallariSecCommand)),
-            Birincil(Dugme("Krediyi kaydet", nameof(vm.KaydetCommand))));
+            DugmeSatiri(Birincil(Dugme("Krediyi kaydet", nameof(vm.KaydetCommand))), Dugme("Vazgeç", nameof(vm.YeniKapatCommand))));
         vm.Hatalar.GosterIstendi += (_, _) => Gorunur.HatayaGit(_yeniKredi, vm.Hatalar, _hataKutusu);
-        Govde.Add(Editor(Goster(_yeniKredi, nameof(vm.YeniKredi))));
-        Govde.Add(Editor(Goster(Kart("Eski krediyi yeni takibe al",
+        Govde.Add(Editor(_yeniKredi, nameof(vm.YeniKredi)));
+        // Açılan yeni kredi formu görünür yere kaydırılır.
+        vm.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(vm.YeniKredi) && vm.YeniKredi)
+                Gorunur.Yap(_yeniKredi, KaydirmaHesabi.FormKaydirmasi);
+        };
+        Govde.Add(Editor(Kart("Eski krediyi yeni takibe al",
             Yardim("Eski kredi çekimi ikinci kez genel kasaya girmez. Geçmiş kanal bakiyeleri değişmez; ileri taksitler seçtiğiniz kanallara bölünür."),
             Alan("Geçiş tarihi", Tarih(nameof(vm.GecisTarihi))), KanalSecimleri(nameof(vm.Kanallar)),
             Dugme("Tüm aktif kanalları seç", nameof(vm.TumKanallariSecCommand)), Alan("Geçiş açıklaması", Girdi(nameof(vm.GecisAciklama))),
             Dugme("Geçiş farkını göster", nameof(vm.GecisOnizleCommand)), Bagli(nameof(vm.GecisOnizleme)),
             Onay("Farkı inceledim, geçişi onaylıyorum.", nameof(vm.GecisOnay)),
             Birincil(Dugme("Yeni takibi aç", nameof(vm.GecisiOnaylaCommand)))),
-            nameof(vm.EskiTakip))));
+            nameof(vm.EskiTakip)));
         Govde.Add(Goster(Kart("Taksit planı", Yardim("Kalan planlı ödeme kalan anapara değildir: bankadan anapara ve faiz ayrımı girilmediği için anapara tahmin edilmez."),
             Liste<TaksitSatiri>(nameof(vm.Taksitler), s => { vm.TaksitSecCommand.Execute(s); return Task.CompletedTask; }, "Düzenle", _ => vm.EditorMu && vm.YeniTakip)),
             nameof(vm.KrediSecili)));
@@ -91,16 +106,17 @@ public sealed class KrediTakipPage : TakipSayfasi<KrediTakipViewModel>, IQueryAt
             Onay("Bu taksidi plan değişikliğiyle iptal et", nameof(vm.TaksitIptal)) }
         };
         tarihTutar.SetBinding(IsEnabledProperty, nameof(vm.TaksitDuzenlenebilir));
-        Govde.Add(Editor(Goster(Kart("Taksit bilgisi", Metin("İşlenmiş taksidin tarihi ve tutarı değiştirilemez."), tarihTutar,
+        Govde.Add(Editor(Kart("Taksit bilgisi", Metin("İşlenmiş taksidin tarihi ve tutarı değiştirilemez."), tarihTutar,
             Alan("Not", Girdi(nameof(vm.TaksitNotu))), Alan("Değişiklik açıklaması", Girdi(nameof(vm.Gerekce))), Birincil(Dugme("Taksiti kaydet", nameof(vm.TaksitKaydetCommand)))),
-            nameof(vm.DuzenlenenTaksit), true)));
-        Govde.Add(Editor(Goster(Kart("Erken kapama", Alan("Kapama tarihi", Tarih(nameof(vm.KapatmaTarihi))), Alan("Bankanın kapama tutarı", Girdi(nameof(vm.KapatmaTutari), true)),
+            nameof(vm.DuzenlenenTaksit), nesne: true));
+        Govde.Add(Editor(Kart("Erken kapama", Alan("Kapama tarihi", Tarih(nameof(vm.KapatmaTarihi))), Alan("Bankanın kapama tutarı", Girdi(nameof(vm.KapatmaTutari), true)),
             Alan("Kapama açıklaması", Girdi(nameof(vm.Gerekce))), Bagli(nameof(vm.KapatmaOzeti)),
             Onay("Kapama tutarını ve kalan taksitlerin iptalini onaylıyorum.", nameof(vm.KapatmaOnay)),
-            Dugme("Erken kapamayı kaydet", nameof(vm.KapatCommand))),
-            nameof(vm.YeniTakip))));
-        Govde.Add(Editor(Goster(Kart("Arşiv",
+            DugmeSatiri(Birincil(Dugme("Erken kapamayı kaydet", nameof(vm.KapatCommand))), Dugme("Vazgeç", nameof(vm.KapamaKapatCommand)))),
+            nameof(vm.KapamaGorunur)));
+        Govde.Add(Editor(Dugme("Erken kapama", nameof(vm.KapamaAcCommand)), nameof(vm.KapamaAcilabilir)));
+        Govde.Add(Editor(Kart("Arşiv",
             Tikla("Arşiv durumunu değiştir", () => GerekceyleAsync("Kredi arşiv durumunu değiştir", (gerekce, _) => { vm.Gerekce = gerekce; return vm.DurumDegistirAsync(); }))),
-            nameof(vm.KrediSecili))));
+            nameof(vm.KrediSecili)));
     }
 }

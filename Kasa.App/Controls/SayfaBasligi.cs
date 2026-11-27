@@ -56,6 +56,7 @@ public class SayfaBasligi : VerticalStackLayout
         _sonGuncelleme = new Label { Style = Stil("LblPageSub") };
         YenileDugmesi = new Button { Text = "Yenile", Style = Stil("BtnKucuk"), VerticalOptions = LayoutOptions.Center };
         YenileDugmesi.Clicked += async (_, _) => await YenileAsync();
+        ToolTipProperties.SetText(YenileDugmesi, "Yenile (F5)");
         _sag = new HorizontalStackLayout { Spacing = 12, VerticalOptions = LayoutOptions.Center, Children = { _gosterge, YenileDugmesi } };
         // "Son güncelleme … güncel olmayabilir" uzundur: düğmelerin yanında değil, başlığın altındaki satırda (dar ekranda başlığı ezmez).
         var ust = new Grid
@@ -90,6 +91,22 @@ public class SayfaBasligi : VerticalStackLayout
 
     private static BindableProperty Ozellik(string ad, Type tur, object? varsayilan)
         => BindableProperty.Create(ad, tur, typeof(SayfaBasligi), varsayilan, propertyChanged: (s, _, _) => ((SayfaBasligi)s).Guncelle());
+
+    /// <summary>F5: düğme görünür ve iş sürmüyorsa düğmeyle aynı yenileme başlar; başladıysa true.</summary>
+    public bool YenileTetikle()
+    {
+        if (!YenileGorunur || Mesgul)
+            return false;
+        _ = GuvenliYenileAsync();
+        return true;
+    }
+
+    private async Task GuvenliYenileAsync()
+    {
+        try
+        { await YenileAsync(); }
+        catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"Sayfa yenilenemedi: {ex}"); }
+    }
 
     private async Task YenileAsync()
     {
