@@ -53,13 +53,15 @@ public partial class KasaKontrolViewModel(IKasaKontrolApi api, AuthViewModel aut
         if (EditorMu)
             FormAcik = true;
     }
-    /// <summary>"Vazgeç": girilen bakiye, açıklama ve fark önizlemesi temizlenip form kapanır (gizli formda kaydedilmemiş değişiklik
-    /// kalmaz). Tekrar anahtarı korunur: yanıtı belirsiz kalan kayıt aynı değerlerle yeniden gönderilirse sunucu ikinci kez işlemez.</summary>
+    /// <summary>"Vazgeç": girilen bakiye, açıklama, fark önizlemesi ve formun kayıt hatası temizlenip form kapanır (gizli formda
+    /// kaydedilmemiş değişiklik ve kapalı formun hatası kalmaz). Tekrar anahtarı korunur: yanıtı belirsiz kalan kayıt aynı değerlerle
+    /// yeniden gönderilirse sunucu ikinci kez işlemez.</summary>
     [RelayCommand]
     private void FormKapat()
     {
         FormuTemizle();
         FormAcik = false;
+        Hata = null;
     }
     private void FormuTemizle()
     {

@@ -57,9 +57,13 @@ public class KasaKontrolGorunumTests
         vm.Not = "Sayım";
         await vm.OnizleCommand.ExecuteAsync(null);
         Assert.Contains(Metinler(sayfa), m => m?.StartsWith("Sistemdeki genel kasa: 100,00 ₺", StringComparison.Ordinal) == true);
+        vm.Not = "";
+        await vm.KaydetCommand.ExecuteAsync(null);              // fark var, açıklama yok: hata başlıkta
+        Assert.Equal(KasaKontrolViewModel.NotZorunluMesaji, vm.Hata);
 
-        vm.FormKapatCommand.Execute(null);
+        vm.FormKapatCommand.Execute(null);                      // kapalı formun hatası kalmaz (ekran denemesi)
         Assert.False(vm.FormAcik);
+        Assert.Null(vm.Hata);
         Assert.Equal((0m, "", (string?)null), (vm.GercekBakiye, vm.Not, vm.Karsilastirma));
         Assert.DoesNotContain("Gerçek bakiye karşılaştırması", KartBasliklari(sayfa));
     }
