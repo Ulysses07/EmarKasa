@@ -13,6 +13,7 @@ public sealed partial class EkstreHareketPenceresi
     private PanelKipi _kip;
     private Border _panel = null!;
     private ContentView _panelIcerigi = null!, _panelAlti = null!;
+    private ScrollView _panelKaydirici = null!;
     private Label _panelBasligi = null!;
     private Button _panelKapat = null!;
     private View? _toplu, _kayitOzeti, _kayitEylemleri;
@@ -31,7 +32,7 @@ public sealed partial class EkstreHareketPenceresi
         _panelAlti = new ContentView { Padding = new Thickness(0, 10, 0, 0) };
         var yerlesim = new Grid { RowSpacing = 10, RowDefinitions = { new(GridLength.Auto), new(GridLength.Star), new(GridLength.Auto) } };
         yerlesim.Add(ust);
-        yerlesim.Add(new ScrollView { Content = _panelIcerigi }, 0, 1);
+        yerlesim.Add(_panelKaydirici = new ScrollView { Content = _panelIcerigi }, 0, 1);
         yerlesim.Add(_panelAlti, 0, 2);
         _panel = new Border
         {
@@ -78,6 +79,8 @@ public sealed partial class EkstreHareketPenceresi
             PanelKipi.KayitOzeti => ("Kayıt özeti", _kayitOzeti ??= KayitOzeti()),
             _ => ("", null),
         };
+        // Yeni içerik baştan görünür: özetin altındaki uyarıdan "Satıra git" satır formunu ortasından açıyordu.
+        _ = _panelKaydirici.ScrollToAsync(0, 0, false);
         _panelAlti.Content = kip == PanelKipi.KayitOzeti ? _kayitEylemleri ??= KayitEylemleri() : null;
         EtkiDugmesiniAyarla();
         _panel.IsVisible = true;
@@ -139,17 +142,42 @@ public sealed partial class EkstreHareketPenceresi
             git.Clicked += (_, _) => { if (git.BindingContext is EkstreSatirHatasi h) _vm.SatiraGit(h); };
             return new VerticalStackLayout { Spacing = 4, Children = { metin, git } };
         }));
+        // Özet tablo düzenindedir (docs/specs/2026-11-26-slop-temizligi.md §9): önce toplamlar, sonra kanal etkisi, varsa uyarılar.
+        var ozet = new VerticalStackLayout
+        {
+            Spacing = 16,
+            Children =
+            {
+                OzetTablosu("Toplam", "Kasa etkisi", Liste<EkstreOzetSatiri>(nameof(_vm.OzetToplamlari), bosMetin: false)),
+                Goster(OzetTablosu("Kanal", "Kasa etkisi", Liste<EkstreOzetSatiri>(nameof(_vm.KanalEtkileri), bosMetin: false)), nameof(_vm.KanalEtkisiVar)),
+                Goster(OzetTablosu("Uyarılar", null, Liste<EkstreOzetUyarisi>(nameof(_vm.OzetUyarilari), u =>
+                {
+                    _vm.SatiraGit(u);
+                    return Task.CompletedTask;
+                }, "Satıra git", gorunur: u => u.SatirNo is not null, bosMetin: false)), nameof(_vm.OzetUyarisiVar)),
+            }
+        };
         return new VerticalStackLayout
         {
             Spacing = 10,
             Children =
             {
                 Goster(hatalar, nameof(_vm.OnizlemeHataVar)),
-                Goster(Bagli(nameof(_vm.OnizlemeMetni)), nameof(_vm.OnizlemeVar)),
+                Goster(ozet, nameof(_vm.OnizlemeVar)),
                 // Seçim ya da satır değişince özet düşer: boş panel yerine ne yapılacağı.
                 Goster(Metin("Seçim değişti; etkiyi yeniden gösterin."), nameof(_vm.OnizlemeYenilenmeli)),
             }
         };
+    }
+
+    /// <summary>Özet tablosu: hareket tablosunun başlığı gibi gri sütun adları (solda bölüm, sağda tutar sütunu), altında satırlar.</summary>
+    private static View OzetTablosu(string sol, string? sag, View satirlar)
+    {
+        var baslik = new Grid { ColumnDefinitions = { new(GridLength.Star), new(GridLength.Auto) } };
+        baslik.Add(new Label { Text = sol, Style = Stil("LblRowSecondary") });
+        if (sag is not null)
+            baslik.Add(new Label { Text = sag, Style = Stil("LblRowSecondary"), HorizontalTextAlignment = TextAlignment.End }, 1);
+        return new VerticalStackLayout { Spacing = 0, Children = { baslik, satirlar } };
     }
 
     /// <summary>Kayıt özeti açıkken ana düğme özetin "Kaydet"idir; alt çubuğun düğmesi ikincile düşer.</summary>

@@ -110,7 +110,33 @@ Eşdeğerlik testleri yapıyı korumaya devam eder; görünüm beklentileri yeni
   penceresi). Sayfa `Controls.IKisayolHedefi` ile komutunu verir; Ctrl+S yalnız ilgili form açıkken vardır. Sayfa üstü pencere (silme
   onayı, güncellemeler) açıkken kısayol alttaki sayfaya gitmez. Tuş dinleyicisi `Platforms/Windows/KlavyeKisayollari.cs`.
 - Sonraya kalan (ayrı iş): Kasalar'daki kasa kontrolünün (alt limit, gerçek bakiye karşılaştırması, hareket dökümü) ayrı "Kasa kontrolü"
-  sayfasına taşınması ve ekstre kayıt özetinin yeniden düzeni. İkisi de yeni sayfa ve akış ister; bu PR yalnız yerleşimi sadeleştirir.
+  sayfasına taşınması ve ekstre kayıt özetinin yeniden düzeni (§9). İkisi de yeni sayfa ve akış ister; bu PR yalnız yerleşimi sadeleştirir.
+
+## §9 Ekstre kayıt özeti (PR 7)
+
+"Etkisini göster ve kaydet" sonrası sağ paneldeki "Kayıt özeti" seçilen her satırı ikinci kez düzyazıyla yazıyordu (34 satır için 34
+paragraf; satırın ayrıntısı soldaki tabloda zaten var). Özet artık üç tablodur; satırı `TakipUi.Liste` satırıdır (solda başlık ve gri
+özet, sağda işaretli ve renkli kasa etkisi), sütun adları hareket tablosunun başlığı gibi gri:
+
+- **Toplam:** ilk satır "34 satır kaydedilecek · Genel kasa etkisi" ve net etki; ardından satır formundaki tür sırasıyla her işlem türünün
+  satır sayısı ve kasa etkisi ("Gelir · 5 satır +16.354,02", "Gider · 29 satır −77.359,37"). Kasa etkisi olmayan tür (kart harcaması,
+  mevcut kayıtla eşleştirme) "kasa etkisi yok" der, tutarı gri 0,00. Tür adı kullanılır, çünkü karta ödeme gider değildir ama kasadan çıkar;
+  türlerin toplamı genel kasa etkisidir.
+- **Kanal:** kasa etkisinin kanallara dağılımı. Sunucunun satır başına kanal payları kasa etkisinin yönüyle (gider eksi) toplanır; kanala
+  dağıtılmayan etki "Yalnız genel kasa" satırındadır (satır formundaki dağılım seçeneğinin adı). Sıra: yalnız genel kasa, kanallar kendi
+  sırasıyla, listede olmayan pay ("Dağılım bekliyor", pasif kanal) sonda. Satırların toplamı genel kasa etkisidir. Kasa etkisi olmayan
+  satırın kanal payı kart borcunundur, sayılmaz; hiç kasa etkisi yoksa tablo görünmez.
+- **Uyarılar:** yalnız varsa. Aynı uyarı bir kez yazılır, başlığı satır numaralarıdır ("Satır 2, 3"; beşten fazlası "ve 4 satır daha");
+  "Satıra git" ilk satıra götürür. Seçimin tümüne ait uyarı ("Tüm seçim") sondadır.
+- Mali onay kutusu ("Satırları ve kasa etkisini kontrol ettim.") ve gerekirse benzer kayıt onayı yerinde kalır (§2, muhasebe kararı).
+  Kayıt özeti açıkken ana düğme özetin "Kaydet"idir (alt çubuğun düğmesi ikincil).
+- Eylemsiz `TakipUi.Liste` satırı geniş düzende de boş eylem sütunu bırakmaz: boş sütunun aralığı tutarı sütun başlığından 16 px içeride
+  bitiriyordu (dar pencerede tam genişlik açılan özette görünür). Panelin içeriği değişince kaydırıcı başa döner: özetin altındaki
+  uyarıdan "Satıra git" satır formunu ortasından açıyordu.
+- Hareket tablosundaki "yapay zekâ" kaynak etiketi yalnız öneri varsayılandan farklıyken görünür: belgeden okunan türü değiştirdiyse ya da
+  kanal seçtiyse. Belgenin türünü yalnız genel kasaya (ya da türün kendi dağılımına) yazan öneri satırların çoğudur (deneme belgesinde 53
+  satırın 34'ü), etiket bilgi taşımaz; yapay zekânın çalıştığı pencerenin durum satırında bir kez yazar. Yapay zekânın düzelttiği açıklama
+  fark sayılmaz: her satırda olur ve açıklama sütununda görünür. "hafıza", "kural" ve "ERP12" etiketleri değişmez.
 
 ## Korunacaklar
 
