@@ -284,9 +284,10 @@ public partial class EkstreAktarmaViewModel
             ? new EkstreSatirHatasi(no, m.Groups["ileti"].Value.Trim()) : new(null, s.Trim())));
 
     /// <summary>Hata listesinden satıra: Bekleyen sekmesine geçer, satırın düzenleyicisini açar, görünümden kaydırmasını ister.</summary>
-    public void SatiraGit(EkstreSatirHatasi hata)
+    public void SatiraGit(EkstreSatirHatasi hata) => SatiraGit(hata.SatirNo);
+    private void SatiraGit(int? satirNo)
     {
-        if (Satirlar.FirstOrDefault(s => s.Kaynak.No == hata.SatirNo) is not { } satir)
+        if (Satirlar.FirstOrDefault(s => s.Kaynak.No == satirNo) is not { } satir)
             return;
         SeciliSekme = satir.Kapali ? EkstreSekmesi.Kapanan : EkstreSekmesi.Bekleyen;
         SeciliSatir = satir;

@@ -26,11 +26,11 @@ public partial class EkstreAktarmaTests
     }
 
     /// <summary>Ekran, hücrenin son bildirimindeki değeri gösterir: öneri doldurulduktan sonra neden, kaynak ve tür bildirimleri güncel değeri vermeli
-    /// (görsel denemede hazır satırda "kontrol edin" kalıyordu).</summary>
+    /// (görsel denemede hazır satırda "kontrol edin" kalıyordu). Belge türü önermediği için yapay zekânın türü varsayılandan farklıdır, etiket görünür.</summary>
     [Fact]
     public async Task Doldurma_sonrasi_bildirimler_guncel_degeri_verir()
     {
-        var (vm, api, _) = await Hazir(new() { Veri = DurumBelgesi(Satir(1)) });
+        var (vm, api, _) = await Hazir(new() { Veri = DurumBelgesi(Satir(1) with { OnerilenIslem = EkstreIslemTurleri.Atla }) });
         var s = vm.Satirlar[0];
         var son = new Dictionary<string, object?>();
         s.PropertyChanged += (_, e) =>
@@ -183,7 +183,8 @@ public partial class EkstreAktarmaTests
             Oneriler = [HafizaOnerisi(1, dagilim: "Esit", kanallar: [2]), YzHazir(2), new(3, "Oneri", ["Satış"], EkstreIslemTurleri.Gelir, "Genel", [], "Kural"), Yok(4)],
         });
         Assert.Equal(["Gider · PERAKENDE", "Gider · Genel", "Gelir · Genel", "—"], vm.Satirlar.Select(s => s.TurKanalMetni));
-        Assert.Equal(["hafıza", "yapay zekâ", "kural", ""], vm.Satirlar.Select(s => s.KaynakEtiketi));
+        // Yapay zekâ belgenin türünü genel kasaya yazdı (varsayılan): etiket yok.
+        Assert.Equal(["hafıza", "", "kural", ""], vm.Satirlar.Select(s => s.KaynakEtiketi));
         Assert.Equal(["−100,00", "−100,00", "+1.500,00", "100,00"], vm.Satirlar.Select(s => s.TutarGosterimi));
         var s = vm.Satirlar[1];
         s.DagilimTuru = s.DagilimTurleri.Single(d => d.Kod == DagilimBicimleri.Esit);

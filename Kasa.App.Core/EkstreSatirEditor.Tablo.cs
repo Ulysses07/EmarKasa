@@ -19,13 +19,20 @@ public partial class EkstreSatirEditor
         _ => ""
     };
 
-    /// <summary>Satırı neyin doldurduğu: "hafıza", "yapay zekâ", "kural", "ERP12"; elle ya da okuyucunun önerisiyle kalan satırda boş.</summary>
+    /// <summary>Satırı neyin doldurduğu: "hafıza", "yapay zekâ", "kural", "ERP12"; elle ya da okuyucunun önerisiyle kalan satırda boş.
+    /// Yapay zekâ önerisi varsayılanla aynıysa da boştur (<see cref="YapayZekaVarsayilanda"/>).</summary>
     public string KaynakEtiketi => Kapali ? ""
         : _erpden ? "ERP12"
         : _hafizadan && HafizaVar ? "hafıza"
-        : _hafizadan && YapayZekaVar ? "yapay zekâ"
+        : _hafizadan && YapayZekaVar ? YapayZekaVarsayilanda ? "" : "yapay zekâ"
         : Oneri is { Durum: "Oneri" } o && IslemTuru?.Kod == o.IslemTuru ? "kural"
         : "";
+
+    /// <summary>Yapay zekâ belgeden okunan türü değiştirmedi ve kanal seçmedi (yalnız genel kasa ya da türün kendi dağılımı): satırların
+    /// çoğu böyle dolar, etiket bilgi taşımaz (docs/specs/2026-11-26-slop-temizligi.md §9). Yapay zekânın düzelttiği açıklama sayılmaz,
+    /// açıklama sütununda görünür. Yapay zekânın çalıştığı pencerenin durum satırında bir kez yazar.</summary>
+    private bool YapayZekaVarsayilanda => Oneri is { } o && o.IslemTuru == Kaynak.OnerilenIslem && o.KanalIds.Count == 0
+        && o.DagilimTuru is null or DagilimBicimleri.Genel or DagilimBicimleri.Otomatik;
 
     /// <summary>Açıklama hücresi: kapanan satırda kaydedilen (düzeltilmiş olabilir) açıklama, bekleyende düzenlenen açıklama.</summary>
     public string AciklamaGosterimi => Kayit?.Veri.Aciklama ?? Aciklama;

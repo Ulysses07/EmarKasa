@@ -266,7 +266,8 @@ public partial class EkstreAktarmaTests
         vm.Satirlar[0].Aciklama = "Düzenlenmiş taslak";
         await vm.OnizleCommand.ExecuteAsync(null);
         vm.Onay = true;
-        var onizleme = vm.OnizlemeMetni;
+        var onizleme = vm.OzetToplamlari.ToList();
+        Assert.NotEmpty(onizleme);
         var pencere = Pencere(vm);
         vm.SeciliSatir = vm.Satirlar[0];
         Assert.Contains(PanelGirdileri(pencere), e => e.Text == "Düzenlenmiş taslak");
@@ -277,7 +278,8 @@ public partial class EkstreAktarmaTests
         vm.SeciliSatir = vm.Satirlar[1];
         Assert.Contains(PanelGirdileri(pencere), e => e.Text == vm.Satirlar[1].Aciklama);
         Assert.Equal("Düzenlenmiş taslak", vm.Satirlar[0].Aciklama);
-        Assert.Equal((true, true, onizleme, 1), (vm.OnizlemeVar, vm.Onay, vm.OnizlemeMetni, api.OnizlemeSayisi));
+        Assert.Equal((true, true, 1), (vm.OnizlemeVar, vm.Onay, api.OnizlemeSayisi));
+        Assert.Equal(onizleme, vm.OzetToplamlari);
         Assert.Empty(api.KaydetIstekleri);
     }
 
