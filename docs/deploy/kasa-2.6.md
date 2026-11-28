@@ -2,9 +2,25 @@
 
 Kaynak: 26–27 Kasım 2026 işleri. 2.5.0'dan bu yana EmarKasa#68–#78.
 
-## Canlı yayın durumu
+## Canlı yayın durumu (28 Kasım 2026)
 
-Henüz yayımlanmadı. Etiket, Windows paketi ve sunucu güncellemesinin sonuçları yayından sonra buraya yazılır.
+`v2.6.0` etiketi `ccf288318404fa9346fa583ede8bd98600f94b6f` commit'ini gösterir (#79'un birleştirme commit'i; kaynak arşivi SHA-256
+`d4b5a473f81c5950f1b4f92cc37c38b99c2fb5e52f42da7f94a9c813d9bd5363`). Canlı `/health` başarılıdır; `/api/surum` yanıtında `surum` **2.6.0**,
+`minimumIstemci` **2.4.1**'dir. Çalışan imaj `sha256:19d8f161a24e9975cc7f5bdd366cd784acfe5fc33e3c051b4ba645f4cd55944b`; yayın manifesti
+`/opt/kasa/releases/20261128-2.6.0/kasa-2.6.0-published.json` içindedir.
+
+- **Ön denetim:** bağlamalar ve çalışan imaj 2.5.0 manifestiyle aynı, veritabanı bütünlüğü sağlam (31 migration, 57 tablo), diskte 46 GB boş.
+- **Prova:** canlı verinin ayrı kopyasında, dışa kapalı iç ağda 2.6.0 açıldı; migration 31 → 31, hiçbir tablonun kayıt sayısı değişmedi, günlükte hata yok.
+- **Canlı:** eski konteyner durduruldu, veri dizini ve güvenlik günlüğü dosya özetleriyle `/opt/kasa/releases/20261128-2.6.0/pre-upgrade` altına
+  kopyalandı; yeni imajla başlatıldı (kesinti 11 saniye). Bağlamalar, `.env` ve yapay zekâ ayarı (açık) değişmedi; kayıt tabloları aynı,
+  güvenlik günlüğünün kontrol dosyası tutarlı, günlükte hata yok. Migration olmadığı için yeni göç öncesi yedek oluşmadı.
+- **Geri dönüş imajı:** 2.5.0 imajı `kasa:geri-donus-2.6.0` etiketiyle saklandı (`sha256:d25c9bd4…acd`); `imaj-geri-donus-etiketi.txt` ve
+  `compose-onceki.yml` yayın dizinindedir.
+- **Windows:** [v2.6.0-windows](https://github.com/Ulysses07/EmarKasa/releases/tag/v2.6.0-windows) kararlı sürüm olarak yayımlandı (aynı commit;
+  iş akışında açılış, kurulum ve 2.6.0 → 2.6.1 güncelleme denemeleri geçti; imzasız). SHA-256: Setup
+  `c2c2e39b8ffaeb5f9afefb5d096beaee779dc00945c0b7443e284760568475f6`, full paket `e7b77f16f85bc57f8e25b1ebea72936f2d7bdeeaa7dd90c13ef89f6de2c10f77`,
+  ZIP `e4e62447467e31e8c1e25f6eaf02d09862dac9a2fc76e5a3bea451cedbd7341e`. Kurulu uygulama güncellemeyi buradan görür.
+- **Doğrulanmayan:** gerçek kullanıcı girişi ve kayıt akışı (canlı şifreyle giriş yapılmadı), iPhone. Sunucu dışı yedek hâlâ yapılandırılmadı.
 
 ## Değişiklikler
 
